@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biobazard3d - Documentation Technique Interactive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* Custom Styles for Chart Containers as per requirements */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        
+        /* Custom Scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d1d5db; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af; 
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+    </style>
+    <!-- Chosen Palette: Warm Neutrals with Amber Accents. 
+         Background: #fdfbf7 (Warm White/Cream)
+         Primary Text: #1f2937 (Gray-800)
+         Secondary Text: #4b5563 (Gray-600)
+         Accent: #d97706 (Amber-600) - Evokes 'Biohazard' warning colors but softer.
+         Secondary Accent: #059669 (Emerald-600) - For success/valid states.
+    -->
+
+    <!-- Application Structure Plan: 
+         1. Header: Project Identity & High-level Stack Summary.
+         2. Interactive Architecture Diagram: A clickable visual representation of the engine layers (Core, Scene, Renderer, Physics). This replaces a static list, allowing users to drill down into class responsibilities.
+         3. Technical Priorities Dashboard: Data visualizations (Radar & Doughnut) showing the engine's focus (Performance vs Abstraction) and component distribution.
+         4. Coding Standards Explorer: An interactive filterable list for the C++/Vulkan rules (Style, Perf, Memory), turning dry text into a checklist format.
+         5. Roadmap: A timeline view for the Editor tools.
+         Why: This structure transforms a linear markdown specification into a functional developer dashboard, making complex architectural constraints easier to digest and reference.
+    -->
+
+    <!-- Visualization & Content Choices:
+         1. Radar Chart (Chart.js): To visualize "Moteur Priorities" (Performance, Abstraction, Safety, etc.). Goal: Inform/Compare. Justification: Shows the trade-offs and focus of the engine design described in the text.
+         2. Doughnut Chart (Chart.js): "Distribution des Composants". Goal: Inform. Justification: Visualizes the breakdown of the bb3d namespace classes.
+         3. Interactive CSS Grid (Architecture): Replaces static diagrams. Goal: Organize/Relations. Justification: No SVG allowed, so structured HTML with JS interactions is used to show the hierarchy (Facade -> Logic -> Backend).
+         4. Filterable Cards (Standards): Replaces bullet points. Goal: Organize. Justification: Allows devs to quickly find rules about "Vulkan" or "Memory".
+    -->
+
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+<body class="bg-[#fdfbf7] text-gray-800 font-sans leading-relaxed selection:bg-amber-200">
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 bg-[#fdfbf7]/90 backdrop-blur border-b border-gray-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0 flex items-center gap-2">
+                        <i class="fa-solid fa-biohazard text-amber-600 text-2xl"></i>
+                        <span class="font-bold text-xl tracking-tight text-gray-900">biobazard3d</span>
+                        <span class="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">v0.1.0 Specs</span>
+                    </div>
+                </div>
+                <div class="hidden sm:flex sm:items-center sm:space-x-8">
+                    <button onclick="scrollToSection('overview')" class="text-gray-600 hover:text-amber-600 px-3 py-2 text-sm font-medium transition-colors">Vue d'ensemble</button>
+                    <button onclick="scrollToSection('architecture')" class="text-gray-600 hover:text-amber-600 px-3 py-2 text-sm font-medium transition-colors">Architecture</button>
+                    <button onclick="scrollToSection('standards')" class="text-gray-600 hover:text-amber-600 px-3 py-2 text-sm font-medium transition-colors">Standards</button>
+                    <button onclick="scrollToSection('roadmap')" class="text-gray-600 hover:text-amber-600 px-3 py-2 text-sm font-medium transition-colors">Roadmap</button>
+                </div>
+                <!-- Mobile menu button placeholder -->
+                <div class="flex items-center sm:hidden">
+                    <button class="text-gray-500 hover:text-gray-700">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero / Overview Section -->
+    <section id="overview" class="pt-10 pb-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+            <h1 class="text-4xl font-extrabold text-gray-900 sm:text-5xl sm:tracking-tight lg:text-6xl">
+                Moteur de Jeu <span class="text-amber-600">C++ / Vulkan</span>
+            </h1>
+            <p class="mt-5 max-w-xl mx-auto text-xl text-gray-500">
+                Spécifications techniques pour une architecture haute performance, modulaire et agnostique à l'OS.
+            </p>
+        </div>
+
+        <!-- KPI Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-amber-200 transition-all">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-medium text-gray-500">Langage</h3>
+                    <i class="fa-brands fa-cuttlefish text-blue-600 text-xl"></i>
+                </div>
+                <div class="text-2xl font-bold text-gray-900">C++20</div>
+                <p class="text-xs text-gray-500 mt-1">Smart Pointers & RAII</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-amber-200 transition-all">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-medium text-gray-500">Graphismes</h3>
+                    <i class="fa-solid fa-shapes text-red-600 text-xl"></i>
+                </div>
+                <div class="text-2xl font-bold text-gray-900">Vulkan 1.3+</div>
+                <p class="text-xs text-gray-500 mt-1">VMA & Pipeline PBR</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-amber-200 transition-all">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-medium text-gray-500">Assets</h3>
+                    <i class="fa-solid fa-box-open text-green-600 text-xl"></i>
+                </div>
+                <div class="text-2xl font-bold text-gray-900">gLTF 2.0</div>
+                <p class="text-xs text-gray-500 mt-1">Standard Industriel</p>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:border-amber-200 transition-all">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-sm font-medium text-gray-500">Namespace</h3>
+                    <i class="fa-solid fa-code text-purple-600 text-xl"></i>
+                </div>
+                <div class="text-2xl font-bold text-gray-900">bb3d</div>
+                <p class="text-xs text-gray-500 mt-1">Engine Core</p>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Chart 1: Focus Radar -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Philosophie du Moteur</h3>
+                <p class="text-sm text-gray-500 mb-6">Visualisation des priorités définies dans le cahier des charges.</p>
+                <div class="chart-container">
+                    <canvas id="radarChart"></canvas>
+                </div>
+            </div>
+            
+            <!-- Chart 2: Component Distribution -->
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Structure des Classes</h3>
+                <p class="text-sm text-gray-500 mb-6">Répartition estimée de la complexité par module.</p>
+                <div class="chart-container">
+                    <canvas id="doughnutChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Explorer Section -->
+    <section id="architecture" class="bg-white py-16 border-t border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="mb-10">
+                <h2 class="text-3xl font-extrabold text-gray-900">Architecture Modulaire</h2>
+                <p class="mt-4 text-lg text-gray-500">
+                    L'architecture vise une <span class="font-bold text-amber-600">opacité totale</span> des technologies sous-jacentes. Explorez les couches ci-dessous en cliquant sur les modules pour voir les classes associées.
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
+                <!-- Interactive Diagram (Left Col) -->
+                <div class="lg:col-span-2 space-y-4">
+                    
+                    <!-- Layer 1: App/User -->
+                    <div class="relative group">
+                        <div class="absolute -left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 -rotate-90">APP</div>
+                        <div onclick="showLayerDetails('app')" class="cursor-pointer bg-gray-50 border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-amber-400 hover:bg-amber-50 transition-all text-center">
+                            <h4 class="font-bold text-gray-700">Code Utilisateur (Jeu)</h4>
+                            <p class="text-xs text-gray-500">Manipule uniquement le namespace bb3d::</p>
+                        </div>
+                    </div>
+
+                    <!-- Arrow -->
+                    <div class="flex justify-center text-gray-300 text-xl"><i class="fa-solid fa-arrow-down"></i></div>
+
+                    <!-- Layer 2: Core Façade -->
+                    <div class="relative group">
+                        <div class="absolute -left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-amber-600 -rotate-90">CORE</div>
+                        <div onclick="showLayerDetails('core')" class="cursor-pointer bg-amber-600 text-white rounded-lg p-6 shadow-lg hover:bg-amber-700 transition-all transform hover:-translate-y-1 relative overflow-hidden">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <h4 class="text-xl font-bold"><i class="fa-solid fa-microchip mr-2"></i> bb3d::Engine</h4>
+                                    <p class="text-amber-100 text-sm mt-1">Façade principale & Point d'entrée unique</p>
+                                </div>
+                                <i class="fa-solid fa-chevron-right opacity-50"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Arrow -->
+                    <div class="flex justify-center text-gray-300 text-xl"><i class="fa-solid fa-arrow-down-long"></i></div>
+
+                    <!-- Layer 3: Subsystems Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 relative">
+                        <div class="absolute -left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-500 -rotate-90">SYSTEMS</div>
+                        
+                        <!-- Scene Graph -->
+                        <div onclick="showLayerDetails('scene')" class="cursor-pointer bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md hover:border-blue-400 transition-all border-l-4 border-l-blue-500">
+                            <h5 class="font-bold text-gray-800 mb-2"><i class="fa-solid fa-cubes text-blue-500 mr-2"></i>Scene Graph</h5>
+                            <p class="text-xs text-gray-500">Logique, Transforms, Caméras</p>
+                        </div>
+
+                        <!-- Resources -->
+                        <div onclick="showLayerDetails('resources')" class="cursor-pointer bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md hover:border-green-400 transition-all border-l-4 border-l-green-500">
+                            <h5 class="font-bold text-gray-800 mb-2"><i class="fa-solid fa-folder-tree text-green-500 mr-2"></i>Resources</h5>
+                            <p class="text-xs text-gray-500">Assets, Matériaux PBR, Textures</p>
+                        </div>
+
+                        <!-- Physics -->
+                        <div onclick="showLayerDetails('physics')" class="cursor-pointer bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md hover:border-purple-400 transition-all border-l-4 border-l-purple-500">
+                            <h5 class="font-bold text-gray-800 mb-2"><i class="fa-solid fa-atom text-purple-500 mr-2"></i>Physics</h5>
+                            <p class="text-xs text-gray-500">Collisions, RigidBodies (Jolt/Bullet)</p>
+                        </div>
+                    </div>
+
+                    <!-- Arrow -->
+                    <div class="flex justify-center text-gray-300 text-xl"><i class="fa-solid fa-arrow-down"></i></div>
+
+                    <!-- Layer 4: Backend (Hidden) -->
+                    <div class="relative group">
+                        <div class="absolute -left-4 top-1/2 -translate-y-1/2 text-xs font-bold text-red-600 -rotate-90">BACKEND</div>
+                        <div onclick="showLayerDetails('backend')" class="cursor-pointer bg-gray-800 text-gray-300 rounded-lg p-6 shadow-inner hover:bg-gray-700 transition-all border border-gray-600">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <h4 class="font-bold text-white"><i class="fa-solid fa-server mr-2"></i> Renderer Implementation</h4>
+                                    <p class="text-xs mt-1">Vulkan Device, SwapChain, Pipelines (Privé)</p>
+                                </div>
+                                <i class="fa-solid fa-lock text-red-500"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Info Panel (Right Col) -->
+                <div class="lg:col-span-1 bg-gray-50 rounded-xl p-6 border border-gray-200 shadow-inner flex flex-col h-full sticky top-24">
+                    <div id="info-panel-content">
+                        <div class="text-center text-gray-400 mt-10">
+                            <i class="fa-solid fa-computer-mouse text-4xl mb-4 animate-bounce"></i>
+                            <p>Cliquez sur un module à gauche pour voir les détails techniques et les classes associées.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Standards & Rules Explorer -->
+    <section id="standards" class="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="mb-10 flex flex-col md:flex-row md:items-end justify-between">
+            <div>
+                <h2 class="text-3xl font-extrabold text-gray-900">Normes de Développement</h2>
+                <p class="mt-4 text-lg text-gray-500">Règles strictes pour garantir la performance et la maintenance.</p>
+            </div>
+            
+            <!-- Filter Controls -->
+            <div class="mt-4 md:mt-0 bg-white p-1 rounded-lg border border-gray-200 inline-flex">
+                <button onclick="filterStandards('all')" class="filter-btn active px-4 py-2 text-sm font-medium rounded-md transition-colors bg-amber-100 text-amber-700">Tous</button>
+                <button onclick="filterStandards('cpp')" class="filter-btn px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 transition-colors">C++ Style</button>
+                <button onclick="filterStandards('vulkan')" class="filter-btn px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 transition-colors">Vulkan</button>
+                <button onclick="filterStandards('perf')" class="filter-btn px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 transition-colors">Performance</button>
+            </div>
+        </div>
+
+        <div id="standards-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <!-- Cards will be injected via JS -->
+        </div>
+    </section>
+
+    <!-- Roadmap Section -->
+    <section id="roadmap" class="bg-gray-900 text-white py-16">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 class="text-3xl font-extrabold mb-8"><i class="fa-solid fa-compass-drafting text-amber-500 mr-3"></i>Roadmap & Outils</h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                <div>
+                    <h3 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">Objectifs Immédiats</h3>
+                    <ul class="space-y-4">
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-6 w-6 rounded-full bg-green-500 flex items-center justify-center text-xs mt-0.5"><i class="fa-solid fa-check"></i></span>
+                            <span class="ml-3 text-gray-300">Structure du projet (Core, Renderer, Scene)</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-6 w-6 rounded-full bg-amber-500 flex items-center justify-center text-xs mt-0.5 animate-pulse"></span>
+                            <span class="ml-3 text-gray-300">Implémentation de <code>bb3d::Engine</code> (Abstraction SDL/Vulkan)</span>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 h-6 w-6 rounded-full bg-gray-700 border border-gray-500 flex items-center justify-center text-xs mt-0.5"></span>
+                            <span class="ml-3 text-gray-400">Rendu premier objet avec <code>Material</code> basique</span>
+                        </li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h3 class="text-xl font-bold mb-4 border-b border-gray-700 pb-2">Futur: bb3d::EngineEditor</h3>
+                    <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                        <p class="text-gray-400 text-sm mb-4">L'outillage sera séparé du Runtime. L'éditeur s'injectera comme une "Overlay".</p>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-gray-700 p-3 rounded">
+                                <div class="text-amber-400 font-bold text-sm">UI Framework</div>
+                                <div class="text-xs text-gray-300">ImGui (Backend Vulkan)</div>
+                            </div>
+                            <div class="bg-gray-700 p-3 rounded">
+                                <div class="text-amber-400 font-bold text-sm">Fonctions</div>
+                                <div class="text-xs text-gray-300">Gizmos, Inspecteur, Propriétés</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="bg-gray-100 py-8 border-t border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 text-center text-gray-500 text-sm">
+            <p>Généré d'après les spécifications du projet <strong>biobazard3d</strong>.</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript Implementation -->
+    <script>
+        // --- State Management ---
+        const state = {
+            activeLayer: null,
+            filter: 'all'
+        };
+
+        // --- Data Storage ---
+
+        // Architecture Details Data
+        const layerDetails = {
+            'app': {
+                title: 'Application Utilisateur',
+                icon: 'fa-user',
+                color: 'text-gray-700',
+                desc: 'Code du jeu utilisant le moteur.',
+                classes: ['main.cpp', 'GameLoop'],
+                responsibilities: [
+                    'Utilise uniquement le namespace bb3d',
+                    'Aucune dépendance directe à Vulkan/SDL headers'
+                ]
+            },
+            'core': {
+                title: 'bb3d::Engine',
+                icon: 'fa-microchip',
+                color: 'text-amber-600',
+                desc: 'Façade (Pattern PIMPL) et Orchestrateur.',
+                classes: ['Engine'],
+                responsibilities: [
+                    'Initialisation Fenêtre & Contexte',
+                    'Boucle Principale (Update/Render)',
+                    'Gestion du DeltaTime',
+                    'Façade pour loadAsset() et createScene()'
+                ]
+            },
+            'scene': {
+                title: 'Composants de Scène',
+                icon: 'fa-cubes',
+                color: 'text-blue-600',
+                desc: 'Représentation logique du monde.',
+                classes: ['Scene', 'Transform (GLM)', 'Camera (Base, Fps, Orbit)', 'Light (Dir, Point, Spot)', 'Skybox & Fog', 'Terrain (LOD)', 'ParticleSystem'],
+                responsibilities: [
+                    'Hiérarchie Parent/Enfant',
+                    'Calculs Matriciels (View/Projection)',
+                    'Culling (Frustum)'
+                ]
+            },
+            'resources': {
+                title: 'Ressources & Rendu Public',
+                icon: 'fa-folder-tree',
+                color: 'text-green-600',
+                desc: 'Description des assets et matériaux.',
+                classes: ['Material (PBR)', 'Model / Mesh', 'Texture', 'RenderTarget', 'SceneSerializer (gLTF)'],
+                responsibilities: [
+                    'Import/Export gLTF 2.0 (tinygltf)',
+                    'Workflow PBR Metallic-Roughness',
+                    'Animation Squelettique (VertexAnim)',
+                    'Rendu Off-screen'
+                ]
+            },
+            'physics': {
+                title: 'Physique & Collisions',
+                icon: 'fa-atom',
+                color: 'text-purple-600',
+                desc: 'Simulation découplée du rendu.',
+                classes: ['PhysicsWorld', 'RigidBody (Static, Dynamic)', 'Collider', 'CharacterController'],
+                responsibilities: [
+                    'Abstraction Backend (Jolt/Bullet)',
+                    'Step Simulation',
+                    'Interactions physiques'
+                ]
+            },
+            'backend': {
+                title: 'Backend Renderer',
+                icon: 'fa-server',
+                color: 'text-red-600',
+                desc: 'Implémentation Vulkan interne (Cachée).',
+                classes: ['VulkanDevice', 'SwapChain', 'VulkanRenderer', 'InputManager'],
+                responsibilities: [
+                    'Vulkan Memory Allocator (VMA)',
+                    'Pipeline Management & Shaders',
+                    'Shadow Mapping (CSM)',
+                    'Synchronisation (Barriers/Fences)'
+                ]
+            }
+        };
+
+        // Standards Data
+        const standardsData = [
+            { type: 'cpp', title: 'Smart Pointers', content: 'Utilisation exclusive de <code>std::unique_ptr</code> (propriété) et <code>std::shared_ptr</code> (assets). Pas de <code>new/delete</code>.', icon: 'fa-memory' },
+            { type: 'perf', title: 'Zero-Copy', content: 'Utiliser <code>std::string_view</code> et <code>std::span</code> pour passer des données sans allocation temporaire.', icon: 'fa-bolt' },
+            { type: 'vulkan', title: 'VMA', content: 'Vulkan Memory Allocator obligatoire pour toute gestion mémoire GPU.', icon: 'fa-database' },
+            { type: 'cpp', title: 'Conteneurs', content: '<code>std::vector</code> par défaut. <code>std::list</code> proscrite (Cache Misses).', icon: 'fa-box' },
+            { type: 'perf', title: 'Hot Path Safety', content: 'Aucune allocation dynamique dans la boucle <code>update()</code> ou <code>render()</code>.', icon: 'fa-triangle-exclamation' },
+            { type: 'vulkan', title: 'Portabilité', content: 'Code OS-Agnostic. Pas de headers Vulkan/SDL dans l\'API publique.', icon: 'fa-globe' },
+            { type: 'perf', title: 'Data-Oriented', content: 'Contiguïté mémoire pour les composants (Transform, RigidBody) pour optimiser le cache CPU.', icon: 'fa-layer-group' },
+            { type: 'cpp', title: 'Naming', content: '<code>PascalCase</code> (Classes), <code>camelCase</code> (Méthodes), <code>m_privé</code>.', icon: 'fa-font' },
+            { type: 'vulkan', title: 'Validation', content: 'Validation Layers Vulkan toujours actives en mode Debug.', icon: 'fa-bug' },
+        ];
+
+        // --- Core Functions ---
+
+        function scrollToSection(id) {
+            document.getElementById(id).scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Architecture Interaction
+        function showLayerDetails(layerKey) {
+            const data = layerDetails[layerKey];
+            const panel = document.getElementById('info-panel-content');
+            
+            // Animation reset
+            panel.style.opacity = 0;
+            
+            setTimeout(() => {
+                panel.innerHTML = `
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="p-3 bg-white rounded-lg shadow-sm">
+                            <i class="fa-solid ${data.icon} ${data.color} text-2xl"></i>
+                        </div>
+                        <h3 class="text-xl font-bold text-gray-900">${data.title}</h3>
+                    </div>
+                    <p class="text-gray-600 mb-6 border-l-4 border-amber-500 pl-3 italic">${data.desc}</p>
+                    
+                    <div class="mb-6">
+                        <h4 class="font-bold text-xs uppercase text-gray-400 tracking-wider mb-3">Classes Clés</h4>
+                        <div class="flex flex-wrap gap-2">
+                            ${data.classes.map(c => `<span class="px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono text-gray-700 shadow-sm">${c}</span>`).join('')}
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="font-bold text-xs uppercase text-gray-400 tracking-wider mb-3">Responsabilités</h4>
+                        <ul class="space-y-2">
+                            ${data.responsibilities.map(r => `<li class="flex items-start text-sm text-gray-600"><i class="fa-solid fa-check text-green-500 mt-1 mr-2 text-xs"></i>${r}</li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+                panel.style.opacity = 1;
+                panel.style.transition = "opacity 0.3s ease-in";
+            }, 100);
+        }
+
+        // Standards Filtering
+        function renderStandards() {
+            const container = document.getElementById('standards-grid');
+            container.innerHTML = '';
+            
+            const filtered = state.filter === 'all' 
+                ? standardsData 
+                : standardsData.filter(item => item.type === state.filter);
+
+            filtered.forEach(item => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:border-amber-400 transition-all group";
+                
+                let badgeColor = "bg-gray-100 text-gray-600";
+                if(item.type === 'perf') badgeColor = "bg-red-100 text-red-600";
+                if(item.type === 'vulkan') badgeColor = "bg-blue-100 text-blue-600";
+                if(item.type === 'cpp') badgeColor = "bg-yellow-100 text-yellow-700";
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="p-2 rounded-md ${badgeColor} group-hover:scale-110 transition-transform">
+                            <i class="fa-solid ${item.icon}"></i>
+                        </div>
+                        <span class="text-xs font-bold uppercase tracking-wide text-gray-300">${item.type}</span>
+                    </div>
+                    <h4 class="font-bold text-gray-900 mb-2">${item.title}</h4>
+                    <p class="text-sm text-gray-500">${item.content}</p>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function filterStandards(type) {
+            state.filter = type;
+            
+            // Update buttons
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                if (btn.getAttribute('onclick').includes(type)) {
+                    btn.className = "filter-btn active px-4 py-2 text-sm font-medium rounded-md transition-colors bg-amber-100 text-amber-700 shadow-sm";
+                } else {
+                    btn.className = "filter-btn px-4 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100 transition-colors";
+                }
+            });
+
+            renderStandards();
+        }
+
+        // --- Charts Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // 1. Radar Chart: Philosophy
+            const ctxRadar = document.getElementById('radarChart').getContext('2d');
+            new Chart(ctxRadar, {
+                type: 'radar',
+                data: {
+                    labels: ['Performance', 'Abstraction', 'Sécurité Mémoire', 'Portabilité', 'Richesse API'],
+                    datasets: [{
+                        label: 'Priorités biobazard3d',
+                        data: [95, 90, 85, 80, 70], // Estimated based on text emphasis
+                        backgroundColor: 'rgba(217, 119, 6, 0.2)',
+                        borderColor: 'rgba(217, 119, 6, 1)',
+                        pointBackgroundColor: 'rgba(217, 119, 6, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(217, 119, 6, 1)'
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: { color: 'rgba(0, 0, 0, 0.1)' },
+                            grid: { color: 'rgba(0, 0, 0, 0.1)' },
+                            pointLabels: {
+                                font: { size: 12, family: "'Inter', sans-serif" },
+                                color: '#4b5563'
+                            },
+                            suggestedMin: 0,
+                            suggestedMax: 100
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+
+            // 2. Doughnut Chart: Class Structure
+            const ctxDoughnut = document.getElementById('doughnutChart').getContext('2d');
+            new Chart(ctxDoughnut, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Core', 'Scene Logic', 'Rendering', 'Physics', 'Resources'],
+                    datasets: [{
+                        data: [1, 7, 5, 4, 5], // Approximate count of classes mentioned in GEMINI.md
+                        backgroundColor: [
+                            '#d97706', // Core (Amber)
+                            '#2563eb', // Scene (Blue)
+                            '#dc2626', // Rendering (Red)
+                            '#9333ea', // Physics (Purple)
+                            '#16a34a'  // Resources (Green)
+                        ],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                            labels: {
+                                usePointStyle: true,
+                                font: { family: "'Inter', sans-serif" },
+                                color: '#4b5563'
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+
+            // Init Standards
+            renderStandards();
+            // Show default layer info
+            showLayerDetails('core');
+        });
+
+    </script>
+</body>
+</html>
