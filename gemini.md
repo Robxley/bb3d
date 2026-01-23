@@ -43,8 +43,12 @@ Toutes les classes sont dans le namespace bb3d.
   * Gère la boucle principale (Update Physics \-\> Update Logic \-\> Render).  
 * **bb3d::Config :** Gestionnaire de configuration global.  
   * **Fichier :** Charge engine\_config.json au démarrage.  
+  * **Modularité (Activation à la demande) :**  
+    * Le moteur doit suivre le principe "Pay for what you use".  
+    * Intégrer des flags explicites pour activer les sous-systèmes lourds : enableAudio, enablePhysics, enableJobSystem.  
+    * **Comportement :** Si un module est désactivé (via json ou code), ses ressources ne sont pas allouées, ses threads ne sont pas lancés, et son overhead CPU/Mémoire doit être nul.  
   * **Paramètres :** Résolution par défaut, V-Sync, FPS Max, Threads Max pour le JobSystem, Max Particles, Debug Level.  
-  * **Fallback :** Valeurs par défaut codées en dur si le fichier est absent.  
+  * **Fallback :** Valeurs par défaut codées en dur si le fichier est absent (modules activés par défaut pour la facilité d'utilisation, sauf indication contraire).  
 * **bb3d::JobSystem :** Gestion du multithreading.  
   * **Architecture :** Thread Pool créé au démarrage (taille définie dans Config).  
   * **Usage :** Traitement parallèle pour le Culling, les Animations, la Physique et le chargement d'Assets.  
@@ -179,7 +183,10 @@ Pour les futures versions, l'outillage sera séparé du Runtime.
   * **Chaînes :** Utiliser std::string\_view au lieu de const std::string&.  
   * **Séquences :** Utiliser std::span\<T\> (C++20) au lieu de const std::vector\<T\>&.  
 * **Smart Pointers :** Propriété unique (unique\_ptr) par défaut, partagée (shared\_ptr) pour les ressources.  
-* **Naming :** PascalCase (Classes), camelCase (Méthodes), m\_variable (Privé).
+* **Naming :** PascalCase (Classes), camelCase (Méthodes), m\_variable (Privé).  
+* **Developer Experience (DX) \- Defaults :**  
+  * **Règle :** Tous les objets de haut niveau (Components, Resources) doivent être générés avec des **paramètres par défaut fonctionnels**.  
+  * **Objectif :** Simplifier la tâche de l'utilisateur. Une instantiation sans argument (ex: entity.add\<Light\>()) doit produire un résultat immédiatement valide et visible (ex: Lumière blanche, intensité 1.0, portée standard) sans nécessiter de configuration complexe obligatoire.
 
 ### **4\. Sérialisation & Réflexion (Sauvegarde)**
 
@@ -220,4 +227,10 @@ Pour les futures versions, l'outillage sera séparé du Runtime.
 7. **Config & Log :** Implémenter le chargement de engine\_config.json et les macros spdlog/Tracy.  
 8. **Architecture :** Intégrer JobSystem et EventBus dans les propositions d'architecture Core.  
 9. **Modern C++ :** Utiliser les **Modules**, **Concepts**, **Ranges** et **Coroutines** dans le code généré.  
-10. **Sérialisation :** Assurer que tout code de composant généré inclut les hooks de sérialisation JSON pour l'export.
+10. **Sérialisation :** Assurer que tout code de composant généré inclut les hooks de sérialisation JSON pour l'export.  
+11. **Defaults :** Générer systématiquement des valeurs par défaut valides pour tous les composants.  
+12. **Modularité :** N'initialiser les systèmes (Audio, Physique, Jobs) que s'ils sont explicitement activés dans Config.
+
+### **7\. Exemple Complet (Kitchen Sink Demo)**
+
+Voici un fichier main.cpp illustrant l'usage de toutes les fonctionnalités majeures (Core, Audio, Physique, FX, Input) via l'API Fluent.
