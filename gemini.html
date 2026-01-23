@@ -5,13 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Biobazard3d - Dashboard Technique</title>
     
-    <!-- CSS Framework: Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Charting Library: Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <!-- Icons: FontAwesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 
     <style>
@@ -63,42 +60,12 @@
         }
     </style>
 
-    <!-- Chosen Palette: "Industrial Ember"
-         Background: #f8fafc (Slate-50) - Clean, technical canvas.
-         Primary Text: #1e293b (Slate-800) - High contrast, readable.
-         Secondary Text: #64748b (Slate-500) - Subtlety.
-         Primary Accent: #ea580c (Orange-600) - Represents the "Hazard" in biobazard, energy, alerts.
-         Secondary Accent: #0f172a (Slate-900) - For structural elements, headers.
-         Functional Colors: #22c55e (Green-500) for success/validation, #3b82f6 (Blue-500) for tech/info.
-    -->
-
-    <!-- Application Structure Plan:
-         1. Header: Brand identity (Biobazard3d) and global navigation tabs (Dashboard, Architecture, Roadmap, Standards).
-         2. View Container: A dynamic area controlled by JS to swap between the four main functional views.
-         3. Dashboard View: High-level overview. Uses Cards for Key Stats (Stack info) and Charts (Radar for Engineering Priorities, Doughnut for Module Complexity).
-         4. Architecture Explorer: An interactive HTML Grid diagram representing the Engine layers. Clicking a block reveals details (Responsibilities, Classes) in a side panel.
-         5. Roadmap Tracker: A vertical timeline visualization of the 6 phases. Clicking a phase expands to show detailed steps and the specific "Unit Test" validation required.
-         6. Standards Hub: A filterable grid of cards detailing Coding Rules, Performance constraints, and Workflow guidelines.
-         Why: This structure allows different stakeholders (Lead Dev, Engine Dev, Gameplay Dev) to quickly access relevant info: high-level for Leads, detailed API/Standards for Devs.
-    -->
-
-    <!-- Visualization & Content Choices:
-         1. Radar Chart (Chart.js): "Priorités d'Ingénierie". Goal: Compare. Shows the balance between Performance, Abstraction, and Safety. Justification: Quickly conveys the engine's philosophy defined in GEMINI.md.
-         2. Doughnut Chart (Chart.js): "Distribution des Modules". Goal: Inform. Shows estimated complexity/code distribution. Justification: Visual break from text.
-         3. Interactive Grid (HTML/Tailwind): "Architecture Stack". Goal: Organize/Relations. Justification: Replaces static UML. Allows drilling down into layers (Core vs Backend). No SVG used.
-         4. Vertical Timeline (HTML/Tailwind): "Phase de Développement". Goal: Change/Process. Justification: Clearly shows the sequential dependency of the roadmap.
-         5. Filterable Cards: "Standards de Code". Goal: Organize. Justification: Easy lookup for specific rules (e.g., "Must I use std::vector?").
-    -->
-
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
-</head>
+    </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased selection:bg-orange-200 selection:text-orange-900">
 
-    <!-- Navigation Bar -->
     <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
-                <!-- Logo / Title -->
                 <div class="flex items-center gap-3">
                     <div class="bg-slate-900 text-white p-2 rounded-lg">
                         <i class="fa-solid fa-biohazard text-xl text-orange-500"></i>
@@ -109,7 +76,6 @@
                     </div>
                 </div>
 
-                <!-- Desktop Menu -->
                 <div class="hidden md:flex space-x-8">
                     <button onclick="switchView('dashboard')" id="nav-dashboard" class="nav-btn tab-active inline-flex items-center px-1 pt-1 text-sm font-medium text-slate-900 hover:text-orange-600 transition-colors">
                         <i class="fa-solid fa-chart-line mr-2"></i>Vue d'ensemble
@@ -128,12 +94,9 @@
         </div>
     </nav>
 
-    <!-- Main Content Area -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen">
         
-        <!-- VIEW: DASHBOARD -->
         <div id="view-dashboard" class="view-section space-y-8 animate-fade-in">
-            <!-- Header Section -->
             <div class="text-center max-w-3xl mx-auto mb-12">
                 <h2 class="text-3xl font-extrabold text-slate-900 sm:text-4xl">Moteur de Jeu C++ / Vulkan</h2>
                 <p class="mt-4 text-lg text-slate-600">
@@ -142,13 +105,12 @@
                 </p>
             </div>
 
-            <!-- Tech Stack Cards -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
                     <div class="bg-blue-100 p-3 rounded-lg text-blue-600"><i class="fa-brands fa-cuttlefish text-xl"></i></div>
                     <div>
                         <p class="text-xs text-slate-500 font-bold uppercase">Langage</p>
-                        <p class="font-bold text-slate-800">C++20</p>
+                        <p class="font-bold text-slate-800">C++20 (Hybrid)</p>
                     </div>
                 </div>
                 <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex items-center gap-4">
@@ -174,9 +136,7 @@
                 </div>
             </div>
 
-            <!-- Charts Section -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <!-- Radar Chart -->
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                     <div class="mb-4">
                         <h3 class="text-lg font-bold text-slate-900">Philosophie & Priorités</h3>
@@ -187,7 +147,6 @@
                     </div>
                 </div>
                 
-                <!-- Doughnut Chart -->
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                     <div class="mb-4">
                         <h3 class="text-lg font-bold text-slate-900">Structure Modulaire</h3>
@@ -200,7 +159,6 @@
             </div>
         </div>
 
-        <!-- VIEW: ARCHITECTURE -->
         <div id="view-architecture" class="view-section hidden space-y-8 animate-fade-in">
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div class="p-6 border-b border-slate-200 bg-slate-50">
@@ -214,10 +172,8 @@
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 min-h-[600px]">
-                    <!-- Interactive Diagram -->
                     <div class="lg:col-span-2 p-8 bg-slate-100 flex flex-col gap-6 justify-center">
                         
-                        <!-- Layer: APP -->
                         <div class="w-full">
                             <div class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Application Client (Jeu)</div>
                             <div onclick="selectArchLayer('app')" class="interactive-card cursor-pointer bg-white border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-orange-400">
@@ -225,10 +181,8 @@
                             </div>
                         </div>
 
-                        <!-- Arrow -->
                         <div class="flex justify-center"><i class="fa-solid fa-arrow-down text-slate-300"></i></div>
 
-                        <!-- Layer: CORE (Facade) -->
                         <div class="w-full">
                             <div class="text-xs font-bold text-orange-600 mb-2 uppercase tracking-wider">Namespace bb3d:: (API Publique)</div>
                             <div onclick="selectArchLayer('core')" class="interactive-card cursor-pointer bg-orange-600 text-white rounded-lg p-6 shadow-md relative overflow-hidden group">
@@ -240,19 +194,15 @@
                             </div>
                         </div>
 
-                        <!-- Arrow -->
                         <div class="flex justify-center"><i class="fa-solid fa-arrow-down text-slate-300"></i></div>
 
-                        <!-- Layer: SYSTEMS (Split) -->
                         <div class="grid grid-cols-2 gap-4">
-                            <!-- Resources & Scene -->
                             <div>
                                 <div class="text-xs font-bold text-blue-600 mb-2 uppercase tracking-wider">Logique & Données</div>
                                 <div onclick="selectArchLayer('scene')" class="interactive-card cursor-pointer bg-white border-l-4 border-blue-500 rounded-r-lg p-4 shadow-sm h-full flex flex-col justify-center">
                                     <div class="font-bold text-slate-800"><i class="fa-solid fa-cubes text-blue-500 mr-2"></i>Scene Graph & ECS</div>
                                 </div>
                             </div>
-                            <!-- Systems -->
                             <div>
                                 <div class="text-xs font-bold text-purple-600 mb-2 uppercase tracking-wider">Systèmes Découplés</div>
                                 <div onclick="selectArchLayer('systems')" class="interactive-card cursor-pointer bg-white border-l-4 border-purple-500 rounded-r-lg p-4 shadow-sm h-full flex flex-col justify-center">
@@ -261,10 +211,8 @@
                             </div>
                         </div>
 
-                        <!-- Arrow -->
                         <div class="flex justify-center"><i class="fa-solid fa-arrow-down text-slate-300"></i></div>
 
-                        <!-- Layer: BACKEND -->
                         <div class="w-full">
                             <div class="text-xs font-bold text-red-600 mb-2 uppercase tracking-wider">Backend (Privé / Interne)</div>
                             <div onclick="selectArchLayer('backend')" class="interactive-card cursor-pointer bg-slate-800 text-slate-200 rounded-lg p-4 shadow-inner border border-slate-700">
@@ -277,21 +225,18 @@
 
                     </div>
 
-                    <!-- Details Panel -->
                     <div class="bg-white border-l border-slate-200 p-8 flex flex-col">
                         <div id="arch-details-placeholder" class="flex-1 flex flex-col items-center justify-center text-slate-400 text-center">
                             <i class="fa-solid fa-hand-pointer text-4xl mb-4 animate-bounce"></i>
                             <p>Cliquez sur une couche<br>pour voir les détails techniques.</p>
                         </div>
                         <div id="arch-details-content" class="hidden animate-fade-in">
-                            <!-- Injected via JS -->
-                        </div>
+                            </div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- VIEW: ROADMAP -->
         <div id="view-roadmap" class="view-section hidden space-y-8 animate-fade-in">
             <div class="flex justify-between items-end mb-8">
                 <div>
@@ -304,18 +249,15 @@
             </div>
 
             <div class="relative border-l-2 border-slate-200 ml-4 space-y-12" id="roadmap-container">
-                <!-- Phases injected by JS -->
-            </div>
+                </div>
         </div>
 
-        <!-- VIEW: STANDARDS -->
         <div id="view-standards" class="view-section hidden space-y-8 animate-fade-in">
             <div class="mb-8">
                 <h2 class="text-3xl font-extrabold text-slate-900">Standards & Règles</h2>
                 <p class="text-slate-600 mt-2">Directives obligatoires pour maintenir l'intégrité, la performance et la portabilité.</p>
             </div>
 
-            <!-- Filters -->
             <div class="flex flex-wrap gap-2 mb-8">
                 <button onclick="filterStandards('all')" class="std-filter active px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-full text-sm font-bold transition-colors">Tous</button>
                 <button onclick="filterStandards('cpp')" class="std-filter px-4 py-2 bg-white border border-slate-300 hover:border-orange-500 text-slate-600 rounded-full text-sm font-medium transition-colors">C++ Modern</button>
@@ -324,13 +266,11 @@
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="standards-grid">
-                <!-- Cards injected by JS -->
-            </div>
+                </div>
         </div>
 
     </main>
 
-    <!-- Footer -->
     <footer class="bg-white border-t border-slate-200 mt-12 py-8">
         <div class="max-w-7xl mx-auto px-4 text-center">
             <p class="text-slate-400 text-sm">Généré pour le projet <strong>biobazard3d</strong></p>
@@ -338,7 +278,6 @@
         </div>
     </footer>
 
-    <!-- LOGIC -->
     <script>
         // --- DATA SOURCE ---
         
@@ -394,7 +333,7 @@
                     { label: "API", value: "Vulkan 1.3 (Dynamic Rendering)" },
                     { label: "Gestion Mem", value: "VMA (Vulkan Memory Allocator)" },
                     { label: "Pipeline", value: "Shader SPIR-V, SwapChain" },
-                    { label: "Fenêtre", value: "SDL3 Wrapper" }
+                    { label: "Fenêtre", value: "SDL3 (avec fallback SDL2)" }
                 ]
             }
         };
@@ -404,8 +343,9 @@
                 phase: "Phase 1 : Infrastructure & Core",
                 desc: "Fondations C++20 sans GPU.",
                 steps: [
-                    { id: "1.1", title: "Build System & Log", validation: "unit_test_00_infrastructure.cpp", detail: "CMake, spdlog, Tracy, SerializationTraits" },
-                    { id: "1.2", title: "Fenêtrage & Config", validation: "unit_test_01_window.cpp", detail: "SDL3 Wrapper, JSON Config" }
+                    { id: "1.0", title: "Build System Roots", validation: "CMakeLists.txt", detail: "Configuration C++20, SDL3, spdlog link" },
+                    { id: "1.1", title: "Log & Profiling", validation: "unit_test_00_infrastructure.cpp", detail: "spdlog setup, Tracy macros" },
+                    { id: "1.2", title: "Fenêtrage & Config", validation: "unit_test_01_window.cpp", detail: "SDL Wrapper, JSON Config" }
                 ]
             },
             {
@@ -429,7 +369,7 @@
                 desc: "Passage à la 3D.",
                 steps: [
                     { id: "4.1", title: "UBO & GLM", validation: "unit_test_06_rotating_cube.cpp", detail: "Matrices MVP, Descriptors" },
-                    { id: "4.2", title: "Système de Textures", validation: "unit_test_07_texture_cube.cpp", detail: "Chargement Image, Samplers" }
+                    { id: "4.2", title: "Système de Textures", validation: "unit_test_07_texture_cube.cpp", detail: "Chargement Image (Caching), Samplers" }
                 ]
             },
             {
@@ -447,7 +387,7 @@
                 desc: "Gameplay et Rendu PBR.",
                 steps: [
                     { id: "6.1", title: "PBR & Env", validation: "unit_test_12_pbr_environment.cpp", detail: "Shaders PBR, Skybox, Shadows" },
-                    { id: "6.2", title: "Physique & Audio", validation: "unit_test_13_physics_audio.cpp", detail: "Jolt, miniaudio" },
+                    { id: "6.2", title: "Physique & Audio", validation: "unit_test_13_physics_audio.cpp", detail: "Jolt (Sync Rule), miniaudio" },
                     { id: "6.3", title: "FX & Terrain", validation: "unit_test_14_terrain_fx.cpp", detail: "Heightmap, Particles" },
                     { id: "6.4", title: "Outils", validation: "unit_test_15_tools_hotreload.cpp", detail: "ImGui, Input Mapping" }
                 ]
@@ -455,14 +395,14 @@
         ];
 
         const standardsData = [
-            { type: "cpp", title: "C++20 Modules", desc: "Privilégier `import`/`export` pour les nouvelles classes. Headers pour compatibilité." },
+            { type: "cpp", title: "C++20 Hybrid", desc: "Modules pour l'interne (vitesse de build), Headers pour l'API publique (compatibilité)." },
             { type: "perf", title: "Zero-Copy", desc: "Utiliser `std::string_view` et `std::span` systématiquement." },
             { type: "cpp", title: "Conteneurs", desc: "`std::vector` par défaut. `std::list` interdite (Cache friendly)." },
             { type: "arch", title: "Sérialisation", desc: "Non-Intrusive uniquement. Pas de méthode `virtual serialize()`." },
             { type: "perf", title: "Hot Path Safety", desc: "Aucune allocation dynamique dans `update()` ou `render()`." },
             { type: "arch", title: "API Fluent", desc: "Chaînage de méthodes pour la configuration et la création d'entités." },
             { type: "arch", title: "Defaults", desc: "Tous les composants doivent avoir des valeurs par défaut fonctionnelles." },
-            { type: "cpp", title: "Smart Pointers", desc: "`unique_ptr` pour la propriété, `shared_ptr` pour les ressources partagées." },
+            { type: "cpp", title: "Smart Pointers", desc: "`bb3d::Ref` (shared) et `bb3d::Scope` (unique) pour la sémantique RAII." },
             { type: "perf", title: "Profiling", desc: "Macros `BB_PROFILE_SCOPE` (Tracy) obligatoires sur les fonctions lourdes." }
         ];
 
