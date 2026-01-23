@@ -20,12 +20,13 @@ int main(int argc, char* argv[]) {
     // --- BLOC 1 : Initialisation & Création ---
     try {
         // 1. Initialisation Moteur (Configuration Builder)
+        // Note: bb3d::Scope<Engine> est un std::unique_ptr
         auto engine = bb3d::Engine::Create(bb3d::EngineConfig()
             .resolution(1920, 1080)
             .vsync(true)
             .fpsMax(144)
             .title("Biobazard Ultimate Demo")
-            // Activation explicite des modules (Zero Overhead par défaut)
+            // Activation explicite des modules (Zero Overhead par défaut - "Pay for what you use")
             .enablePhysics(bb3d::PhysicsBackend::Jolt)
             .enableAudio(true)
             .enableJobSystem(true)
@@ -33,7 +34,7 @@ int main(int argc, char* argv[]) {
 
         // 2. Configuration des Systèmes Globaux
         
-        // Input Mapping (Abstraction des touches)
+        // Input Mapping (Abstraction des touches pour permettre fallback SDL2 si SDL3 instable)
         engine->input().mapAction("Jump", bb3d::Key::Space);
         engine->input().mapAction("Fire", bb3d::Mouse::Left);
         engine->input().mapAxis("MoveY", bb3d::Key::W, bb3d::Key::S); // Avancer/Reculer
@@ -49,10 +50,13 @@ int main(int argc, char* argv[]) {
         });
 
         // 3. Création de la Scène
+        // Note: Retourne bb3d::Ref<Scene> (std::shared_ptr) pour RAII strict
         auto scene = engine->createScene("DemoLevel");
         auto& assets = engine->assets();
 
         // --- Environnement (Skybox & Fog) ---
+        // Note: Le système d'Assets utilise un cache interne. 
+        // Charger deux fois la même texture renvoie le même pointeur intelligent.
         auto skyTexture = assets.load<bb3d::Texture>("env/sunset_hdr.ktx2");
         scene->setSkybox(skyTexture);
         scene->setFog({
@@ -72,10 +76,11 @@ int main(int argc, char* argv[]) {
 
         // A. Le Joueur (Physique + Audio Listener + Rendu Custom)
         scene->createEntity("Player")
-            .at({0.0f, 2.0f, 0.0f})
+            .at({0.0f, 2.0f, 0.0f}) // Définit Transform.Position
             .add<bb3d::Mesh>(heroMesh)
                 .shader(toonShader) // Shader personnalisé
                 .castShadows(true)
+            // Note: Le RigidBody est "Maître" sur la position durant l'Update physique
             .add<bb3d::RigidBody>(bb3d::BodyType::Character, 80.0f) // Controleur Physique
             .add<bb3d::CapsuleCollider>(0.5f, 1.8f)
             .add<bb3d::AudioListener>() // "Les oreilles" du jeu (pour le son 3D)
@@ -121,6 +126,7 @@ int main(int argc, char* argv[]) {
             .add<bb3d::BoxCollider>(glm::vec3(1.0f));
 
         // --- Export & Run ---
+        // Génère le fichier JSON complet décrivant l'état
         engine->exportScene("demo_state.json");
         BB_CLIENT_INFO("Scène initialisée et exportée.");
         
@@ -135,6 +141,7 @@ int main(int argc, char* argv[]) {
     try {
         BB_CLIENT_INFO("Rechargement depuis la sauvegarde JSON...");
         auto engine = bb3d::Engine::Create(bb3d::EngineConfig().title("Biobazard Reloaded"));
+        // L'import recrée toute la hiérarchie et réassigne les assets via le cache
         engine->importScene("demo_state.json");
         engine->run();
     } catch (const std::exception& e) {
