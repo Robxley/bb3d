@@ -40,6 +40,16 @@ Ce document détaille le plan de développement séquentiel du moteur **biobazar
   * Ouvre une fenêtre noire.  
   * La fenêtre se ferme proprement sur Echap ou Croix (Event Loop basique).
 
+### **Étape 1.3 : Input System**
+
+* **Objectifs Techniques :**  
+  * Créer une classe `bb3d::Input` (Singleton ou Service).
+  * Mapper les événements SDL3 (Clavier/Souris/Manette) vers des codes abstraits `bb3d::Key` et `bb3d::Mouse`.
+  * Méthodes de polling : `IsKeyPressed()`, `IsMouseButtonPressed()`, `GetMousePosition()`.
+* **Validation (unit\_test\_01\_window.cpp - Mise à jour) :**  
+  * Déplacer un carré ou afficher des logs lors de l'appui sur Z/Q/S/D.
+  * Fermer la fenêtre via `Input::IsKeyPressed(Key::Escape)`.
+
 ## **📅 Phase 2 : Backend Vulkan (Initialisation)**
 
 *Objectif : Initialiser le contexte graphique Vulkan 1.3 "Modern" (Dynamic Rendering).*
@@ -61,6 +71,7 @@ Ce document détaille le plan de développement séquentiel du moteur **biobazar
   * Créer la Surface SDL/Vulkan.  
   * Implémenter la SwapChain (Triple Buffering si V-Sync).  
   * Gérer les ImageViews pour le rendu.  
+  * **Synchronisation :** Créer les Semaphores (ImageAvailable, RenderFinished) et Fences (InFlight) pour gérer la synchronisation CPU/GPU.
 * **Validation (unit\_test\_03\_swapchain.cpp) :**  
   * Initialise la Swapchain.  
   * Gère le redimensionnement de la fenêtre (Recreation de la Swapchain détectée dans les logs).
@@ -72,7 +83,7 @@ Ce document détaille le plan de développement séquentiel du moteur **biobazar
 ### **Étape 3.1 : Pipeline & Dynamic Rendering**
 
 * **Objectifs Techniques :**  
-  * Compiler les Shaders SPIR-V (Vertex/Fragment).  
+  * **Build System :** Ajouter une commande CMake pour compiler automatiquement les Shaders (.vert/.frag) en SPIR-V (.spv) via `glslc`.
   * Créer le GraphicsPipeline sans VkRenderPass (Usage de **Dynamic Rendering** Vulkan 1.3).  
   * Enregistrer les Command Buffers.  
 * **Validation (unit\_test\_04\_hello\_triangle.cpp) :**  

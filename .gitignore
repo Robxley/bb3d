@@ -1,0 +1,7 @@
+# Build directories
+build/
+out/
+
+# Visual Studio & CMake
+.vs/
+CMakeUserPresets.json

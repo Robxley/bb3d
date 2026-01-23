@@ -1,0 +1,74 @@
+#include "bb3d/core/Window.hpp"
+#include "bb3d/core/Log.hpp"
+
+#include <SDL3/SDL.h>
+
+namespace bb3d {
+
+Window::Window(const EngineConfig& config)
+{
+    BB_PROFILE_SCOPE("Window::Window");
+
+    // Initialize SDL
+    if (!SDL_Init(SDL_INIT_VIDEO)) {
+        BB_CORE_FATAL("Failed to initialize SDL: {}", SDL_GetError());
+        throw std::runtime_error("SDL Init failed");
+    }
+
+    // Create the window
+    m_Window = SDL_CreateWindow(
+        config.title.c_str(),
+        config.width,
+        config.height,
+        SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE
+    );
+
+    if (!m_Window) {
+        BB_CORE_FATAL("Failed to create window: {}", SDL_GetError());
+        SDL_Quit();
+        throw std::runtime_error("SDL_CreateWindow failed");
+    }
+
+    BB_CORE_INFO("Window created: '{}' ({}x{})", config.title, config.width, config.height);
+}
+
+Window::~Window()
+{
+    BB_PROFILE_SCOPE("Window::~Window");
+
+    if (m_Window) {
+        SDL_DestroyWindow(m_Window);
+    }
+    SDL_Quit();
+    BB_CORE_INFO("Window destroyed, SDL quit.");
+}
+
+void Window::PollEvents()
+{
+    BB_PROFILE_SCOPE("Window::PollEvents");
+
+    SDL_Event e;
+    while (SDL_PollEvent(&e)) {
+        HandleEvent(e);
+    }
+}
+
+void Window::SwapBuffers()
+{
+    // This will be handled by the Vulkan renderer, but we can keep the method signature.
+    // In a pure SDL renderer, we would call SDL_GL_SwapWindow or similar.
+}
+
+void Window::HandleEvent(SDL_Event& event)
+{
+    if (event.type == SDL_EVENT_QUIT) {
+        m_ShouldClose = true;
+    }
+    if (event.type == SDL_EVENT_KEY_DOWN) {
+        if (event.key.key == SDLK_ESCAPE) {
+            m_ShouldClose = true;
+        }
+    }
+}
+
+} // namespace bb3d

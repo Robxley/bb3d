@@ -1,0 +1,13 @@
+{
+    "title": "biobazard3d - Test Window",
+    "width": 1600,
+    "height": 900,
+    "vsync": true,
+    "fpsMax": 0,
+    "enablePhysics": true,
+    "physicsBackend": "jolt",
+    "enableAudio": false,
+    "enableJobSystem": true,
+    "maxThreads": 8,
+    "assetPath": "assets"
+}
