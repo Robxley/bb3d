@@ -231,10 +231,25 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
         throw std::runtime_error("Échec de l'initialisation de VMA !");
     }
     BB_CORE_INFO("VulkanContext: Allocateur VMA initialisé.");
+
+    // 7. Création du Command Pool pour les commandes courtes
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT; // Indique que les buffers seront de courte durée
+    poolInfo.queueFamilyIndex = m_graphicsQueueFamily;
+
+    if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_shortLivedCommandPool) != VK_SUCCESS) {
+        throw std::runtime_error("VulkanContext: Échec de la création du Command Pool de transfert !");
+    }
 }
 
 void VulkanContext::cleanup() {
     BB_CORE_INFO("VulkanContext: Début du nettoyage.");
+
+    if (m_shortLivedCommandPool != VK_NULL_HANDLE) {
+        vkDestroyCommandPool(m_device, m_shortLivedCommandPool, nullptr);
+        m_shortLivedCommandPool = VK_NULL_HANDLE;
+    }
 
     if (m_allocator != VK_NULL_HANDLE) {
         vmaDestroyAllocator(m_allocator);
@@ -268,6 +283,39 @@ void VulkanContext::cleanup() {
         m_instance = VK_NULL_HANDLE;
         BB_CORE_INFO("VulkanContext: Instance Vulkan détruite.");
     }
+}
+
+VkCommandBuffer VulkanContext::beginSingleTimeCommands() {
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandPool = m_shortLivedCommandPool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(m_device, &allocInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    return commandBuffer;
+}
+
+void VulkanContext::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_graphicsQueue);
+
+    vkFreeCommandBuffers(m_device, m_shortLivedCommandPool, 1, &commandBuffer);
 }
 
 } // namespace bb3d

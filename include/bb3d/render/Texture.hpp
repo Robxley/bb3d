@@ -20,6 +20,7 @@ public:
     [[nodiscard]] int getHeight() const { return m_height; }
 
 private:
+    void initFromPixels(const unsigned char* pixels);
     void createImage(uint32_t width, uint32_t height);
     void createImageView();
     void createSampler();

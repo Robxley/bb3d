@@ -37,6 +37,10 @@ public:
     [[nodiscard]] VmaAllocator getAllocator() const { return m_allocator; }
     [[nodiscard]] std::string getDeviceName() const { return m_deviceName; }
 
+    // Helpers pour commandes uniques (Transferts, Transitions)
+    VkCommandBuffer beginSingleTimeCommands();
+    void endSingleTimeCommands(VkCommandBuffer commandBuffer);
+
 private:
     VkInstance m_instance{VK_NULL_HANDLE};
     VkDebugUtilsMessengerEXT m_debugMessenger{VK_NULL_HANDLE};
@@ -48,6 +52,7 @@ private:
     uint32_t m_graphicsQueueFamily{0};
     uint32_t m_presentQueueFamily{0};
     VmaAllocator m_allocator{VK_NULL_HANDLE};
+    VkCommandPool m_shortLivedCommandPool{VK_NULL_HANDLE}; // Pool persistant pour commandes courtes
     std::string m_deviceName;
 };
 

@@ -1,7 +1,7 @@
 #include "bb3d/render/Texture.hpp"
 #include "bb3d/render/Buffer.hpp"
 #include "bb3d/core/Log.hpp"
-#include <stdexcept> // Added
+#include <stdexcept>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -13,7 +13,6 @@ Texture::Texture(VulkanContext& context, std::string_view filepath)
     
     stbi_uc* raw_pixels = stbi_load(filepath.data(), &m_width, &m_height, &m_channels, STBI_rgb_alpha);
     
-    // RAII Wrapper pour stbi_image_free
     struct StbiDeleter { void operator()(stbi_uc* p) { stbi_image_free(p); } };
     std::unique_ptr<stbi_uc, StbiDeleter> pixels(raw_pixels);
 
@@ -21,20 +20,7 @@ Texture::Texture(VulkanContext& context, std::string_view filepath)
         throw std::runtime_error("Failed to load texture image: " + std::string(filepath));
     }
 
-    VkDeviceSize imageSize = m_width * m_height * 4;
-
-    Buffer stagingBuffer(m_context, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
-    stagingBuffer.upload(pixels.get(), imageSize);
-
-    // pixels est libéré automatiquement ici ou en cas d'exception
-
-    createImage(m_width, m_height);
-    transitionLayout(VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-    copyBufferToImage(stagingBuffer.getHandle());
-    transitionLayout(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    createImageView();
-    createSampler();
+    initFromPixels(pixels.get());
     
     BB_CORE_INFO("Texture chargée: {} ({}x{})", filepath, m_width, m_height);
 }
@@ -51,10 +37,16 @@ Texture::Texture(VulkanContext& context, const void* data, size_t size)
         throw std::runtime_error("Failed to load texture from memory");
     }
 
+    initFromPixels(pixels.get());
+    
+    BB_CORE_INFO("Texture chargée depuis la mémoire ({}x{})", m_width, m_height);
+}
+
+void Texture::initFromPixels(const unsigned char* pixels) {
     VkDeviceSize imageSize = m_width * m_height * 4;
 
     Buffer stagingBuffer(m_context, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
-    stagingBuffer.upload(pixels.get(), imageSize);
+    stagingBuffer.upload(pixels, imageSize);
 
     createImage(m_width, m_height);
     transitionLayout(VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -63,8 +55,6 @@ Texture::Texture(VulkanContext& context, const void* data, size_t size)
 
     createImageView();
     createSampler();
-    
-    BB_CORE_INFO("Texture chargée depuis la mémoire ({}x{})", m_width, m_height);
 }
 
 Texture::~Texture() {
@@ -122,7 +112,7 @@ void Texture::createSampler() {
     samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.anisotropyEnable = VK_FALSE; // Nécessite une feature device
+    samplerInfo.anisotropyEnable = VK_FALSE;
     samplerInfo.maxAnisotropy = 1.0f;
     samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
     samplerInfo.unnormalizedCoordinates = VK_FALSE;
@@ -135,30 +125,8 @@ void Texture::createSampler() {
     }
 }
 
-// TODO: Refactoriser ceci dans VulkanContext ou CommandBufferHelper
 void Texture::transitionLayout(VkImageLayout oldLayout, VkImageLayout newLayout) {
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    
-    // On réutilise le graphics queue family du context
-    VkCommandPool pool;
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = m_context.getGraphicsQueueFamily();
-    vkCreateCommandPool(m_context.getDevice(), &poolInfo, nullptr, &pool);
-
-    allocInfo.commandPool = pool;
-    allocInfo.commandBufferCount = 1;
-
-    VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(m_context.getDevice(), &allocInfo, &commandBuffer);
-
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    VkCommandBuffer commandBuffer = m_context.beginSingleTimeCommands();
 
     VkImageMemoryBarrier barrier{};
     barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -190,51 +158,13 @@ void Texture::transitionLayout(VkImageLayout oldLayout, VkImageLayout newLayout)
         throw std::invalid_argument("unsupported layout transition!");
     }
 
-    vkCmdPipelineBarrier(
-        commandBuffer,
-        sourceStage, destinationStage,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier
-    );
+    vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 
-    vkEndCommandBuffer(commandBuffer);
-
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
-
-    vkQueueSubmit(m_context.getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_context.getGraphicsQueue());
-
-    vkFreeCommandBuffers(m_context.getDevice(), pool, 1, &commandBuffer);
-    vkDestroyCommandPool(m_context.getDevice(), pool, nullptr);
+    m_context.endSingleTimeCommands(commandBuffer);
 }
 
 void Texture::copyBufferToImage(VkBuffer buffer) {
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    
-    VkCommandPool pool;
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = m_context.getGraphicsQueueFamily();
-    vkCreateCommandPool(m_context.getDevice(), &poolInfo, nullptr, &pool);
-
-    allocInfo.commandPool = pool;
-    allocInfo.commandBufferCount = 1;
-
-    VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(m_context.getDevice(), &allocInfo, &commandBuffer);
-
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    VkCommandBuffer commandBuffer = m_context.beginSingleTimeCommands();
 
     VkBufferImageCopy region{};
     region.bufferOffset = 0;
@@ -253,18 +183,7 @@ void Texture::copyBufferToImage(VkBuffer buffer) {
 
     vkCmdCopyBufferToImage(commandBuffer, buffer, m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-    vkEndCommandBuffer(commandBuffer);
-
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
-
-    vkQueueSubmit(m_context.getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_context.getGraphicsQueue());
-
-    vkFreeCommandBuffers(m_context.getDevice(), pool, 1, &commandBuffer);
-    vkDestroyCommandPool(m_context.getDevice(), pool, nullptr);
+    m_context.endSingleTimeCommands(commandBuffer);
 }
 
 } // namespace bb3d
