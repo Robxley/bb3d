@@ -136,10 +136,10 @@ Ce document détaille le plan de développement séquentiel du moteur **biobazar
   * Lance 100 jobs parallèles incrémentant un std::atomic.  
   * Déclenche un PlayerDeathEvent reçu par deux systèmes distincts.
 
-### **Étape 5.2 : Resource Manager & gLTF**
+### Étape 5.2 : Resource Manager & gLTF
 
 * **Objectifs Techniques :**  
-  * Intégration tinygltf.  
+  * Intégration fastgltf.  
   * Chargement asynchrone via JobSystem.  
   * Conversion gLTF \-\> bb3d::Model / bb3d::Mesh.  
 * **Validation (unit\_test\_09\_load\_gltf.cpp) :**  

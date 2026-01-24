@@ -39,12 +39,14 @@ struct StringHash {
 
 // Forward declaration
 class VulkanContext;
+class ResourceManager;
 
 // --- Cache spécialisé par type ---
 template<typename T>
 class ResourceCache : public IResourceCache {
 public:
-    ResourceCache(VulkanContext& context) : m_context(context) {}
+    ResourceCache(VulkanContext& context, ResourceManager* manager) 
+        : m_context(context), m_manager(manager) {}
 
     Ref<T> getOrLoad(std::string_view path) {
         // 1. FAST PATH
@@ -58,18 +60,31 @@ public:
         } // Unlock Read
 
         // 2. SLOW PATH : Écriture (Exclusive Write)
-        // La ressource n'existe pas, on doit la charger.
         std::unique_lock<std::shared_mutex> writeLock(m_mutex);
         
-        // Double-Check : Un autre thread l'a peut-être chargée pendant qu'on attendait le writeLock
         auto it = m_resources.find(path);
         if (it != m_resources.end()) {
             return it->second;
         }
 
         BB_CORE_INFO("ResourceCache: Loading '{0}'...", std::string(path));
-        // Chargement réel
-        auto resource = CreateRef<T>();
+        
+        Ref<T> resource = nullptr;
+        try {
+            // Injection de dépendances dynamique (Compile-time check)
+            if constexpr (std::is_constructible_v<T, VulkanContext&, ResourceManager&, std::string>) {
+                if (m_manager) {
+                    resource = CreateRef<T>(m_context, *m_manager, std::string(path));
+                } else {
+                    throw std::runtime_error("ResourceManager required but null");
+                }
+            } else {
+                resource = CreateRef<T>(m_context, std::string(path));
+            }
+        } catch (const std::exception& e) {
+            BB_CORE_ERROR("ResourceCache: Failed to load '{0}' : {1}", std::string(path), e.what());
+            return nullptr; 
+        }
 
         m_resources[std::string(path)] = resource;
         return resource;
@@ -82,6 +97,7 @@ public:
 
 private:
     VulkanContext& m_context;
+    ResourceManager* m_manager;
     std::shared_mutex m_mutex;
     std::unordered_map<std::string, Ref<T>, StringHash, std::equal_to<>> m_resources;
 };
@@ -132,7 +148,7 @@ private:
             return static_cast<ResourceCache<T>&>(*it->second);
         }
 
-        auto cache = std::make_unique<ResourceCache<T>>(m_context);
+        auto cache = std::make_unique<ResourceCache<T>>(m_context, this);
         auto& ref = *cache;
         m_caches[typeIdx] = std::move(cache);
         return ref;

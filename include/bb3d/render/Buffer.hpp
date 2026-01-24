@@ -21,6 +21,9 @@ public:
 
     // Utilitaire pour créer un buffer de sommets via un staging buffer
     static Scope<Buffer> CreateVertexBuffer(VulkanContext& context, const void* data, VkDeviceSize size);
+    
+    // Utilitaire pour créer un buffer d'indices via un staging buffer
+    static Scope<Buffer> CreateIndexBuffer(VulkanContext& context, const void* data, VkDeviceSize size);
 
 private:
     VulkanContext& m_context;

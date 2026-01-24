@@ -104,4 +104,49 @@ Scope<Buffer> Buffer::CreateVertexBuffer(VulkanContext& context, const void* dat
     return gpuBuffer;
 }
 
+Scope<Buffer> Buffer::CreateIndexBuffer(VulkanContext& context, const void* data, VkDeviceSize size) {
+    // 1. Staging Buffer (CPU -> GPU Transfer)
+    Buffer stagingBuffer(context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    stagingBuffer.upload(data, size);
+
+    // 2. Index Buffer (GPU Only)
+    auto indexBuffer = CreateScope<Buffer>(context, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+
+    // 3. Copy (TODO: DRY - Don't Repeat Yourself)
+    VkCommandBufferAllocateInfo allocInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    
+    VkCommandPool pool;
+    VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
+    poolInfo.queueFamilyIndex = context.getGraphicsQueueFamily();
+    vkCreateCommandPool(context.getDevice(), &poolInfo, nullptr, &pool);
+
+    allocInfo.commandPool = pool;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(context.getDevice(), &allocInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    VkBufferCopy copyRegion{};
+    copyRegion.size = size;
+    vkCmdCopyBuffer(commandBuffer, stagingBuffer.getHandle(), indexBuffer->getHandle(), 1, &copyRegion);
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    vkQueueSubmit(context.getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(context.getGraphicsQueue());
+
+    vkFreeCommandBuffers(context.getDevice(), pool, 1, &commandBuffer);
+    vkDestroyCommandPool(context.getDevice(), pool, nullptr);
+
+    return indexBuffer;
+}
+
 } // namespace bb3d

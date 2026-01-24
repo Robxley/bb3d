@@ -63,7 +63,21 @@ FetchContent_Declare(
   GIT_TAG        master
 )
 
-FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm stb)
+# fastgltf for 3D model loading
+FetchContent_Declare(
+  fastgltf
+  GIT_REPOSITORY https://github.com/spnda/fastgltf.git
+  GIT_TAG        v0.8.0
+)
+
+# tinyobjloader for .obj model loading
+FetchContent_Declare(
+  tinyobjloader
+  GIT_REPOSITORY https://github.com/tinyobjloader/tinyobjloader.git
+  GIT_TAG        release
+)
+
+FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm stb fastgltf tinyobjloader)
 
 # Find Vulkan SDK
 find_package(Vulkan REQUIRED)
@@ -106,6 +120,8 @@ set(SHADERS
     "${SHADER_DIR}/simple_3d.frag"
     "${SHADER_DIR}/texture_cube.vert"
     "${SHADER_DIR}/texture_cube.frag"
+    "${SHADER_DIR}/textured_mesh.vert"
+    "${SHADER_DIR}/textured_mesh.frag"
 )
 
 set(SPV_SHADERS "")
@@ -136,6 +152,8 @@ target_link_libraries(biobazard3d PUBLIC
     Vulkan::Vulkan
     glm::glm
     VulkanMemoryAllocator
+    fastgltf::fastgltf
+    tinyobjloader
 )
 
 # Apply strict warnings only to our target, not dependencies
@@ -230,15 +248,57 @@ add_custom_command(TARGET unit_test_07_texture_cube POST_BUILD
     $<TARGET_FILE_DIR:unit_test_07_texture_cube>/assets/shaders
 )
 
-add_executable(unit_test_08_resource_manager
-    tests/unit_test_08_resource_manager.cpp
+add_executable(unit_test_08_core_systems
+    tests/unit_test_08_core_systems.cpp
 )
-target_link_libraries(unit_test_08_resource_manager PRIVATE biobazard3d)
+target_link_libraries(unit_test_08_core_systems PRIVATE biobazard3d)
 
-add_executable(unit_test_09_core_systems
-    tests/unit_test_09_core_systems.cpp
+# --- Unit Test 10: OBJ Loader (House) ---
+add_executable(unit_test_10_obj_loader
+    tests/unit_test_10_obj_loader.cpp
 )
-target_link_libraries(unit_test_09_core_systems PRIVATE biobazard3d)
+target_link_libraries(unit_test_10_obj_loader PRIVATE biobazard3d)
+add_dependencies(unit_test_10_obj_loader CompileShaders)
+
+add_custom_command(TARGET unit_test_10_obj_loader POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_BINARY_DIR}/assets/shaders
+    $<TARGET_FILE_DIR:unit_test_10_obj_loader>/assets/shaders
+)
+add_custom_command(TARGET unit_test_10_obj_loader POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/assets
+    $<TARGET_FILE_DIR:unit_test_10_obj_loader>/assets
+)
+
+# --- Unit Test 11: GLTF Loader (Box) ---
+add_executable(unit_test_11_gltf_loader
+    tests/unit_test_11_gltf_loader.cpp
+)
+target_link_libraries(unit_test_11_gltf_loader PRIVATE biobazard3d)
+add_dependencies(unit_test_11_gltf_loader CompileShaders)
+
+add_custom_command(TARGET unit_test_11_gltf_loader POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_BINARY_DIR}/assets/shaders
+    $<TARGET_FILE_DIR:unit_test_11_gltf_loader>/assets/shaders
+)
+add_custom_command(TARGET unit_test_11_gltf_loader POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/assets
+    $<TARGET_FILE_DIR:unit_test_11_gltf_loader>/assets
+)
+
+add_executable(unit_test_09_resource_manager
+    tests/unit_test_09_resource_manager.cpp
+)
+target_link_libraries(unit_test_09_resource_manager PRIVATE biobazard3d)
+
+add_custom_command(TARGET unit_test_09_resource_manager POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/assets
+    $<TARGET_FILE_DIR:unit_test_09_resource_manager>/assets
+)
 
 message(STATUS "biobazard3d project configured for C++20 with strict warnings.")
 message(STATUS "To build, run: cmake --build build")

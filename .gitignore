@@ -5,3 +5,6 @@ out/
 # Visual Studio & CMake
 .vs/
 CMakeUserPresets.json
+
+# Assets (binary files, generated models, etc.)
+assets/

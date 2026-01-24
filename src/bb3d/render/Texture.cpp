@@ -11,17 +11,22 @@ namespace bb3d {
 Texture::Texture(VulkanContext& context, std::string_view filepath)
     : m_context(context) {
     
-    stbi_uc* pixels = stbi_load(filepath.data(), &m_width, &m_height, &m_channels, STBI_rgb_alpha);
-    VkDeviceSize imageSize = m_width * m_height * 4;
+    stbi_uc* raw_pixels = stbi_load(filepath.data(), &m_width, &m_height, &m_channels, STBI_rgb_alpha);
+    
+    // RAII Wrapper pour stbi_image_free
+    struct StbiDeleter { void operator()(stbi_uc* p) { stbi_image_free(p); } };
+    std::unique_ptr<stbi_uc, StbiDeleter> pixels(raw_pixels);
 
     if (!pixels) {
-        throw std::runtime_error("Failed to load texture image!");
+        throw std::runtime_error("Failed to load texture image: " + std::string(filepath));
     }
 
-    Buffer stagingBuffer(m_context, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
-    stagingBuffer.upload(pixels, imageSize);
+    VkDeviceSize imageSize = m_width * m_height * 4;
 
-    stbi_image_free(pixels);
+    Buffer stagingBuffer(m_context, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    stagingBuffer.upload(pixels.get(), imageSize);
+
+    // pixels est libéré automatiquement ici ou en cas d'exception
 
     createImage(m_width, m_height);
     transitionLayout(VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);

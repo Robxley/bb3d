@@ -103,7 +103,7 @@ Ces classes sont manipulées directement par l'utilisateur du moteur. **Elles do
 
 * **bb3d::UISystem (Runtime) :** * **But :** Affichage de l'interface utilisateur du jeu (HUD, Menu Pause, Barre de vie).  
   * **Technique :** Rendu batché de quads texturés (VertexUI) ou intégration de RmlUi / libRocket si besoin d'HTML/CSS like. Séparé de ImGui (Outils).  
-* **bb3d::SceneSerializer :** * **Import/Export Assets :** gLTF 2.0 via tinygltf pour la géométrie.  
+* **bb3d::SceneSerializer :** * **Import/Export Assets :** gLTF 2.0 via fastgltf pour la géométrie.  
   * **Sauvegarde État (JSON) :** Gère la sérialisation de la hiérarchie de la scène et des composants via nlohmann/json.
 
 ### **5\. Backend (Interne \- Vulkan & SDL)**

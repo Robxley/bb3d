@@ -59,6 +59,7 @@ int main() {
         config.title = "BB3D - Hello Triangle";
         config.width = 800;
         config.height = 600;
+        config.cullMode = "None"; // Désactiver le culling pour voir le triangle
         bb3d::Window window(config);
 
         bb3d::VulkanContext context;
@@ -75,7 +76,8 @@ int main() {
         bb3d::Shader fragShader(context, "assets/shaders/triangle.frag.spv");
 
         // --- Pipeline ---
-        bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config);
+        // On passe {} pour descriptorSetLayouts et false pour useVertexInput car les sommets sont hardcodés
+        bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {}, false);
 
         // --- Command Pool ---
         VkCommandPool commandPool;

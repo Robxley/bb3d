@@ -8,11 +8,12 @@ namespace bb3d {
 GraphicsPipeline::GraphicsPipeline(VulkanContext& context, SwapChain& swapChain, 
                                    const Shader& vertShader, const Shader& fragShader,
                                    const EngineConfig& config,
-                                   const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts)
+                                   const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts,
+                                   bool useVertexInput)
     : m_context(context), m_swapChain(swapChain) {
     
     createPipelineLayout(descriptorSetLayouts);
-    createPipeline(vertShader, fragShader, config);
+    createPipeline(vertShader, fragShader, config, useVertexInput);
 }
 
 GraphicsPipeline::~GraphicsPipeline() {
@@ -40,7 +41,7 @@ void GraphicsPipeline::createPipelineLayout(const std::vector<VkDescriptorSetLay
     }
 }
 
-void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config) {
+void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, bool useVertexInput) {
     // 1. Shader Stages
     VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
     vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -57,15 +58,23 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
     VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
     // 2. Vertex Input
+    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
     auto bindingDescription = Vertex::getBindingDescription();
     auto attributeDescriptions = Vertex::getAttributeDescriptions();
 
-    VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-    vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 1;
-    vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-    vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-    vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+    if (useVertexInput) {
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+    } else {
+        vertexInputInfo.vertexBindingDescriptionCount = 0;
+        vertexInputInfo.pVertexBindingDescriptions = nullptr;
+        vertexInputInfo.vertexAttributeDescriptionCount = 0;
+        vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+    }
 
     // 3. Input Assembly
     VkPipelineInputAssemblyStateCreateInfo inputAssembly{};

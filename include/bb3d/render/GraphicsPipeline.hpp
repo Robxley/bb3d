@@ -11,7 +11,8 @@ public:
     GraphicsPipeline(VulkanContext& context, SwapChain& swapChain, 
                      const Shader& vertShader, const Shader& fragShader,
                      const EngineConfig& config,
-                     const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts = {});
+                     const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts = {},
+                     bool useVertexInput = true);
     ~GraphicsPipeline();
 
     // Empêcher la copie
@@ -25,7 +26,7 @@ public:
 
 private:
     void createPipelineLayout(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
-    void createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config);
+    void createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, bool useVertexInput);
 
     VulkanContext& m_context;
     SwapChain& m_swapChain;

@@ -20,7 +20,7 @@ void runCoreSystemsTest() {
     BB_PROFILE_FRAME("MainThread");
     
     bb3d::Log::Init();
-    BB_CORE_INFO("--- Test Unitaire 03 : Core Systems ---");
+    BB_CORE_INFO("--- Test Unitaire 08 : Core Systems ---");
 
     // 1. TEST JOB SYSTEM
     {

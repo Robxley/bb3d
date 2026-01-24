@@ -1,4 +1,6 @@
 #pragma once
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/hash.hpp>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.h>
 #include <vector>
@@ -42,6 +44,20 @@ struct Vertex {
 
         return attributeDescriptions;
     }
+
+    bool operator==(const Vertex& other) const {
+        return position == other.position && color == other.color && uv == other.uv;
+    }
 };
 
 } // namespace bb3d
+
+namespace std {
+    template<> struct hash<bb3d::Vertex> {
+        size_t operator()(bb3d::Vertex const& vertex) const {
+            return ((hash<glm::vec3>()(vertex.position) ^
+                   (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
+                   (hash<glm::vec2>()(vertex.uv) << 1);
+        }
+    };
+}

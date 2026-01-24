@@ -55,6 +55,7 @@ int main() {
         config.title = "BB3D - Vertex Buffer Quad";
         config.width = 800;
         config.height = 600;
+        config.cullMode = "None"; // Fix pour l'ordre des sommets CW
         bb3d::Window window(config);
 
         bb3d::VulkanContext context;
