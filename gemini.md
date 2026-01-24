@@ -11,9 +11,9 @@ Ce document définit les standards techniques, l'architecture et les contraintes
 * **Graphics API :** Vulkan 1.3+ (Focus sur la performance et la gestion explicite de la mémoire).  
 * **Gestion Mémoire :** Vulkan Memory Allocator (VMA).  
 * **Maths :** GLM (OpenGL Mathematics).  
-* **Physique :** Abstraction nécessaire (Jolt Physics, Bullet ou PhysX en backend).  
+* **Physique :** Jolt Physics.  
 * **Audio :** miniaudio (Header-only, performant) ou OpenAL Soft.  
-* **Format Scène/Assets :** gLTF 2.0 (.gltf pour texte, .glb pour binaire). Standard de l'industrie.  
+* **Format Scène/Assets :** gLTF 2.0 (.gltf pour texte, .glb pour binaire). Standard de l'industrie. .obj(Wavefront)
 * **Configuration/Sauvegarde :** JSON (via nlohmann/json ou équivalent léger).  
 * **Logging :** spdlog.  
 * **Profiling :** Tracy Profiler.  

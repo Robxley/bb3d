@@ -13,7 +13,9 @@ namespace bb3d {
 
         try {
             nlohmann::json data = nlohmann::json::parse(f);
-            return data.get<EngineConfig>();
+            auto config = data.get<EngineConfig>();
+            BB_CORE_INFO("Config: Loaded from {0} ({1}x{2} '{3}')", path, config.width, config.height, config.title);
+            return config;
         } catch (const std::exception& e) {
             BB_CORE_ERROR("JSON Parsing Error in {}: {}", path, e.what());
             return EngineConfig{};

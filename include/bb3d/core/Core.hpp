@@ -1,6 +1,6 @@
 #pragma once
 
-#include <memory>
+#include "bb3d/core/Base.hpp"
 #include <utility>
 
 // Define a consistent namespace for the engine
@@ -8,24 +8,7 @@
 
 namespace BB3D_NAMESPACE
 {
-    // Smart pointer aliases as defined in the project specifications
-    template<typename T>
-    using Scope = std::unique_ptr<T>;
-
-    template<typename T>
-    using Ref = std::shared_ptr<T>;
-
-    template<typename T, typename ... Args>
-    constexpr Ref<T> CreateRef(Args&& ... args)
-    {
-        return std::make_shared<T>(std::forward<Args>(args)...);
-    }
-
-    template<typename T, typename ... Args>
-    constexpr Scope<T> CreateScope(Args&& ... args)
-    {
-        return std::make_unique<T>(std::forward<Args>(args)...);
-    }
+    // Fundamental types are now in Base.hpp
 }
 
 // Profiling macros (integration with Tracy)

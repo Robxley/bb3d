@@ -1,4 +1,5 @@
 #include "bb3d/input/InputManager.hpp"
+#include "bb3d/core/Log.hpp"
 #include <SDL3/SDL.h>
 
 namespace bb3d {
@@ -45,14 +46,17 @@ glm::vec2 InputManager::getMousePosition() const {
 
 void InputManager::mapAction(std::string_view name, Key key) {
     m_actions[std::string(name)] = InputBinding(key);
+    BB_CORE_TRACE("Input: Mapped action '{0}' to key {1}", name, static_cast<int>(key));
 }
 
 void InputManager::mapAction(std::string_view name, Mouse button) {
     m_actions[std::string(name)] = InputBinding(button);
+    BB_CORE_TRACE("Input: Mapped action '{0}' to mouse button {1}", name, static_cast<int>(button));
 }
 
 void InputManager::mapAxis(std::string_view name, Key positive, Key negative) {
     m_axes[std::string(name)] = {positive, negative};
+    BB_CORE_TRACE("Input: Mapped axis '{0}' (Pos:{1}, Neg:{2})", name, static_cast<int>(positive), static_cast<int>(negative));
 }
 
 bool InputManager::isActionPressed(std::string_view name) const {

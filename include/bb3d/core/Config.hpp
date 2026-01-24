@@ -12,6 +12,11 @@ namespace bb3d {
         int height = 720;
         bool vsync = true;
         int fpsMax = 0;
+        
+        // Rasterization defaults
+        std::string cullMode = "Back"; // None, Front, Back, FrontAndBack
+        std::string frontFace = "CCW"; // CW, CCW
+
         bool enablePhysics = true;
         std::string physicsBackend = "jolt";
         bool enableAudio = true;
@@ -20,7 +25,7 @@ namespace bb3d {
         std::string assetPath = "assets";
 
         // Macro nlohmann_json pour la sérialisation automatique
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(EngineConfig, title, width, height, vsync, fpsMax, enablePhysics, physicsBackend, enableAudio, enableJobSystem, maxThreads, assetPath)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(EngineConfig, title, width, height, vsync, fpsMax, cullMode, frontFace, enablePhysics, physicsBackend, enableAudio, enableJobSystem, maxThreads, assetPath)
     };
 
     class Config {

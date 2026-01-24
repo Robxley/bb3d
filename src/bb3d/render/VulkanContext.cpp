@@ -77,8 +77,10 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     }
 
     if (vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS) {
+        BB_CORE_ERROR("VulkanContext: Échec de la création de l'instance !");
         throw std::runtime_error("Échec de la création de l'instance Vulkan !");
     }
+    BB_CORE_INFO("VulkanContext: Instance Vulkan créée.");
 
     // 2. Debug Messenger
     if (enableValidationLayers) {
@@ -91,14 +93,17 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
         auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
         if (func != nullptr) {
             func(m_instance, &debugCreateInfo, nullptr, &m_debugMessenger);
+            BB_CORE_INFO("VulkanContext: Messager de débogage activé.");
         }
     }
 
     // 3. Création de la Surface (SDL3)
     if (window) {
         if (!SDL_Vulkan_CreateSurface(window, m_instance, nullptr, &m_surface)) {
+             BB_CORE_ERROR("VulkanContext: Échec de la création de la Surface !");
              throw std::runtime_error("Échec de la création de la Surface Vulkan via SDL !");
         }
+        BB_CORE_INFO("VulkanContext: Surface Vulkan créée via SDL.");
     } else {
         BB_CORE_WARN("VulkanContext::init appelé sans fenêtre : La Surface n'est pas créée.");
     }
@@ -106,7 +111,10 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     // 4. Sélection du Physical Device
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
-    if (deviceCount == 0) throw std::runtime_error("Aucun GPU supportant Vulkan trouvé !");
+    if (deviceCount == 0) {
+        BB_CORE_ERROR("VulkanContext: Aucun GPU supportant Vulkan trouvé !");
+        throw std::runtime_error("Aucun GPU supportant Vulkan trouvé !");
+    }
 
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.data());
@@ -156,7 +164,6 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
             m_graphicsQueueFamily = static_cast<uint32_t>(currentGraphics);
             m_presentQueueFamily = static_cast<uint32_t>(currentPresent);
             
-            // On sauvegarde aussi dans les variables locales externes à la boucle pour la logique de selection (optionnel si on break direct)
             graphicsQueueFamily = currentGraphics;
             presentQueueFamily = currentPresent;
             
@@ -167,10 +174,11 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     }
 
     if (m_physicalDevice == VK_NULL_HANDLE) {
+        BB_CORE_ERROR("VulkanContext: Aucun GPU compatible (Graphics + Present) trouvé !");
         throw std::runtime_error("Aucun GPU compatible (Graphics + Present) trouvé !");
     }
 
-    BB_CORE_INFO("GPU sélectionné : {}", m_deviceName);
+    BB_CORE_INFO("VulkanContext: GPU sélectionné : {0}", m_deviceName);
 
     // 5. Création du Logical Device
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
@@ -203,11 +211,13 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
     if (vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device) != VK_SUCCESS) {
+        BB_CORE_ERROR("VulkanContext: Échec de la création du Logical Device !");
         throw std::runtime_error("Échec de la création du Logical Device !");
     }
 
     vkGetDeviceQueue(m_device, m_graphicsQueueFamily, 0, &m_graphicsQueue);
     vkGetDeviceQueue(m_device, m_presentQueueFamily, 0, &m_presentQueue);
+    BB_CORE_INFO("VulkanContext: Logical Device créé (Queues: Graphics={0}, Present={1})", m_graphicsQueueFamily, m_presentQueueFamily);
 
     // 6. Initialisation VMA
     VmaAllocatorCreateInfo allocatorInfo = {};
@@ -217,24 +227,31 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
     
     if (vmaCreateAllocator(&allocatorInfo, &m_allocator) != VK_SUCCESS) {
+        BB_CORE_ERROR("VulkanContext: Échec de l'initialisation de VMA !");
         throw std::runtime_error("Échec de l'initialisation de VMA !");
     }
+    BB_CORE_INFO("VulkanContext: Allocateur VMA initialisé.");
 }
 
 void VulkanContext::cleanup() {
+    BB_CORE_INFO("VulkanContext: Début du nettoyage.");
+
     if (m_allocator != VK_NULL_HANDLE) {
         vmaDestroyAllocator(m_allocator);
         m_allocator = VK_NULL_HANDLE;
+        BB_CORE_INFO("VulkanContext: Allocateur VMA détruit.");
     }
 
     if (m_device != VK_NULL_HANDLE) {
         vkDestroyDevice(m_device, nullptr);
         m_device = VK_NULL_HANDLE;
+        BB_CORE_INFO("VulkanContext: Logical Device détruit.");
     }
 
     if (m_surface != VK_NULL_HANDLE) {
         vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
         m_surface = VK_NULL_HANDLE;
+        BB_CORE_INFO("VulkanContext: Surface Vulkan détruite.");
     }
 
     if (m_debugMessenger != VK_NULL_HANDLE) {
@@ -243,11 +260,13 @@ void VulkanContext::cleanup() {
             func(m_instance, m_debugMessenger, nullptr);
         }
         m_debugMessenger = VK_NULL_HANDLE;
+        BB_CORE_INFO("VulkanContext: Messager de débogage détruit.");
     }
 
     if (m_instance != VK_NULL_HANDLE) {
         vkDestroyInstance(m_instance, nullptr);
         m_instance = VK_NULL_HANDLE;
+        BB_CORE_INFO("VulkanContext: Instance Vulkan détruite.");
     }
 }
 

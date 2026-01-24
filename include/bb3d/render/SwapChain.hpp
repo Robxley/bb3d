@@ -22,6 +22,7 @@ public:
     [[nodiscard]] VkFormat getImageFormat() const { return m_imageFormat; }
     [[nodiscard]] VkExtent2D getExtent() const { return m_extent; }
     [[nodiscard]] const std::vector<VkImageView>& getImageViews() const { return m_imageViews; }
+    [[nodiscard]] VkImage getImage(uint32_t index) const { return m_images[index]; }
     [[nodiscard]] size_t getImageCount() const { return m_images.size(); }
 
     // Opérations de Frame

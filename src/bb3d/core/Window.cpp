@@ -62,10 +62,12 @@ void Window::SwapBuffers()
 void Window::HandleEvent(SDL_Event& event)
 {
     if (event.type == SDL_EVENT_QUIT) {
+        BB_CORE_INFO("Window: Close event received (SDL_EVENT_QUIT)");
         m_ShouldClose = true;
     }
     if (event.type == SDL_EVENT_KEY_DOWN) {
         if (event.key.key == SDLK_ESCAPE) {
+            BB_CORE_INFO("Window: Close event received (ESC key)");
             m_ShouldClose = true;
         }
     }

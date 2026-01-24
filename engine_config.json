@@ -4,6 +4,8 @@
     "height": 900,
     "vsync": true,
     "fpsMax": 0,
+    "cullMode": "Back",
+    "frontFace": "CCW",
     "enablePhysics": true,
     "physicsBackend": "jolt",
     "enableAudio": false,

@@ -56,7 +56,14 @@ FetchContent_Declare(
   GIT_TAG        1.0.3
 )
 
-FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm)
+# stb for image loading
+FetchContent_Declare(
+  stb
+  GIT_REPOSITORY https://github.com/nothings/stb.git
+  GIT_TAG        master
+)
+
+FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm stb)
 
 # Find Vulkan SDK
 find_package(Vulkan REQUIRED)
@@ -65,6 +72,52 @@ if(NOT Vulkan_FOUND)
     message(FATAL_ERROR "Vulkan SDK not found! Please install it.")
 endif()
 
+# Find glslc shader compiler
+find_program(GLSLC_EXECUTABLE
+    NAMES glslc
+    HINTS ${Vulkan_SDK}/bin
+          $ENV{VULKAN_SDK}/bin
+)
+
+if(NOT GLSLC_EXECUTABLE)
+    message(FATAL_ERROR "glslc not found! Please ensure Vulkan SDK bin directory is in PATH.")
+endif()
+
+# Function to compile shaders
+function(compile_shader SHADER_SOURCE SHADER_OUTPUT)
+    add_custom_command(
+        OUTPUT ${SHADER_OUTPUT}
+        COMMAND ${GLSLC_EXECUTABLE} ${SHADER_SOURCE} -o ${SHADER_OUTPUT}
+        DEPENDS ${SHADER_SOURCE}
+        COMMENT "Compiling ${SHADER_SOURCE} to ${SHADER_OUTPUT}"
+    )
+endfunction()
+
+# Compile default shaders
+set(SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders")
+set(SHADER_BUILD_DIR "${CMAKE_BINARY_DIR}/assets/shaders")
+file(MAKE_DIRECTORY ${SHADER_BUILD_DIR})
+
+set(SHADERS
+    "${SHADER_DIR}/triangle.vert"
+    "${SHADER_DIR}/triangle.frag"
+    "${SHADER_DIR}/triangle_buffer.vert"
+    "${SHADER_DIR}/simple_3d.vert"
+    "${SHADER_DIR}/simple_3d.frag"
+    "${SHADER_DIR}/texture_cube.vert"
+    "${SHADER_DIR}/texture_cube.frag"
+)
+
+set(SPV_SHADERS "")
+foreach(SHADER ${SHADERS})
+    get_filename_component(FILENAME ${SHADER} NAME)
+    set(SPV_OUTPUT "${SHADER_BUILD_DIR}/${FILENAME}.spv")
+    compile_shader(${SHADER} ${SPV_OUTPUT})
+    list(APPEND SPV_SHADERS ${SPV_OUTPUT})
+endforeach()
+
+add_custom_target(CompileShaders ALL DEPENDS ${SPV_SHADERS})
+
 
 # --- Engine Library (Automatic Source Discovery) ---
 file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
@@ -72,6 +125,7 @@ add_library(biobazard3d ${ENGINE_SOURCES})
 
 target_include_directories(biobazard3d PUBLIC 
     include
+    ${stb_SOURCE_DIR}
 )
 
 # Note: nlohmann_json is header-only, spdlog needs linking
@@ -126,6 +180,65 @@ add_executable(unit_test_03_swapchain
     tests/unit_test_03_swapchain.cpp
 )
 target_link_libraries(unit_test_03_swapchain PRIVATE biobazard3d)
+
+add_executable(unit_test_04_hello_triangle
+    tests/unit_test_04_hello_triangle.cpp
+)
+target_link_libraries(unit_test_04_hello_triangle PRIVATE biobazard3d)
+add_dependencies(unit_test_04_hello_triangle CompileShaders)
+
+# Copy shaders to executable directory
+add_custom_command(TARGET unit_test_04_hello_triangle POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_BINARY_DIR}/assets/shaders
+    $<TARGET_FILE_DIR:unit_test_04_hello_triangle>/assets/shaders
+)
+
+add_executable(unit_test_05_vertex_buffer
+    tests/unit_test_05_vertex_buffer.cpp
+)
+target_link_libraries(unit_test_05_vertex_buffer PRIVATE biobazard3d)
+add_dependencies(unit_test_05_vertex_buffer CompileShaders)
+
+add_custom_command(TARGET unit_test_05_vertex_buffer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_BINARY_DIR}/assets/shaders
+    $<TARGET_FILE_DIR:unit_test_05_vertex_buffer>/assets/shaders
+)
+
+add_executable(unit_test_06_rotating_cube
+    tests/unit_test_06_rotating_cube.cpp
+)
+target_link_libraries(unit_test_06_rotating_cube PRIVATE biobazard3d)
+add_dependencies(unit_test_06_rotating_cube CompileShaders)
+
+add_custom_command(TARGET unit_test_06_rotating_cube POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_BINARY_DIR}/assets/shaders
+    $<TARGET_FILE_DIR:unit_test_06_rotating_cube>/assets/shaders
+)
+
+add_executable(unit_test_07_texture_cube
+    tests/unit_test_07_texture_cube.cpp
+)
+target_link_libraries(unit_test_07_texture_cube PRIVATE biobazard3d)
+add_dependencies(unit_test_07_texture_cube CompileShaders)
+
+add_custom_command(TARGET unit_test_07_texture_cube POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_BINARY_DIR}/assets/shaders
+    $<TARGET_FILE_DIR:unit_test_07_texture_cube>/assets/shaders
+)
+
+add_executable(unit_test_08_resource_manager
+    tests/unit_test_08_resource_manager.cpp
+)
+target_link_libraries(unit_test_08_resource_manager PRIVATE biobazard3d)
+
+add_executable(unit_test_09_core_systems
+    tests/unit_test_09_core_systems.cpp
+)
+target_link_libraries(unit_test_09_core_systems PRIVATE biobazard3d)
 
 message(STATUS "biobazard3d project configured for C++20 with strict warnings.")
 message(STATUS "To build, run: cmake --build build")
