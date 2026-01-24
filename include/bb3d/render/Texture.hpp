@@ -8,6 +8,7 @@ namespace bb3d {
 class Texture : public Resource { // Inherit
 public:
     Texture(VulkanContext& context, std::string_view filepath);
+    Texture(VulkanContext& context, const void* data, size_t size); // Constructeur depuis mémoire
     ~Texture();
 
     Texture(const Texture&) = delete;

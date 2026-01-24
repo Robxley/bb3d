@@ -123,6 +123,15 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
     multisampling.sampleShadingEnable = VK_FALSE;
     multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
+    // 10. Depth Stencil
+    VkPipelineDepthStencilStateCreateInfo depthStencil{};
+    depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    depthStencil.depthTestEnable = VK_TRUE;
+    depthStencil.depthWriteEnable = VK_TRUE;
+    depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+    depthStencil.depthBoundsTestEnable = VK_FALSE;
+    depthStencil.stencilTestEnable = VK_FALSE;
+
     // 7. Color Blending
     VkPipelineColorBlendAttachmentState colorBlendAttachment{};
     colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
@@ -141,12 +150,13 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
 
     // 8. Dynamic Rendering Info
     VkFormat colorFormat = m_swapChain.getImageFormat();
+    VkFormat depthFormat = m_swapChain.getDepthFormat();
 
     VkPipelineRenderingCreateInfoKHR renderingInfo{};
     renderingInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR;
     renderingInfo.colorAttachmentCount = 1;
     renderingInfo.pColorAttachmentFormats = &colorFormat;
-    renderingInfo.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
+    renderingInfo.depthAttachmentFormat = depthFormat;
     renderingInfo.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
 
     // 9. Create Pipeline
@@ -160,7 +170,7 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
-    pipelineInfo.pDepthStencilState = nullptr;
+    pipelineInfo.pDepthStencilState = &depthStencil;
     pipelineInfo.pColorBlendState = &colorBlending;
     pipelineInfo.pDynamicState = &dynamicState;
     pipelineInfo.layout = m_pipelineLayout;

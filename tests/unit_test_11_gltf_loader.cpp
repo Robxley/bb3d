@@ -7,6 +7,7 @@
 #include "bb3d/render/GraphicsPipeline.hpp"
 #include "bb3d/render/UniformBuffer.hpp"
 #include "bb3d/render/Model.hpp"
+#include "bb3d/render/Texture.hpp"
 #include "bb3d/resource/ResourceManager.hpp"
 #include "bb3d/core/JobSystem.hpp"
 #include "bb3d/scene/Camera.hpp"
@@ -23,7 +24,7 @@ struct UniformBufferObject {
     alignas(16) glm::mat4 proj;
 };
 
-// Helper transition
+// Helper transition Color
 void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
     VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
     barrier.oldLayout = oldLayout;
@@ -56,6 +57,36 @@ void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkForma
     vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
 
+// Helper transition Depth
+void transitionDepthLayout(VkCommandBuffer commandBuffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) {
+    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+
+    VkPipelineStageFlags sourceStage;
+    VkPipelineStageFlags destinationStage;
+
+    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    } else {
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    }
+
+    vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+}
+
 // Helper RAII
 struct TestResources {
     VkDevice device;
@@ -80,11 +111,11 @@ struct TestResources {
 
 int main() {
     bb3d::Log::Init();
-    BB_CORE_INFO("Test Unitaire 11 : Rendu Mesh GLTF (Box)");
+    BB_CORE_INFO("Test Unitaire 11 : Rendu Mesh GLTF Texturé (Ant)");
 
     try {
         bb3d::EngineConfig config;
-        config.title = "BB3D - GLTF Loader";
+        config.title = "BB3D - GLTF Loader (Textured)";
         config.width = 1280;
         config.height = 720;
         config.cullMode = "None"; 
@@ -105,37 +136,58 @@ int main() {
 
         // Charger le modèle Fourmi (GLB)
         auto model = resources.load<bb3d::Model>("assets/models/ant.glb");
+        auto texture = model->getTexture(0);
+        
+        if (!texture) {
+            throw std::runtime_error("Texture manquante pour le test !");
+        }
 
         // --- Auto-Fit ---
         auto bounds = model->getBounds();
         glm::vec3 center = bounds.center();
         glm::vec3 size = bounds.size();
         float maxDim = std::max(std::max(size.x, size.y), size.z);
-        float scale = (maxDim > 0.0f) ? (2.0f / maxDim) : 1.0f;
+        
+        float fov = 45.0f;
+        float distance = (maxDim) / std::tan(glm::radians(fov) * 0.5f);
+        distance *= 1.5f;
 
         BB_CORE_INFO("GLTF Bounds: MaxDim={}", maxDim);
 
         // --- UBO ---
         bb3d::UniformBuffer ubo(context, sizeof(UniformBufferObject));
 
-        // --- Descriptor Set Layout (UBO Only) ---
+        // --- Descriptor Set Layout ---
         VkDescriptorSetLayoutBinding uboLayoutBinding{};
         uboLayoutBinding.binding = 0;
         uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uboLayoutBinding.descriptorCount = 1;
         uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+        VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+        samplerLayoutBinding.binding = 1;
+        samplerLayoutBinding.descriptorCount = 1;
+        samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplerLayoutBinding.pImmutableSamplers = nullptr;
+        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
         VkDescriptorSetLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-        layoutInfo.bindingCount = 1;
-        layoutInfo.pBindings = &uboLayoutBinding;
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
 
         vkCreateDescriptorSetLayout(context.getDevice(), &layoutInfo, nullptr, &res.descriptorSetLayout);
 
         // --- Pool ---
-        VkDescriptorPoolSize poolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1};
+        std::array<VkDescriptorPoolSize, 2> poolSizes{};
+        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSizes[0].descriptorCount = 1;
+        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        poolSizes[1].descriptorCount = 1;
+
         VkDescriptorPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-        poolInfo.poolSizeCount = 1;
-        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
+        poolInfo.pPoolSizes = poolSizes.data();
         poolInfo.maxSets = 1;
         vkCreateDescriptorPool(context.getDevice(), &poolInfo, nullptr, &res.descriptorPool);
 
@@ -147,22 +199,37 @@ int main() {
         VkDescriptorSet descriptorSet;
         vkAllocateDescriptorSets(context.getDevice(), &allocInfo, &descriptorSet);
 
+        // --- Update Descriptors ---
         VkDescriptorBufferInfo bufferInfo{};
         bufferInfo.buffer = ubo.getHandle();
         bufferInfo.offset = 0;
         bufferInfo.range = sizeof(UniformBufferObject);
 
-        VkWriteDescriptorSet descriptorWrite{VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-        descriptorWrite.dstSet = descriptorSet;
-        descriptorWrite.dstBinding = 0;
-        descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrite.descriptorCount = 1;
-        descriptorWrite.pBufferInfo = &bufferInfo;
-        vkUpdateDescriptorSets(context.getDevice(), 1, &descriptorWrite, 0, nullptr);
+        VkDescriptorImageInfo imageInfo{};
+        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        imageInfo.imageView = texture->getImageView();
+        imageInfo.sampler = texture->getSampler();
 
-        // --- Pipeline (Simple 3D) ---
-        bb3d::Shader vertShader(context, "assets/shaders/simple_3d.vert.spv");
-        bb3d::Shader fragShader(context, "assets/shaders/simple_3d.frag.spv");
+        std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
+        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[0].dstSet = descriptorSet;
+        descriptorWrites[0].dstBinding = 0;
+        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        descriptorWrites[0].descriptorCount = 1;
+        descriptorWrites[0].pBufferInfo = &bufferInfo;
+
+        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        descriptorWrites[1].dstSet = descriptorSet;
+        descriptorWrites[1].dstBinding = 1;
+        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        descriptorWrites[1].descriptorCount = 1;
+        descriptorWrites[1].pImageInfo = &imageInfo;
+
+        vkUpdateDescriptorSets(context.getDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+
+        // --- Pipeline ---
+        bb3d::Shader vertShader(context, "assets/shaders/textured_mesh.vert.spv");
+        bb3d::Shader fragShader(context, "assets/shaders/textured_mesh.frag.spv");
         bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {res.descriptorSetLayout});
 
         // --- Commands ---
@@ -190,8 +257,8 @@ int main() {
         }
         vkCreateFence(context.getDevice(), &fenceInfo, nullptr, &res.inFlightFence);
 
-        bb3d::Camera camera(45.0f, (float)config.width / (float)config.height, 0.1f, 100.0f);
-        camera.setPosition({0.0f, 2.0f, 5.0f});
+        bb3d::Camera camera(fov, (float)config.width / (float)config.height, 0.1f, distance * 10.0f);
+        camera.setPosition({0.0f, maxDim * 0.5f, distance});
         camera.lookAt({0.0f, 0.0f, 0.0f});
 
         BB_CORE_INFO("Démarrage du rendu...");
@@ -205,7 +272,6 @@ int main() {
             float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
             
             glm::mat4 modelMat = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-            modelMat = glm::scale(modelMat, glm::vec3(scale));
             modelMat = glm::translate(modelMat, -center);
             
             uboData.model = modelMat;
@@ -225,6 +291,9 @@ int main() {
 
             VkImage image = swapChain.getImage(imageIndex);
             transitionImageLayout(commandBuffer, image, swapChain.getImageFormat(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            
+            VkImage depthImage = swapChain.getDepthImage();
+            transitionDepthLayout(commandBuffer, depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
             VkRenderingAttachmentInfo colorAttachment{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
             colorAttachment.imageView = swapChain.getImageViews()[imageIndex];
@@ -233,11 +302,19 @@ int main() {
             colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
             colorAttachment.clearValue.color = {{0.1f, 0.1f, 0.1f, 1.0f}};
 
+            VkRenderingAttachmentInfo depthAttachment{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
+            depthAttachment.imageView = swapChain.getDepthImageView();
+            depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+            depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+            depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+            depthAttachment.clearValue.depthStencil = {1.0f, 0};
+
             VkRenderingInfo renderingInfo{VK_STRUCTURE_TYPE_RENDERING_INFO};
             renderingInfo.renderArea = {{0, 0}, swapChain.getExtent()};
             renderingInfo.layerCount = 1;
             renderingInfo.colorAttachmentCount = 1;
             renderingInfo.pColorAttachments = &colorAttachment;
+            renderingInfo.pDepthAttachment = &depthAttachment;
 
             vkCmdBeginRendering(commandBuffer, &renderingInfo);
 

@@ -15,6 +15,11 @@ public:
 
     void draw(VkCommandBuffer commandBuffer);
     const AABB& getBounds() const { return m_bounds; }
+    
+    Ref<Texture> getTexture(size_t index) const {
+        if (index < m_textures.size()) return m_textures[index];
+        return nullptr;
+    }
 
 private:
     void loadGLTF(std::string_view path);
@@ -23,6 +28,7 @@ private:
     VulkanContext& m_context;
     ResourceManager& m_resourceManager;
     std::vector<Scope<Mesh>> m_meshes;
+    std::vector<Ref<Texture>> m_textures; // Textures chargées (internes ou via RM)
     AABB m_bounds;
 };
 

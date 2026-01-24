@@ -24,6 +24,11 @@ public:
     [[nodiscard]] const std::vector<VkImageView>& getImageViews() const { return m_imageViews; }
     [[nodiscard]] VkImage getImage(uint32_t index) const { return m_images[index]; }
     [[nodiscard]] size_t getImageCount() const { return m_images.size(); }
+    
+    // Depth Buffer
+    [[nodiscard]] VkImage getDepthImage() const { return m_depthImage; }
+    [[nodiscard]] VkImageView getDepthImageView() const { return m_depthImageView; }
+    [[nodiscard]] VkFormat getDepthFormat() const { return m_depthFormat; }
 
     // Opérations de Frame
     // Retourne l'index de l'image acquise
@@ -33,6 +38,9 @@ public:
 private:
     void createSwapChain(int width, int height);
     void createImageViews();
+    void createDepthResources();
+    VkFormat findDepthFormat();
+
     VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
     VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
     VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, int width, int height);
@@ -43,6 +51,12 @@ private:
     std::vector<VkImageView> m_imageViews;
     VkFormat m_imageFormat;
     VkExtent2D m_extent;
+
+    // Depth Resources
+    VkImage m_depthImage{VK_NULL_HANDLE};
+    VmaAllocation m_depthImageAllocation{VK_NULL_HANDLE};
+    VkImageView m_depthImageView{VK_NULL_HANDLE};
+    VkFormat m_depthFormat{VK_FORMAT_UNDEFINED};
 };
 
 }

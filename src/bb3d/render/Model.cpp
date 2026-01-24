@@ -194,6 +194,43 @@ void Model::loadGLTF(std::string_view path) {
 
     const auto& gltf = asset.get();
 
+    // Charger les textures
+    m_textures.reserve(gltf.images.size());
+    for (const auto& image : gltf.images) {
+        // Utilisation d'un lambda pour visiter le variant image.data
+        auto texture = std::visit(fastgltf::visitor {
+            [&](const fastgltf::sources::URI&) -> Ref<Texture> {
+                BB_CORE_WARN("Chargement de texture par URI non implémenté pour cette version de fastgltf.");
+                return nullptr;
+            },
+            [&](const fastgltf::sources::Vector& vector) -> Ref<Texture> {
+                return CreateRef<Texture>(m_context, vector.bytes.data(), vector.bytes.size());
+            },
+            [&](const fastgltf::sources::ByteView& byteView) -> Ref<Texture> {
+                return CreateRef<Texture>(m_context, byteView.bytes.data(), byteView.bytes.size());
+            },
+            [&](const fastgltf::sources::BufferView& view) -> Ref<Texture> {
+                auto& bufferView = gltf.bufferViews[view.bufferViewIndex];
+                auto& buffer = gltf.buffers[bufferView.bufferIndex];
+                const uint8_t* bufferData = getBufferData(buffer);
+                if (bufferData) {
+                    const uint8_t* data = bufferData + bufferView.byteOffset;
+                    return CreateRef<Texture>(m_context, data, bufferView.byteLength);
+                }
+                return nullptr;
+            },
+            [](auto&) -> Ref<Texture> { return nullptr; }
+        }, image.data);
+
+        if (texture) {
+            m_textures.push_back(texture);
+        } else {
+            BB_CORE_WARN("Impossible de charger une texture du GLTF: {}", image.name);
+            // Ajouter un placeholder null pour garder l'indexation
+            m_textures.push_back(nullptr); 
+        }
+    }
+
     // Iterate over meshes
     for (const auto& mesh : gltf.meshes) {
         BB_CORE_INFO("Parsing Mesh: {}", mesh.name);

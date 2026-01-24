@@ -10,6 +10,7 @@ SwapChain::SwapChain(VulkanContext& context, int width, int height)
     : m_context(context) {
     createSwapChain(width, height);
     createImageViews();
+    createDepthResources();
 }
 
 SwapChain::~SwapChain() {
@@ -17,6 +18,15 @@ SwapChain::~SwapChain() {
 }
 
 void SwapChain::cleanup() {
+    if (m_depthImageView != VK_NULL_HANDLE) {
+        vkDestroyImageView(m_context.getDevice(), m_depthImageView, nullptr);
+        m_depthImageView = VK_NULL_HANDLE;
+    }
+    if (m_depthImage != VK_NULL_HANDLE) {
+        vmaDestroyImage(m_context.getAllocator(), m_depthImage, m_depthImageAllocation);
+        m_depthImage = VK_NULL_HANDLE;
+    }
+
     for (auto imageView : m_imageViews) {
         vkDestroyImageView(m_context.getDevice(), imageView, nullptr);
     }
@@ -33,6 +43,7 @@ void SwapChain::recreate(int width, int height) {
     cleanup(); // Nettoie l'ancienne swapchain
     createSwapChain(width, height);
     createImageViews();
+    createDepthResources();
 }
 
 uint32_t SwapChain::acquireNextImage(VkSemaphore semaphore, VkFence fence) {
@@ -210,6 +221,67 @@ VkExtent2D SwapChain::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilit
 
         return actualExtent;
     }
+}
+
+void SwapChain::createDepthResources() {
+    VkFormat depthFormat = findDepthFormat();
+    m_depthFormat = depthFormat;
+
+    VkImageCreateInfo imageInfo{};
+    imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    imageInfo.imageType = VK_IMAGE_TYPE_2D;
+    imageInfo.extent.width = m_extent.width;
+    imageInfo.extent.height = m_extent.height;
+    imageInfo.extent.depth = 1;
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = 1;
+    imageInfo.format = depthFormat;
+    imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VmaAllocationCreateInfo allocInfo{};
+    allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    if (vmaCreateImage(m_context.getAllocator(), &imageInfo, &allocInfo, &m_depthImage, &m_depthImageAllocation, nullptr) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create depth image!");
+    }
+
+    VkImageViewCreateInfo viewInfo{};
+    viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    viewInfo.image = m_depthImage;
+    viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    viewInfo.format = depthFormat;
+    viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = 1;
+
+    if (vkCreateImageView(m_context.getDevice(), &viewInfo, nullptr, &m_depthImageView) != VK_SUCCESS) {
+        throw std::runtime_error("failed to create depth image view!");
+    }
+}
+
+VkFormat SwapChain::findDepthFormat() {
+    std::vector<VkFormat> candidates = {VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT};
+    VkImageTiling tiling = VK_IMAGE_TILING_OPTIMAL;
+    VkFormatFeatureFlags features = VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+    for (VkFormat format : candidates) {
+        VkFormatProperties props;
+        vkGetPhysicalDeviceFormatProperties(m_context.getPhysicalDevice(), format, &props);
+
+        if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features) {
+            return format;
+        } else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features) {
+            return format;
+        }
+    }
+
+    throw std::runtime_error("failed to find supported depth format!");
 }
 
 } // namespace bb3d
