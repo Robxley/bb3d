@@ -66,6 +66,9 @@ void Engine::Init() {
 
     // 4. Window
     m_Window = CreateScope<Window>(m_Config);
+    m_Window->SetEventCallback([this](SDL_Event& e) {
+        if (m_InputManager) m_InputManager->onEvent(e);
+    });
 
     // 5. Vulkan Context
     m_VulkanContext = CreateScope<VulkanContext>();
@@ -105,15 +108,17 @@ void Engine::Run() {
     m_Running = true;
     BB_CORE_INFO("Engine: Entering main loop.");
 
-    uint64_t lastTime = SDL_GetTicks();
+    uint64_t lastTime = SDL_GetPerformanceCounter();
+    uint64_t frequency = SDL_GetPerformanceFrequency();
 
     while (m_Running && !m_Window->ShouldClose()) {
         BB_PROFILE_FRAME("MainLoop");
 
-        uint64_t currentTime = SDL_GetTicks();
-        float deltaTime = static_cast<float>(currentTime - lastTime) / 1000.0f;
+        uint64_t currentTime = SDL_GetPerformanceCounter();
+        float deltaTime = static_cast<float>(currentTime - lastTime) / static_cast<float>(frequency);
         lastTime = currentTime;
 
+        if (m_InputManager) m_InputManager->update();
         m_Window->PollEvents();
         
         Update(deltaTime);
@@ -138,7 +143,9 @@ void Engine::Update(float deltaTime) {
         m_EventBus->dispatchQueued();
     }
 
-    // Mise à jour de la scène (Physique, etc)
+    if (m_ActiveScene) {
+        m_ActiveScene->onUpdate(deltaTime);
+    }
 }
 
 void Engine::Render() {

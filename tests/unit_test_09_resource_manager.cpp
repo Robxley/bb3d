@@ -47,17 +47,21 @@ void createDummyBMP(const std::string& path) {
 }
 
 void runResourceManagerTest() {
-    bb3d::Log::Init();
-    BB_CORE_INFO("--- Test Unitaire 09 : Resource Manager ---");
+    BB_CORE_INFO("--- Test Unitaire 09 : Resource Manager Internal ---");
     
-    // Ensure assets exist
-    std::filesystem::create_directories("assets/textures");
-    std::filesystem::create_directories("assets/models");
-    createDummyBMP("assets/textures/bricks.bmp"); // Use BMP instead of PNG
-    
-    // Create dummy GLTF if not exists (Box)
-    if (!std::filesystem::exists("assets/models/box.gltf")) {
-        const std::string gltfContent = R"({
+    try {
+        // Ensure assets exist
+        BB_CORE_INFO("[Debug] Creating assets directories...");
+        std::filesystem::create_directories("assets/textures");
+        std::filesystem::create_directories("assets/models");
+        BB_CORE_INFO("[Debug] Creating dummy BMP...");
+        createDummyBMP("assets/textures/bricks.bmp");
+        
+        // Create dummy GLTF if not exists (Box)
+        if (!std::filesystem::exists("assets/models/box.gltf")) {
+            BB_CORE_INFO("[Debug] Creating dummy GLTF...");
+            // ... (keep the gltfContent)
+            const std::string gltfContent = R"({
   "asset": { "version": "2.0" },
   "buffers": [
     {
@@ -123,23 +127,24 @@ void runResourceManagerTest() {
   ],
   "scene": 0
 })";
-        std::ofstream("assets/models/box.gltf") << gltfContent;
-    }
+            std::ofstream("assets/models/box.gltf") << gltfContent;
+        }
 
-    bb3d::JobSystem jobSystem;
-    jobSystem.init(4);
-    
-    // Initialisation SDL requise par VulkanContext
-    if (!SDL_Init(SDL_INIT_VIDEO)) {
-        BB_CORE_ERROR("SDL Init failed");
-        return;
-    }
+        BB_CORE_INFO("[Debug] Initializing JobSystem...");
+        bb3d::JobSystem jobSystem;
+        jobSystem.init(4);
+        
+        BB_CORE_INFO("[Debug] SDL_Init...");
+        if (!SDL_Init(SDL_INIT_VIDEO)) {
+            BB_CORE_ERROR("SDL Init failed: {}", SDL_GetError());
+            return;
+        }
 
-    try {
+        BB_CORE_INFO("[Debug] Initializing VulkanContext...");
         bb3d::VulkanContext context;
-        // Init minimaliste pour le test
         context.init(nullptr, "ResourceTest", false);
 
+        BB_CORE_INFO("[Debug] Creating ResourceManager...");
         bb3d::ResourceManager assets(context, jobSystem);
 
         // 1. Test Caching Synchrone
@@ -148,10 +153,10 @@ void runResourceManagerTest() {
             auto tex1 = assets.load<bb3d::Texture>("assets/textures/bricks.bmp");
             auto tex2 = assets.load<bb3d::Texture>("assets/textures/bricks.bmp");
 
-            if (tex1 == tex2) {
+            if (tex1 && tex2 && tex1 == tex2) {
                 BB_CORE_INFO("[Success] Le cache fonctionne : tex1 == tex2");
             } else {
-                BB_CORE_ERROR("[Fail] Le cache ne fonctionne pas : tex1 != tex2");
+                BB_CORE_ERROR("[Fail] Le cache ne fonctionne pas ou texture nulle.");
                 throw std::runtime_error("Caching failed");
             }
         }
@@ -178,13 +183,14 @@ void runResourceManagerTest() {
             if (loaded && loadedModel != nullptr && loadedModel->getPath() == "assets/models/box.gltf") {
                 BB_CORE_INFO("[Success] Chargement asynchrone réussi.");
             } else {
-                BB_CORE_ERROR("[Fail] Le chargement asynchrone a échoué.");
+                BB_CORE_ERROR("[Fail] Le chargement asynchrone a échoué. (Loaded: {}, Model: {})", loaded.load(), (void*)loadedModel.get());
                 throw std::runtime_error("Async load failed");
             }
         }
 
     } catch (const std::exception& e) {
         BB_CORE_ERROR("Erreur pendant le test : {}", e.what());
+        throw; // Re-throw to fail the test
     }
 
     SDL_Quit();
@@ -192,10 +198,14 @@ void runResourceManagerTest() {
 }
 
 int main() {
-    bb3d::EngineConfig logConfig;
-    logConfig.system.logDirectory = "unit_test_logs";
-    bb3d::Log::Init(logConfig);
-    BB_CORE_INFO("--- Test Unitaire 09 : Resource Manager ---");
-    runResourceManagerTest();
+    try {
+        bb3d::EngineConfig logConfig;
+        logConfig.system.logDirectory = "unit_test_logs";
+        bb3d::Log::Init(logConfig);
+        BB_CORE_INFO("--- Test Unitaire 09 : Resource Manager ---");
+        runResourceManagerTest();
+    } catch (...) {
+        return 1;
+    }
     return 0;
 }

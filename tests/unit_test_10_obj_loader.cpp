@@ -19,8 +19,7 @@
 #include <chrono>
 #include <array>
 
-struct UniformBufferObject {
-    alignas(16) glm::mat4 model;
+struct GlobalUBO {
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
 };
@@ -72,22 +71,41 @@ int main() {
         float maxDim = std::max({size.x, size.y, size.z});
         float fov = 45.0f, dist = maxDim / std::tan(glm::radians(fov) * 0.5f) * 1.5f;
 
-        bb3d::UniformBuffer ubo(context, sizeof(UniformBufferObject));
-        vk::DescriptorSetLayoutBinding b[] = {{0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex}, {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}};
-        vk::DescriptorSetLayout dsl = device.createDescriptorSetLayout({ {}, 2, b });
-        vk::DescriptorPoolSize ps[] = {{vk::DescriptorType::eUniformBuffer, 1}, {vk::DescriptorType::eCombinedImageSampler, 1}};
-        vk::DescriptorPool dp = device.createDescriptorPool({ {}, 1, 2, ps });
-        vk::DescriptorSet ds = device.allocateDescriptorSets({ dp, 1, &dsl })[0];
+        // --- Descriptors ---
+        bb3d::UniformBuffer ubo(context, sizeof(GlobalUBO));
+        
+        // Set 0: GlobalUBO
+        vk::DescriptorSetLayoutBinding b0 = {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex};
+        vk::DescriptorSetLayout dsl0 = device.createDescriptorSetLayout({ {}, 1, &b0 });
+        
+        // Set 1: Sampler
+        vk::DescriptorSetLayoutBinding b1 = {0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment};
+        vk::DescriptorSetLayout dsl1 = device.createDescriptorSetLayout({ {}, 1, &b1 });
+        
+        vk::DescriptorPoolSize ps[] = {
+            {vk::DescriptorType::eUniformBuffer, 1}, 
+            {vk::DescriptorType::eCombinedImageSampler, 1}
+        };
+        vk::DescriptorPool dp = device.createDescriptorPool({ {}, 2, 2, ps });
+        
+        auto dsets = device.allocateDescriptorSets({ dp, 2, std::vector<vk::DescriptorSetLayout>{dsl0, dsl1}.data() });
+        vk::DescriptorSet ds0 = dsets[0];
+        vk::DescriptorSet ds1 = dsets[1];
 
-        vk::DescriptorBufferInfo bi(ubo.getHandle(), 0, sizeof(UniformBufferObject));
+        vk::DescriptorBufferInfo bi(ubo.getHandle(), 0, sizeof(GlobalUBO));
         vk::DescriptorImageInfo ii(texture->getSampler(), texture->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-        vk::WriteDescriptorSet w[] = {{ds, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bi}, {ds, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &ii}};
+        
+        vk::WriteDescriptorSet w[] = {
+            {ds0, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bi}, 
+            {ds1, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &ii}
+        };
         device.updateDescriptorSets(2, w, 0, nullptr);
 
         // --- Pipeline (Textured) ---
+        vk::PushConstantRange pcr(vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4));
         bb3d::Shader vertShader(context, "assets/shaders/textured_mesh.vert.spv");
         bb3d::Shader fragShader(context, "assets/shaders/textured_mesh.frag.spv");
-        bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {dsl});
+        bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {dsl0, dsl1}, {pcr});
 
         vk::CommandPool cp = device.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.getGraphicsQueueFamily() });
 
@@ -102,7 +120,7 @@ int main() {
             inFlightFences[i] = device.createFence({ vk::FenceCreateFlagBits::eSignaled });
         }
 
-        bb3d::FPSCamera camera(fov, (float)config.window.width/config.window.height, 0.1f, dist*10.0f);
+        bb3d::FPSCamera camera(fov, (float)config.window.width/config.window.height, 0.1f, dist*20.0f);
         camera.setPosition({0, maxDim*0.5f, dist}); camera.lookAt({0,0,0});
 
         uint32_t currentFrame = 0;
@@ -110,8 +128,11 @@ int main() {
             window.PollEvents();
             static auto start = std::chrono::high_resolution_clock::now();
             float t = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - start).count();
-            UniformBufferObject data{ glm::rotate(glm::mat4(1.0f), t*0.5f, {0,1,0}) * glm::translate(glm::mat4(1.0f), -center), camera.getViewMatrix(), camera.getProjectionMatrix() };
-            ubo.update(&data, sizeof(data));
+            
+            GlobalUBO uboData{ camera.getViewMatrix(), camera.getProjectionMatrix() };
+            ubo.update(&uboData, sizeof(uboData));
+
+            glm::mat4 modelMat = glm::rotate(glm::mat4(1.0f), t*0.5f, {0,1,0}) * glm::translate(glm::mat4(1.0f), -center);
 
             auto wr = device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX); 
             device.resetFences(1, &inFlightFences[currentFrame]);
@@ -127,7 +148,11 @@ int main() {
             cb.beginRendering(rI); pipeline.bind(cb);
             cb.setViewport(0, vk::Viewport(0,0,(float)swapChain.getExtent().width, (float)swapChain.getExtent().height, 0, 1));
             cb.setScissor(0, vk::Rect2D({0,0}, swapChain.getExtent()));
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.getLayout(), 0, 1, &ds, 0, nullptr);
+            
+            vk::DescriptorSet sets[] = {ds0, ds1};
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.getLayout(), 0, 2, sets, 0, nullptr);
+            cb.pushConstants(pipeline.getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
+
             model->draw(cb); cb.endRendering();
             transitionImageLayout(cb, swapChain.getImage(idx), swapChain.getImageFormat(), vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
             cb.end();
@@ -142,7 +167,8 @@ int main() {
             device.destroySemaphore(semR[i]); 
             device.destroyFence(inFlightFences[i]);
         }
-        device.destroyCommandPool(cp); device.destroyDescriptorPool(dp); device.destroyDescriptorSetLayout(dsl);
+        device.destroyCommandPool(cp); device.destroyDescriptorPool(dp); 
+        device.destroyDescriptorSetLayout(dsl0); device.destroyDescriptorSetLayout(dsl1);
         jobSystem.shutdown();
     } catch (const std::exception& e) { BB_CORE_ERROR("Fail: {}", e.what()); return -1; }
     return 0;

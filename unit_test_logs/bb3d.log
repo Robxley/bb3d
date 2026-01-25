@@ -1,0 +1,6 @@
+[2026-01-25 21:59:06.528] [CORE] [info] Logging System Initialized (Console: ON, File: ON)
+[2026-01-25 21:59:06.528] [CORE] [info] Test Unitaire 13 : Caméras (Logique)
+[2026-01-25 21:59:06.528] [CORE] [info] Test: FPSCamera Logic...
+[2026-01-25 21:59:06.528] [CORE] [info] [Success] FPSCamera logic passed.
+[2026-01-25 21:59:06.528] [CORE] [info] Test: OrbitCamera Logic...
+[2026-01-25 21:59:06.528] [CORE] [info] [Success] OrbitCamera logic passed.

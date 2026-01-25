@@ -19,7 +19,8 @@ Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& c
     m_defaultVert = CreateScope<Shader>(context, "assets/shaders/simple_3d.vert.spv");
     m_defaultFrag = CreateScope<Shader>(context, "assets/shaders/simple_3d.frag.spv");
     
-    m_defaultPipeline = CreateScope<GraphicsPipeline>(context, *m_swapChain, *m_defaultVert, *m_defaultFrag, config, std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout});
+    vk::PushConstantRange pcr(vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4));
+    m_defaultPipeline = CreateScope<GraphicsPipeline>(context, *m_swapChain, *m_defaultVert, *m_defaultFrag, config, std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout}, std::vector<vk::PushConstantRange>{pcr});
 }
 
 Renderer::~Renderer() {
@@ -146,7 +147,11 @@ void Renderer::render(Scene& scene) {
     auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
     for (auto entity : meshView) {
         auto& meshComp = meshView.get<MeshComponent>(entity);
+        auto& transform = meshView.get<TransformComponent>(entity);
+
         if (meshComp.mesh) {
+            glm::mat4 modelMat = transform.getTransform();
+            cb.pushConstants(m_defaultPipeline->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
             meshComp.mesh->draw(cb);
         }
     }

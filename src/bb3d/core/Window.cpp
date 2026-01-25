@@ -50,6 +50,9 @@ void Window::PollEvents()
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         HandleEvent(e);
+        if (m_EventCallback) {
+            m_EventCallback(e);
+        }
     }
 }
 

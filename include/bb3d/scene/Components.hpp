@@ -10,8 +10,11 @@
 
 #include "bb3d/scene/Camera.hpp"
 #include <variant>
+#include <functional>
 
 namespace bb3d {
+
+class Entity; // Forward declaration
 
 /** @brief Composant pour identifier une entité par un nom. */
 struct TagComponent {
@@ -61,6 +64,16 @@ struct CameraComponent {
 
     CameraComponent() = default;
     CameraComponent(Ref<Camera> c) : camera(c) {}
+};
+
+/** @brief Composant pour attacher un comportement (script C++) à une entité. */
+struct NativeScriptComponent {
+    std::function<void(Entity, float)> onUpdate;
+
+    NativeScriptComponent() = default;
+    
+    template<typename Func>
+    NativeScriptComponent(Func&& func) : onUpdate(std::forward<Func>(func)) {}
 };
 
 } // namespace bb3d

@@ -18,6 +18,9 @@ public:
     Scene() = default;
     ~Scene() = default;
 
+    /** @brief Met à jour la logique de la scène (systèmes, composants). */
+    void onUpdate(float deltaTime);
+
     /** @brief Crée une nouvelle entité dans cette scène. */
     Entity createEntity(const std::string& name = "Entity");
     

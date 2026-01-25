@@ -351,5 +351,33 @@ add_custom_command(TARGET unit_test_09_resource_manager POST_BUILD
     $<TARGET_FILE_DIR:unit_test_09_resource_manager>/assets
 )
 
+# --- CTest Registration ---
+enable_testing()
+
+add_test(NAME Infrastructure COMMAND unit_test_00_infrastructure)
+add_test(NAME Window COMMAND unit_test_01_window)
+add_test(NAME VulkanInit COMMAND unit_test_02_vulkan_init)
+add_test(NAME SwapChain COMMAND unit_test_03_swapchain)
+add_test(NAME HelloTriangle COMMAND unit_test_04_hello_triangle)
+add_test(NAME VertexBuffer COMMAND unit_test_05_vertex_buffer)
+add_test(NAME RotatingCube COMMAND unit_test_06_rotating_cube)
+add_test(NAME TextureCube COMMAND unit_test_07_texture_cube)
+add_test(NAME CoreSystems COMMAND unit_test_08_core_systems)
+add_test(NAME ResourceManager COMMAND unit_test_09_resource_manager)
+add_test(NAME ObjLoader COMMAND unit_test_10_obj_loader)
+add_test(NAME GltfLoader COMMAND unit_test_11_gltf_loader)
+add_test(NAME ECS COMMAND unit_test_12_ecs)
+add_test(NAME Camera COMMAND unit_test_13_camera)
+add_test(NAME InteractiveCameras COMMAND unit_test_14_interactive_cameras)
+add_test(NAME HelloWorld COMMAND unit_test_15_hello_world)
+
+# Set working directory for tests to find assets
+set_tests_properties(
+    Infrastructure Window VulkanInit SwapChain HelloTriangle VertexBuffer 
+    RotatingCube TextureCube CoreSystems ResourceManager ObjLoader GltfLoader 
+    ECS Camera InteractiveCameras HelloWorld
+    PROPERTIES WORKING_DIRECTORY $<TARGET_FILE_DIR:unit_test_00_infrastructure>
+)
+
 message(STATUS "biobazard3d project configured for C++20 with strict warnings.")
 message(STATUS "To build, run: cmake --build build")

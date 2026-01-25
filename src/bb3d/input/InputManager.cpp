@@ -16,11 +16,20 @@ static int toSDLButton(Mouse button) {
 }
 
 void InputManager::update() {
-    // SDL_PumpEvents est géré globalement, généralement dans Window::update() 
-    // ou via SDL_PollEvent dans la boucle principale.
-    // Si InputManager est utilisé de manière autonome sans boucle d'événements,
-    // on pourrait appeler SDL_PumpEvents() ici.
-    // Pour l'instant, on suppose que l'Engine gère la pompe.
+    float x, y;
+    SDL_GetMouseState(&x, &y);
+    glm::vec2 currentPos{ x, y };
+    m_mouseDelta = currentPos - m_mousePos;
+    m_mousePos = currentPos;
+
+    // On reset le scroll à chaque frame car c'est un delta ponctuel
+    m_mouseScroll = { 0.0f, 0.0f };
+}
+
+void InputManager::onEvent(const SDL_Event& event) {
+    if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+        m_mouseScroll = { event.wheel.x, event.wheel.y };
+    }
 }
 
 bool InputManager::isKeyPressed(Key key) const {
@@ -36,12 +45,6 @@ bool InputManager::isMouseButtonPressed(Mouse button) const {
     float x, y;
     SDL_MouseButtonFlags mask = SDL_GetMouseState(&x, &y);
     return (mask & SDL_BUTTON_MASK(toSDLButton(button))) != 0;
-}
-
-glm::vec2 InputManager::getMousePosition() const {
-    float x, y;
-    SDL_GetMouseState(&x, &y);
-    return {x, y};
 }
 
 void InputManager::mapAction(std::string_view name, Key key) {

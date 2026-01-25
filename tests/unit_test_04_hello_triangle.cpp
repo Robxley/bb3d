@@ -57,7 +57,7 @@ int main() {
         bb3d::Shader vertShader(context, "assets/shaders/triangle.vert.spv");
         bb3d::Shader fragShader(context, "assets/shaders/triangle.frag.spv");
 
-        bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {}, false);
+        bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {}, {}, false);
 
         vk::Device device = context.getDevice();
         vk::CommandPool commandPool = device.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.getGraphicsQueueFamily() });
