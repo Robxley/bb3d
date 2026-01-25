@@ -6,9 +6,6 @@
 
 namespace bb3d {
 
-    /**
-     * @brief Configuration des paramètres de la fenêtre.
-     */
     struct WindowConfig {
         std::string title = "biobazard3d";
         int width = 1280;
@@ -16,12 +13,13 @@ namespace bb3d {
         bool fullscreen = false;
         bool resizable = true;
 
+        WindowConfig& setTitle(std::string_view t) { title = t; return *this; }
+        WindowConfig& setResolution(int w, int h) { width = w; height = h; return *this; }
+        WindowConfig& setFullscreen(bool f) { fullscreen = f; return *this; }
+
         NLOHMANN_DEFINE_TYPE_INTRUSIVE(WindowConfig, title, width, height, fullscreen, resizable)
     };
 
-    /**
-     * @brief Configuration des paramètres graphiques globaux.
-     */
     struct GraphicsConfig {
         bool vsync = true;
         int fpsMax = 0; ///< 0 pour illimité.
@@ -30,6 +28,9 @@ namespace bb3d {
         float anisotropy = 16.0f;
         int shadowMapResolution = 2048;
         bool enableValidationLayers = true;
+
+        GraphicsConfig& setVsync(bool v) { vsync = v; return *this; }
+        GraphicsConfig& setFpsMax(int fps) { fpsMax = fps; return *this; }
 
         NLOHMANN_DEFINE_TYPE_INTRUSIVE(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers)
     };

@@ -141,7 +141,7 @@ int main() {
             device.destroySemaphore(semR[i]); 
             device.destroyFence(inFlightFences[i]);
         }
-        device.destroyFence(fen); device.destroyCommandPool(cp); device.destroyDescriptorPool(dp); device.destroyDescriptorSetLayout(dsl);
+        device.destroyCommandPool(cp); device.destroyDescriptorPool(dp); device.destroyDescriptorSetLayout(dsl);
         jobSystem.shutdown();
     } catch (const std::exception& e) { BB_CORE_ERROR("Fail: {}", e.what()); return -1; }
     return 0;

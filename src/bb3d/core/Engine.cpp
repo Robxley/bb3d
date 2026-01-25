@@ -27,6 +27,21 @@ Engine::Engine(const std::string_view configPath) {
     Init();
 }
 
+Engine::Engine(const EngineConfig& config) : m_Config(config) {
+    if (s_Instance) {
+        throw std::runtime_error("Engine instance already exists!");
+    }
+    s_Instance = this;
+
+    Log::Init();
+    BB_CORE_INFO("Engine: Initializing biobazard3d from memory config...");
+    Init();
+}
+
+Scope<Engine> Engine::Create(const EngineConfig& config) {
+    return CreateScope<Engine>(config);
+}
+
 Engine::~Engine() {
     Shutdown();
     s_Instance = nullptr;
@@ -46,14 +61,17 @@ void Engine::Init() {
     // 2. Event Bus
     m_EventBus = CreateScope<EventBus>();
 
-    // 3. Window
+    // 3. Input Manager
+    m_InputManager = CreateScope<InputManager>();
+
+    // 4. Window
     m_Window = CreateScope<Window>(m_Config);
 
-    // 4. Vulkan Context
+    // 5. Vulkan Context
     m_VulkanContext = CreateScope<VulkanContext>();
     m_VulkanContext->init(m_Window->GetNativeWindow(), m_Config.window.title, m_Config.graphics.enableValidationLayers);
 
-    // 5. Resource Manager
+    // 6. Resource Manager
     m_ResourceManager = CreateScope<ResourceManager>(*m_VulkanContext, *m_JobSystem);
 
     BB_CORE_INFO("Engine: Initialization complete.");

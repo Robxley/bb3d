@@ -7,6 +7,7 @@
 #include "bb3d/resource/ResourceManager.hpp"
 #include "bb3d/core/JobSystem.hpp"
 #include "bb3d/core/EventBus.hpp"
+#include "bb3d/input/InputManager.hpp"
 #include "bb3d/scene/Scene.hpp"
 
 #include <string_view>
@@ -28,66 +29,56 @@ public:
      */
     Engine(const std::string_view configPath = "engine_config.json");
     
+    /** @brief Construit une instance avec une config directe. */
+    Engine(const EngineConfig& config);
+
     /**
      * @brief Détruit l'instance de Engine et libère les ressources.
      */
     ~Engine();
 
     /**
+     * @brief Crée et initialise une instance globale du moteur.
+     */
+    static Scope<Engine> Create(const EngineConfig& config = EngineConfig());
+
+    /**
      * @brief Récupère l'instance singleton du moteur.
-     * @return Référence vers l'instance unique.
-     * @throws std::runtime_error si l'instance n'a pas été créée.
      */
     static Engine& Get();
 
-    /**
-     * @brief Lance la boucle principale du moteur.
-     */
     void Run();
-    
-    /**
-     * @brief Arrête la boucle principale et prépare l'arrêt du moteur.
-     */
     void Stop();
 
-    /** @brief Récupère le contexte Vulkan. */
-    VulkanContext& GetVulkanContext() { return *m_VulkanContext; }
-    
-    /** @brief Récupère le gestionnaire de ressources. */
-    ResourceManager& GetResourceManager() { return *m_ResourceManager; }
-    
-    /** @brief Récupère la fenêtre principale. */
-    Window& GetWindow() { return *m_Window; }
-    
-    /** @brief Récupère le système de jobs (peut être null si désactivé). */
-    JobSystem* GetJobSystem() { return m_JobSystem.get(); }
-    
-    /** @brief Récupère le bus d'événements. */
-    EventBus& GetEventBus() { return *m_EventBus; }
-
-    /**
-     * @brief Crée une nouvelle scène vide.
-     * @return Ref (shared_ptr) vers la nouvelle scène.
+    /** @name Accesseurs Haut Niveau (Aliases)
+     * @{
      */
+    inline VulkanContext& graphics() { return *m_VulkanContext; }
+    inline ResourceManager& assets() { return *m_ResourceManager; }
+    inline Window& window() { return *m_Window; }
+    inline JobSystem& jobs() { return *m_JobSystem; }
+    inline EventBus& events() { return *m_EventBus; }
+    inline InputManager& input() { return *m_InputManager; }
+    /** @} */
+
+    /** @name Accesseurs Originaux
+     * @{
+     */
+    VulkanContext& GetVulkanContext() { return *m_VulkanContext; }
+    ResourceManager& GetResourceManager() { return *m_ResourceManager; }
+    Window& GetWindow() { return *m_Window; }
+    JobSystem* GetJobSystem() { return m_JobSystem.get(); }
+    EventBus& GetEventBus() { return *m_EventBus; }
+    /** @} */
+
     Ref<Scene> CreateScene();
-    
-    /** @brief Définit la scène active pour le rendu et la mise à jour. */
     void SetActiveScene(Ref<Scene> scene) { m_ActiveScene = scene; }
-    
-    /** @brief Récupère la scène actuellement active. */
     Ref<Scene> GetActiveScene() const { return m_ActiveScene; }
 
 private:
-    /** @brief Initialise tous les sous-systèmes selon la configuration. */
     void Init();
-    
-    /** @brief Libère proprement tous les sous-systèmes. */
     void Shutdown();
-    
-    /** @brief Met à jour la logique du jeu et de la physique. */
     void Update(float deltaTime);
-    
-    /** @brief Enregistre et soumet les commandes de rendu. */
     void Render();
 
     static Engine* s_Instance;
@@ -98,9 +89,9 @@ private:
     Scope<ResourceManager> m_ResourceManager;
     Scope<JobSystem> m_JobSystem;
     Scope<EventBus> m_EventBus;
+    Scope<InputManager> m_InputManager;
     Ref<Scene> m_ActiveScene;
 
     bool m_Running = false;
 };
-
 } // namespace bb3d

@@ -1,24 +1,40 @@
 #pragma once
 
 #include "bb3d/scene/Scene.hpp"
+#include "bb3d/scene/Components.hpp"
 #include <entt/entt.hpp>
+#include <functional>
 
 namespace bb3d {
 
 /**
  * @brief Wrapper léger autour d'un identifiant d'entité EnTT.
  * 
- * Fournit une interface orientée objet pour manipuler les composants d'une entité.
+ * Fournit une interface orientée objet et fluide pour manipuler les composants.
  */
 class Entity {
 public:
     Entity() = default;
     Entity(entt::entity handle, Scene& scene) : m_entityHandle(handle), m_scene(&scene) {}
 
-    /** @brief Ajoute un composant à l'entité. */
+    /** @brief Définit la position de l'entité (raccourci TransformComponent). */
+    Entity& at(const glm::vec3& position) {
+        get<TransformComponent>().translation = position;
+        return *this;
+    }
+
+    /** @brief Ajoute un composant à l'entité. Retourne l'entité pour chaînage. */
     template<typename T, typename... Args>
-    T& add(Args&&... args) {
-        return m_scene->m_registry.emplace<T>(m_entityHandle, std::forward<Args>(args)...);
+    Entity& add(Args&&... args) {
+        m_scene->m_registry.emplace<T>(m_entityHandle, std::forward<Args>(args)...);
+        return *this;
+    }
+
+    /** @brief Configure un composant via une lambda. Retourne l'entité pour chaînage. */
+    template<typename T>
+    Entity& setup(std::function<void(T&)> func) {
+        func(get<T>());
+        return *this;
     }
 
     /** @brief Récupère un composant de l'entité. */
@@ -35,8 +51,9 @@ public:
 
     /** @brief Supprime un composant de l'entité. */
     template<typename T>
-    void remove() {
+    Entity& remove() {
         m_scene->m_registry.remove<T>(m_entityHandle);
+        return *this;
     }
 
     /** @brief Vérifie si l'entité est valide. */

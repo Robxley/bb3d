@@ -48,150 +48,139 @@ int main() {
         config.window.title = "BB3D - Camera Test";
         config.window.width = 1280;
         config.window.height = 720;
+        
         bb3d::Window window(config);
-
         bb3d::VulkanContext context;
         context.init(window.GetNativeWindow(), "CameraTest", true);
         vk::Device dev = context.getDevice();
 
-        bb3d::SwapChain swapChain(context, config.window.width, config.window.height);
+        { // Nested scope to ensure all RAII resources are destroyed before context.cleanup()
+            bb3d::SwapChain swapChain(context, config.window.width, config.window.height);
 
-        // --- Assets ---
-        auto floor = bb3d::MeshGenerator::createCheckerboardPlane(context, 20.0f, 20);
-        auto cube = bb3d::MeshGenerator::createCube(context, 1.0f, {1, 0, 0});
-        auto sphere = bb3d::MeshGenerator::createSphere(context, 0.5f, 32, {0, 0, 1});
+            auto floor = bb3d::MeshGenerator::createCheckerboardPlane(context, 20.0f, 20);
+            auto cube = bb3d::MeshGenerator::createCube(context, 1.0f, {1, 0, 0});
+            auto sphere = bb3d::MeshGenerator::createSphere(context, 0.5f, 32, {0, 0, 1});
+            auto centerSphere = bb3d::MeshGenerator::createSphere(context, 0.1f, 16, {0, 1, 0}); // Petite sphère verte au centre
 
-        bb3d::Shader vert(context, "assets/shaders/simple_3d.vert.spv");
-        bb3d::Shader frag(context, "assets/shaders/simple_3d.frag.spv");
+            bb3d::Shader vert(context, "assets/shaders/simple_3d.vert.spv");
+            bb3d::Shader frag(context, "assets/shaders/simple_3d.frag.spv");
 
-        // --- UBO & Descriptors ---
-        bb3d::UniformBuffer ubo(context, sizeof(UBO));
-        vk::DescriptorSetLayoutBinding binding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex);
-        vk::DescriptorSetLayout dsl = dev.createDescriptorSetLayout({ {}, 1, &binding });
-        vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, 1);
-        vk::DescriptorPool pool = dev.createDescriptorPool({ {}, 1, 1, &poolSize });
-        vk::DescriptorSet ds = dev.allocateDescriptorSets({ pool, 1, &dsl })[0];
-        vk::DescriptorBufferInfo bInfo(ubo.getHandle(), 0, sizeof(UBO));
-        vk::WriteDescriptorSet write(ds, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo);
-        dev.updateDescriptorSets(1, &write, 0, nullptr);
+            bb3d::UniformBuffer ubo(context, sizeof(UBO));
+            vk::DescriptorSetLayoutBinding binding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex);
+            vk::DescriptorSetLayout dsl = dev.createDescriptorSetLayout({ {}, 1, &binding });
+            vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, 1);
+            vk::DescriptorPool pool = dev.createDescriptorPool({ {}, 1, 1, &poolSize });
+            vk::DescriptorSet ds = dev.allocateDescriptorSets({ pool, 1, &dsl })[0];
+            vk::DescriptorBufferInfo bInfo(ubo.getHandle(), 0, sizeof(UBO));
+            vk::WriteDescriptorSet write(ds, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo);
+            dev.updateDescriptorSets(1, &write, 0, nullptr);
 
-        bb3d::GraphicsPipeline pipeline(context, swapChain, vert, frag, config, {dsl});
+            bb3d::GraphicsPipeline pipeline(context, swapChain, vert, frag, config, {dsl});
 
-        // --- Caméras ---
-        auto fpsCam = bb3d::CreateScope<bb3d::FPSCamera>(45.0f, 1280.0f/720.0f, 0.1f, 100.0f);
-        auto orbitCam = bb3d::CreateScope<bb3d::OrbitCamera>(45.0f, 1280.0f/720.0f, 0.1f, 100.0f);
-        fpsCam->setPosition({0, 2, 5});
-        orbitCam->setTarget({0, 0, 0});
+            auto fpsCam = bb3d::CreateScope<bb3d::FPSCamera>(45.0f, 1280.0f/720.0f, 0.1f, 100.0f);
+            auto orbitCam = bb3d::CreateScope<bb3d::OrbitCamera>(45.0f, 1280.0f/720.0f, 0.1f, 100.0f);
+            fpsCam->setPosition({0, 2, 5});
+            orbitCam->setTarget({0, 0, 0});
 
-        bool isFPS = true;
-        bb3d::Camera* activeCam = fpsCam.get();
+            bool isFPS = true;
+            bb3d::Camera* activeCam = fpsCam.get();
 
-        // --- Loop Variables ---
-        vk::CommandPool cp = dev.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.getGraphicsQueueFamily() });
-        const int MAX_FRAMES = 2;
-        auto cbs = dev.allocateCommandBuffers({ cp, vk::CommandBufferLevel::ePrimary, (uint32_t)MAX_FRAMES });
-        std::vector<vk::Semaphore> semA(MAX_FRAMES), semR(MAX_FRAMES);
-        std::vector<vk::Fence> fen(MAX_FRAMES);
-        for(int i=0; i<MAX_FRAMES; ++i) { 
-            semA[i]=dev.createSemaphore({}); semR[i]=dev.createSemaphore({}); 
-            fen[i]=dev.createFence({vk::FenceCreateFlagBits::eSignaled});
-        }
-
-        auto lastTime = std::chrono::high_resolution_clock::now();
-        uint32_t frameIdx = 0;
-        bool leftMouseDown = false;
-
-        while (!window.ShouldClose()) {
-            auto now = std::chrono::high_resolution_clock::now();
-            float dt = std::chrono::duration<float>(now - lastTime).count();
-            lastTime = now;
-
-            // --- Input Handling ---
-            SDL_Event e;
-            while (SDL_PollEvent(&e)) {
-                if (e.type == SDL_EVENT_QUIT) window.PollEvents(); // Force close
-                if (e.type == SDL_EVENT_KEY_DOWN) {
-                    if (e.key.key == SDLK_ESCAPE) return 0;
-                    if (e.key.key == SDLK_C) {
-                        isFPS = !isFPS;
-                        activeCam = isFPS ? (bb3d::Camera*)fpsCam.get() : (bb3d::Camera*)orbitCam.get();
-                        BB_CORE_INFO("Mode Caméra: {}", isFPS ? "FPS" : "Orbit");
-                    }
-                }
-                if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT) leftMouseDown = true;
-                if (e.type == SDL_EVENT_MOUSE_BUTTON_UP && e.button.button == SDL_BUTTON_LEFT) leftMouseDown = false;
-                
-                if (e.type == SDL_EVENT_MOUSE_MOTION && leftMouseDown) {
-                    if (isFPS) fpsCam->rotate(e.motion.xrel, -e.motion.yrel);
-                    else orbitCam->rotate(e.motion.xrel, -e.motion.yrel);
-                }
-                if (e.type == SDL_EVENT_MOUSE_WHEEL && !isFPS) {
-                    orbitCam->zoom(e.wheel.y);
-                }
-            }
-
-            if (isFPS) {
-                const bool* state = SDL_GetKeyboardState(NULL);
-                glm::vec3 dir(0);
-                if (state[SDL_SCANCODE_W]) dir.z += 1;
-                if (state[SDL_SCANCODE_S]) dir.z -= 1;
-                if (state[SDL_SCANCODE_A]) dir.x -= 1;
-                if (state[SDL_SCANCODE_D]) dir.x += 1;
-                fpsCam->move(dir, dt);
-            }
-
-            activeCam->update(dt);
-
-            // --- Render ---
-            auto res = dev.waitForFences(1, &fen[frameIdx], VK_TRUE, UINT64_MAX); dev.resetFences(1, &fen[frameIdx]);
-            uint32_t imgIdx = swapChain.acquireNextImage(semA[frameIdx]);
-            auto& cb = cbs[frameIdx];
-            cb.reset({}); cb.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+            vk::CommandPool cp = dev.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.getGraphicsQueueFamily() });
             
-            transitionLayout(cb, swapChain.getImage(imgIdx), swapChain.getImageFormat(), vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
-            transitionDepth(cb, swapChain.getDepthImage(), vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal);
+            // On utilise autant de frames en vol que d'images dans la swapchain pour éviter les collisions de sémaphores
+            const uint32_t MAX_FRAMES = static_cast<uint32_t>(swapChain.getImageCount());
+            
+            auto cbs = dev.allocateCommandBuffers({ cp, vk::CommandBufferLevel::ePrimary, MAX_FRAMES });
+            std::vector<vk::Semaphore> semA(MAX_FRAMES), semR(MAX_FRAMES);
+            std::vector<vk::Fence> fen(MAX_FRAMES);
+            for(uint32_t i=0; i<MAX_FRAMES; ++i) { 
+                semA[i]=dev.createSemaphore({}); semR[i]=dev.createSemaphore({}); 
+                fen[i]=dev.createFence({vk::FenceCreateFlagBits::eSignaled});
+            }
 
-            vk::RenderingAttachmentInfo cAttr(swapChain.getImageViews()[imgIdx], vk::ImageLayout::eColorAttachmentOptimal, vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearValue(vk::ClearColorValue(std::array<float,4>{0.1f,0.1f,0.1f,1.0f})));
-            vk::RenderingAttachmentInfo dAttr(swapChain.getDepthImageView(), vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearValue(vk::ClearDepthStencilValue(1.0f, 0)));
-            vk::RenderingInfo rI({}, {{0,0}, swapChain.getExtent()}, 1, 0, 1, &cAttr, &dAttr);
+            auto lastTime = std::chrono::high_resolution_clock::now();
+            uint32_t frameIdx = 0;
+            bool leftMouseDown = false;
 
-            cb.beginRendering(rI);
-            pipeline.bind(cb);
-            cb.setViewport(0, vk::Viewport(0,0,(float)swapChain.getExtent().width, (float)swapChain.getExtent().height, 0, 1));
-            cb.setScissor(0, vk::Rect2D({0,0}, swapChain.getExtent()));
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.getLayout(), 0, 1, &ds, 0, nullptr);
+            while (!window.ShouldClose()) {
+                auto now = std::chrono::high_resolution_clock::now();
+                float dt = std::chrono::duration<float>(now - lastTime).count();
+                lastTime = now;
 
-            UBO data;
-            data.view = activeCam->getViewMatrix();
-            data.proj = activeCam->getProjectionMatrix();
+                SDL_Event e;
+                while (SDL_PollEvent(&e)) {
+                    if (e.type == SDL_EVENT_QUIT) window.PollEvents(); 
+                    if (e.type == SDL_EVENT_KEY_DOWN) {
+                        if (e.key.key == SDLK_ESCAPE) goto end_loop;
+                        if (e.key.key == SDLK_C) {
+                            isFPS = !isFPS;
+                            activeCam = isFPS ? (bb3d::Camera*)fpsCam.get() : (bb3d::Camera*)orbitCam.get();
+                            BB_CORE_INFO("Mode Caméra: {}", isFPS ? "FPS" : "Orbit");
+                        }
+                    }
+                    if (e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT) leftMouseDown = true;
+                    if (e.type == SDL_EVENT_MOUSE_BUTTON_UP && e.button.button == SDL_BUTTON_LEFT) leftMouseDown = false;
+                    if (e.type == SDL_EVENT_MOUSE_MOTION && leftMouseDown) {
+                        if (isFPS) fpsCam->rotate(e.motion.xrel, -e.motion.yrel);
+                        else orbitCam->rotate(e.motion.xrel, -e.motion.yrel);
+                    }
+                    if (e.type == SDL_EVENT_MOUSE_WHEEL && !isFPS) orbitCam->zoom(e.wheel.y);
+                }
 
-            // 1. Sol
-            data.model = glm::mat4(1.0f);
-            ubo.update(&data, sizeof(data));
-            floor->draw(cb);
+                if (isFPS) {
+                    const bool* state = SDL_GetKeyboardState(NULL);
+                    glm::vec3 dir(0);
+                    if (state[SDL_SCANCODE_W]) dir.z += 1;
+                    if (state[SDL_SCANCODE_S]) dir.z -= 1;
+                    if (state[SDL_SCANCODE_A]) dir.x -= 1;
+                    if (state[SDL_SCANCODE_D]) dir.x += 1;
+                    fpsCam->move(dir, dt);
+                }
+                activeCam->update(dt);
 
-            // 2. Cube
-            data.model = glm::translate(glm::mat4(1.0f), {2, 0.5f, 0});
-            ubo.update(&data, sizeof(data));
-            cube->draw(cb);
+                auto waitRes = dev.waitForFences(1, &fen[frameIdx], VK_TRUE, UINT64_MAX); dev.resetFences(1, &fen[frameIdx]);
+                uint32_t imgIdx;
+                try { imgIdx = swapChain.acquireNextImage(semA[frameIdx]); } catch (...) { continue; }
 
-            // 3. Sphère
-            data.model = glm::translate(glm::mat4(1.0f), {-2, 0.5f, 0});
-            ubo.update(&data, sizeof(data));
-            sphere->draw(cb);
+                auto& cb = cbs[frameIdx];
+                cb.reset({}); cb.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+                transitionLayout(cb, swapChain.getImage(imgIdx), swapChain.getImageFormat(), vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
+                transitionDepth(cb, swapChain.getDepthImage(), vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal);
 
-            cb.endRendering();
-            transitionLayout(cb, swapChain.getImage(imgIdx), swapChain.getImageFormat(), vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
-            cb.end();
+                vk::RenderingAttachmentInfo cAttr(swapChain.getImageViews()[imgIdx], vk::ImageLayout::eColorAttachmentOptimal, vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearValue(vk::ClearColorValue(std::array<float,4>{0.1f,0.1f,0.1f,1.0f})));
+                vk::RenderingAttachmentInfo dAttr(swapChain.getDepthImageView(), vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearValue(vk::ClearDepthStencilValue(1.0f, 0)));
+                vk::RenderingInfo rI({}, {{0,0}, swapChain.getExtent()}, 1, 0, 1, &cAttr, &dAttr);
 
-            vk::PipelineStageFlags wait = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-            dev.getQueue(context.getGraphicsQueueFamily(), 0).submit(vk::SubmitInfo(1, &semA[frameIdx], &wait, 1, &cb, 1, &semR[frameIdx]), fen[frameIdx]);
-            swapChain.present(semR[frameIdx], imgIdx);
-            frameIdx = (frameIdx + 1) % MAX_FRAMES;
-        }
-        dev.waitIdle();
-        for(int i=0; i<MAX_FRAMES; ++i) { dev.destroySemaphore(semA[i]); dev.destroySemaphore(semR[i]); dev.destroyFence(fen[i]); }
-        dev.destroyCommandPool(cp); dev.destroyDescriptorPool(pool); dev.destroyDescriptorSetLayout(dsl);
+                cb.beginRendering(rI);
+                pipeline.bind(cb);
+                cb.setViewport(0, vk::Viewport(0,0,(float)swapChain.getExtent().width, (float)swapChain.getExtent().height, 0, 1));
+                cb.setScissor(0, vk::Rect2D({0,0}, swapChain.getExtent()));
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.getLayout(), 0, 1, &ds, 0, nullptr);
+
+                UBO data; data.view = activeCam->getViewMatrix(); data.proj = activeCam->getProjectionMatrix();
+                data.model = glm::mat4(1.0f); ubo.update(&data, sizeof(data)); floor->draw(cb);
+                data.model = glm::translate(glm::mat4(1.0f), {2, 0.5f, 0}); ubo.update(&data, sizeof(data)); cube->draw(cb);
+                // 3. Sphère
+                data.model = glm::translate(glm::mat4(1.0f), {-2, 0.5f, 0}); ubo.update(&data, sizeof(data)); sphere->draw(cb);
+
+                // 4. Point d'orbite (Verte)
+                data.model = glm::translate(glm::mat4(1.0f), {0, 0, 0}); ubo.update(&data, sizeof(data)); centerSphere->draw(cb);
+
+                cb.endRendering();
+                transitionLayout(cb, swapChain.getImage(imgIdx), swapChain.getImageFormat(), vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
+                cb.end();
+
+                vk::PipelineStageFlags wait = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+                dev.getQueue(context.getGraphicsQueueFamily(), 0).submit(vk::SubmitInfo(1, &semA[frameIdx], &wait, 1, &cb, 1, &semR[frameIdx]), fen[frameIdx]);
+                swapChain.present(semR[frameIdx], imgIdx);
+                frameIdx = (frameIdx + 1) % MAX_FRAMES;
+            }
+            end_loop:
+            dev.waitIdle();
+            for(int i=0; i<MAX_FRAMES; ++i) { dev.destroySemaphore(semA[i]); dev.destroySemaphore(semR[i]); dev.destroyFence(fen[i]); }
+            dev.destroyCommandPool(cp); dev.destroyDescriptorPool(pool); dev.destroyDescriptorSetLayout(dsl);
+        } // Nested objects destroyed here, BEFORE context
+
     } catch (const std::exception& e) { BB_CORE_ERROR("Fail: {}", e.what()); return -1; }
     return 0;
 }
