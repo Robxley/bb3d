@@ -78,8 +78,12 @@ namespace bb3d {
         int maxThreads = 8;
         std::string assetPath = "assets";
         std::string logLevel = "Info";
+        
+        bool logConsole = true;
+        bool logFile = true;
+        std::string logDirectory = "logs";
 
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(SystemConfig, maxThreads, assetPath, logLevel)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(SystemConfig, maxThreads, assetPath, logLevel, logConsole, logFile, logDirectory)
     };
 
     /**

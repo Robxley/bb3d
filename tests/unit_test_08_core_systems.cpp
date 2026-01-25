@@ -1,4 +1,5 @@
 #include "bb3d/core/Log.hpp"
+#include "bb3d/core/Config.hpp"
 #include "bb3d/core/JobSystem.hpp"
 #include "bb3d/core/EventBus.hpp"
 
@@ -16,10 +17,10 @@ struct PlayerDiedEvent {
     int playerId;
 };
 
-void runCoreSystemsTest() {
+void runCoreSystemsTest(const bb3d::EngineConfig& logConfig) {
     BB_PROFILE_FRAME("MainThread");
     
-    bb3d::Log::Init();
+    bb3d::Log::Init(logConfig);
     BB_CORE_INFO("--- Test Unitaire 08 : Core Systems ---");
 
     // 1. TEST JOB SYSTEM
@@ -59,7 +60,7 @@ void runCoreSystemsTest() {
         const int groupSize = 100;
 
         BB_CORE_INFO("Dispatch sur {0} éléments...", dataSize);
-        jobSystem.dispatch(dataSize, groupSize, [&](uint32_t index, uint32_t count) {
+        jobSystem.dispatch(dataSize, groupSize, [&](uint32_t /*index*/, uint32_t /*count*/) {
             // Simulation travail vectoriel
             dispatchSum += 1; 
         });
@@ -89,7 +90,7 @@ void runCoreSystemsTest() {
             longJobStopped = true;
         });
 
-        // Laisser le temps au job de démarrer (seul cas où un sleep est acceptable dans un test de concurrence)
+        // Laisser le temps au job de démarrer
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         
         BB_CORE_INFO("Arrêt du JobSystem...");
@@ -162,11 +163,15 @@ void runCoreSystemsTest() {
 }
 
 int main() {
+    bb3d::EngineConfig logConfig;
+    logConfig.system.logDirectory = "unit_test_logs";
+    
     try {
-        runCoreSystemsTest();
+        runCoreSystemsTest(logConfig);
     } catch (const std::exception& e) {
-        std::cerr << "Test Failed: " << e.what() << std::endl;
-        return 1;
+        std::cerr << "Test failed with exception: " << e.what() << std::endl;
+        return -1;
     }
+
     return 0;
 }

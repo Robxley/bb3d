@@ -8,6 +8,7 @@
 #include "bb3d/core/JobSystem.hpp"
 #include "bb3d/core/EventBus.hpp"
 #include "bb3d/input/InputManager.hpp"
+#include "bb3d/render/Renderer.hpp"
 #include "bb3d/scene/Scene.hpp"
 
 #include <string_view>
@@ -54,6 +55,7 @@ public:
      * @{
      */
     inline VulkanContext& graphics() { return *m_VulkanContext; }
+    inline Renderer& renderer() { return *m_Renderer; }
     inline ResourceManager& assets() { return *m_ResourceManager; }
     inline Window& window() { return *m_Window; }
     inline JobSystem& jobs() { return *m_JobSystem; }
@@ -65,6 +67,7 @@ public:
      * @{
      */
     VulkanContext& GetVulkanContext() { return *m_VulkanContext; }
+    Renderer& GetRenderer() { return *m_Renderer; }
     ResourceManager& GetResourceManager() { return *m_ResourceManager; }
     Window& GetWindow() { return *m_Window; }
     JobSystem* GetJobSystem() { return m_JobSystem.get(); }
@@ -86,6 +89,7 @@ private:
     EngineConfig m_Config;
     Scope<Window> m_Window;
     Scope<VulkanContext> m_VulkanContext;
+    Scope<Renderer> m_Renderer;
     Scope<ResourceManager> m_ResourceManager;
     Scope<JobSystem> m_JobSystem;
     Scope<EventBus> m_EventBus;

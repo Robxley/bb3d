@@ -35,7 +35,9 @@ void transitionDepth(vk::CommandBuffer cb, vk::Image img, vk::ImageLayout oldL, 
 }
 
 int main() {
-    bb3d::Log::Init();
+    bb3d::EngineConfig logConfig;
+    logConfig.system.logDirectory = "unit_test_logs";
+    bb3d::Log::Init(logConfig);
     BB_CORE_INFO("Test Unitaire 14 : Caméras Interactives");
     BB_CORE_INFO("Contrôles :");
     BB_CORE_INFO("  [C] : Changer de mode caméra (FPS / Orbit)");

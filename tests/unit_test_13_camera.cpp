@@ -1,4 +1,5 @@
 #include "bb3d/core/Log.hpp"
+#include "bb3d/core/Config.hpp"
 #include "bb3d/scene/FPSCamera.hpp"
 #include "bb3d/scene/OrbitCamera.hpp"
 #include <iostream>
@@ -49,7 +50,9 @@ BB_TEST_CASE(TestOrbitCamera) {
 }
 
 int main() {
-    bb3d::Log::Init();
+    bb3d::EngineConfig logConfig;
+    logConfig.system.logDirectory = "unit_test_logs";
+    bb3d::Log::Init(logConfig);
     BB_CORE_INFO("Test Unitaire 13 : Caméras (Logique)");
 
     TestFPSCamera();

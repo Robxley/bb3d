@@ -8,6 +8,9 @@
 #include <glm/gtx/quaternion.hpp>
 #include <string>
 
+#include "bb3d/scene/Camera.hpp"
+#include <variant>
+
 namespace bb3d {
 
 /** @brief Composant pour identifier une entité par un nom. */
@@ -27,19 +30,37 @@ struct TransformComponent {
     TransformComponent() = default;
 
     /** @brief Calcule la matrice de transformation 4x4. */
-    [[nodiscard]] glm::mat4 getTransform() const {
+    [[nodiscard]] inline glm::mat4 getTransform() const {
         return glm::translate(glm::mat4(1.0f), translation) * 
                glm::toMat4(glm::quat(rotation)) * 
                glm::scale(glm::mat4(1.0f), scale);
     }
 };
 
-/** @brief Composant pour l'affichage d'un modèle 3D. */
+/** @brief Composant pour l'affichage d'un maillage. */
 struct MeshComponent {
-    Ref<Model> model;
+    Ref<Mesh> mesh;
+    glm::vec3 color = {1.0f, 1.0f, 1.0f};
 
     MeshComponent() = default;
-    MeshComponent(Ref<Model> m) : model(m) {}
+    MeshComponent(Ref<Mesh> m) : mesh(m) {}
+};
+
+/** @brief Composant pour l'affichage d'un modèle complet (plusieurs meshes). */
+struct ModelComponent {
+    Ref<Model> model;
+
+    ModelComponent() = default;
+    ModelComponent(Ref<Model> m) : model(m) {}
+};
+
+/** @brief Composant Caméra. */
+struct CameraComponent {
+    Ref<Camera> camera;
+    bool active = true;
+
+    CameraComponent() = default;
+    CameraComponent(Ref<Camera> c) : camera(c) {}
 };
 
 } // namespace bb3d

@@ -20,10 +20,10 @@ Engine::Engine(const std::string_view configPath) {
     }
     s_Instance = this;
 
-    Log::Init();
+    m_Config = Config::Load(configPath);
+    Log::Init(m_Config);
     BB_CORE_INFO("Engine: Initializing biobazard3d...");
 
-    m_Config = Config::Load(configPath);
     Init();
 }
 
@@ -33,7 +33,7 @@ Engine::Engine(const EngineConfig& config) : m_Config(config) {
     }
     s_Instance = this;
 
-    Log::Init();
+    Log::Init(m_Config);
     BB_CORE_INFO("Engine: Initializing biobazard3d from memory config...");
     Init();
 }
@@ -71,7 +71,10 @@ void Engine::Init() {
     m_VulkanContext = CreateScope<VulkanContext>();
     m_VulkanContext->init(m_Window->GetNativeWindow(), m_Config.window.title, m_Config.graphics.enableValidationLayers);
 
-    // 6. Resource Manager
+    // 6. Renderer
+    m_Renderer = CreateScope<Renderer>(*m_VulkanContext, *m_Window, m_Config);
+
+    // 7. Resource Manager
     m_ResourceManager = CreateScope<ResourceManager>(*m_VulkanContext, *m_JobSystem);
 
     BB_CORE_INFO("Engine: Initialization complete.");
@@ -87,6 +90,7 @@ void Engine::Shutdown() {
 
     m_ActiveScene.reset();
     m_ResourceManager.reset();
+    m_Renderer.reset();
     m_VulkanContext.reset();
     m_Window.reset();
     m_EventBus.reset();
@@ -134,13 +138,15 @@ void Engine::Update(float deltaTime) {
         m_EventBus->dispatchQueued();
     }
 
-    // Ici sera inséré la logique de mise à jour système (Physique -> Scripting -> Anim)
+    // Mise à jour de la scène (Physique, etc)
 }
 
 void Engine::Render() {
     BB_PROFILE_SCOPE("Engine::Render");
     
-    // Ici sera inséré l'appel au Renderer avec la scène active
+    if (m_ActiveScene && m_Renderer) {
+        m_Renderer->render(*m_ActiveScene);
+    }
 }
 
 } // namespace bb3d

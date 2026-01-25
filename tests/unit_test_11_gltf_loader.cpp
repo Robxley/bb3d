@@ -46,7 +46,9 @@ void transitionDepthLayout(vk::CommandBuffer cb, vk::Image image, vk::ImageLayou
 }
 
 int main() {
-    bb3d::Log::Init();
+    bb3d::EngineConfig logConfig;
+    logConfig.system.logDirectory = "unit_test_logs";
+    bb3d::Log::Init(logConfig);
     try {
         bb3d::EngineConfig config;
         config.window.title = "BB3D - GLTF Loader (Vulkan-Hpp)";

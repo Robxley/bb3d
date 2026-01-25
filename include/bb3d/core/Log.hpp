@@ -15,9 +15,14 @@ namespace bb3d {
     {
     public:
         /**
-         * @brief Initialise le système de logs (patterns et sinks).
+         * @brief Initialise le système de logs avec les valeurs par défaut.
          */
         static void Init();
+
+        /**
+         * @brief Initialise le système de logs selon la configuration fournie.
+         */
+        static void Init(const struct EngineConfig& config);
 
         /** @brief Récupère le logger interne du moteur. */
         inline static std::shared_ptr<spdlog::logger>& GetCoreLogger() { return s_CoreLogger; }

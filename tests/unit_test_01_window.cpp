@@ -10,7 +10,9 @@ void runWindoTest()
     BB_PROFILE_FRAME("MainThread");
     BB_PROFILE_SCOPE("Window Test");
 
-    bb3d::Log::Init();
+    bb3d::EngineConfig logConfig;
+    logConfig.system.logDirectory = "unit_test_logs";
+    bb3d::Log::Init(logConfig);
 
     // Load configuration
     auto config = bb3d::Config::Load("engine_config.json");

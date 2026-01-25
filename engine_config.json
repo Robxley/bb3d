@@ -36,6 +36,9 @@
     "system": {
         "maxThreads": 8,
         "assetPath": "assets",
-        "logLevel": "Info"
+        "logLevel": "Info",
+        "logConsole": true,
+        "logFile": true,
+        "logDirectory": "logs"
     }
 }

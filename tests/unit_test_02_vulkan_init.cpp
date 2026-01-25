@@ -1,10 +1,13 @@
 #include "bb3d/core/Log.hpp"
+#include "bb3d/core/Config.hpp"
 #include "bb3d/render/VulkanContext.hpp"
 #include <SDL3/SDL.h>
 #include <iostream>
 
 int main() {
-    bb3d::Log::Init();
+    bb3d::EngineConfig logConfig;
+    logConfig.system.logDirectory = "unit_test_logs";
+    bb3d::Log::Init(logConfig);
     BB_CORE_INFO("Test Unitaire 02 : Initialisation Vulkan");
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {

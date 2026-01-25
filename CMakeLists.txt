@@ -327,6 +327,19 @@ add_custom_command(TARGET unit_test_14_interactive_cameras POST_BUILD
     $<TARGET_FILE_DIR:unit_test_14_interactive_cameras>/assets/textures
 )
 
+# --- Unit Test 15: Hello World Simplified ---
+add_executable(unit_test_15_hello_world
+    tests/unit_test_15_hello_world.cpp
+)
+target_link_libraries(unit_test_15_hello_world PRIVATE biobazard3d)
+add_dependencies(unit_test_15_hello_world CompileShaders)
+
+add_custom_command(TARGET unit_test_15_hello_world POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_BINARY_DIR}/assets/shaders
+    $<TARGET_FILE_DIR:unit_test_15_hello_world>/assets/shaders
+)
+
 add_executable(unit_test_09_resource_manager
     tests/unit_test_09_resource_manager.cpp
 )
