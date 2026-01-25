@@ -9,10 +9,11 @@ GraphicsPipeline::GraphicsPipeline(VulkanContext& context, SwapChain& swapChain,
                                    const Shader& vertShader, const Shader& fragShader,
                                    const EngineConfig& config,
                                    const std::vector<vk::DescriptorSetLayout>& descriptorSetLayouts,
+                                   const std::vector<vk::PushConstantRange>& pushConstantRanges,
                                    bool useVertexInput)
     : m_context(context), m_swapChain(swapChain) {
     
-    createPipelineLayout(descriptorSetLayouts);
+    createPipelineLayout(descriptorSetLayouts, pushConstantRanges);
     createPipeline(vertShader, fragShader, config, useVertexInput);
 }
 
@@ -26,8 +27,13 @@ void GraphicsPipeline::bind(vk::CommandBuffer commandBuffer) {
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_pipeline);
 }
 
-void GraphicsPipeline::createPipelineLayout(const std::vector<vk::DescriptorSetLayout>& descriptorSetLayouts) {
+void GraphicsPipeline::createPipelineLayout(const std::vector<vk::DescriptorSetLayout>& descriptorSetLayouts, const std::vector<vk::PushConstantRange>& pushConstantRanges) {
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo({}, static_cast<uint32_t>(descriptorSetLayouts.size()), descriptorSetLayouts.data());
+    
+    if (!pushConstantRanges.empty()) {
+        pipelineLayoutInfo.setPushConstantRanges(pushConstantRanges);
+    }
+
     m_pipelineLayout = m_context.getDevice().createPipelineLayout(pipelineLayoutInfo);
 }
 

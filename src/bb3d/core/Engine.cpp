@@ -116,6 +116,10 @@ void Engine::Run() {
 
         m_Window->PollEvents();
         
+        if (m_InputManager) {
+            m_InputManager->update();
+        }
+        
         Update(deltaTime);
         Render();
     }

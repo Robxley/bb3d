@@ -12,6 +12,7 @@ public:
                      const Shader& vertShader, const Shader& fragShader,
                      const EngineConfig& config,
                      const std::vector<vk::DescriptorSetLayout>& descriptorSetLayouts = {},
+                     const std::vector<vk::PushConstantRange>& pushConstantRanges = {},
                      bool useVertexInput = true);
     ~GraphicsPipeline();
 
@@ -24,7 +25,7 @@ public:
     [[nodiscard]] inline vk::PipelineLayout getLayout() const { return m_pipelineLayout; }
 
 private:
-    void createPipelineLayout(const std::vector<vk::DescriptorSetLayout>& descriptorSetLayouts);
+    void createPipelineLayout(const std::vector<vk::DescriptorSetLayout>& descriptorSetLayouts, const std::vector<vk::PushConstantRange>& pushConstantRanges);
     void createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, bool useVertexInput);
 
     VulkanContext& m_context;

@@ -1,12 +1,11 @@
 #include "bb3d/input/InputManager.hpp"
 #include "bb3d/core/Log.hpp"
 #include <SDL3/SDL.h>
+#include <cstring>
 
 namespace bb3d {
 
 // Helper pour convertir notre enum Key en SDL_Scancode
-// Note: bb3d::Key suit le standard USB HID, tout comme SDL_Scancode.
-// Un cast direct est donc possible pour la majorité des touches.
 static SDL_Scancode toSDLScancode(Key key) {
     return static_cast<SDL_Scancode>(key);
 }
@@ -15,33 +14,74 @@ static int toSDLButton(Mouse button) {
     return static_cast<int>(button);
 }
 
+InputManager::InputManager() {
+    std::memset(m_currentKeyState, 0, sizeof(m_currentKeyState));
+    std::memset(m_previousKeyState, 0, sizeof(m_previousKeyState));
+}
+
 void InputManager::update() {
-    // SDL_PumpEvents est géré globalement, généralement dans Window::update() 
-    // ou via SDL_PollEvent dans la boucle principale.
-    // Si InputManager est utilisé de manière autonome sans boucle d'événements,
-    // on pourrait appeler SDL_PumpEvents() ici.
-    // Pour l'instant, on suppose que l'Engine gère la pompe.
+    // 1. Sauvegarder l'état précédent
+    std::memcpy(m_previousKeyState, m_currentKeyState, sizeof(m_currentKeyState));
+    m_previousMouseState = m_currentMouseState;
+    m_previousMousePos = m_currentMousePos;
+
+    // 2. Récupérer le nouvel état du clavier
+    int numKeys;
+    const bool* state = SDL_GetKeyboardState(&numKeys);
+    if (state) {
+        // On sature à 512 pour éviter de déborder si SDL a plus de touches
+        int count = (numKeys < 512) ? numKeys : 512;
+        for (int i = 0; i < count; ++i) {
+            m_currentKeyState[i] = state[i] ? 1 : 0;
+        }
+    }
+
+    // 3. Récupérer le nouvel état de la souris
+    float mx, my;
+    m_currentMouseState = SDL_GetMouseState(&mx, &my);
+    m_currentMousePos = {mx, my};
 }
 
 bool InputManager::isKeyPressed(Key key) const {
-    // SDL_GetKeyboardState retourne un pointeur interne géré par SDL.
-    // Il ne faut pas le free.
-    const bool* state = SDL_GetKeyboardState(nullptr);
-    if (!state) return false;
-    
-    return state[toSDLScancode(key)];
+    SDL_Scancode scancode = toSDLScancode(key);
+    if (static_cast<int>(scancode) >= 512) return false;
+    return m_currentKeyState[scancode] != 0;
+}
+
+bool InputManager::isKeyJustPressed(Key key) const {
+    SDL_Scancode scancode = toSDLScancode(key);
+    if (static_cast<int>(scancode) >= 512) return false;
+    return (m_currentKeyState[scancode] != 0) && (m_previousKeyState[scancode] == 0);
+}
+
+bool InputManager::isKeyJustReleased(Key key) const {
+    SDL_Scancode scancode = toSDLScancode(key);
+    if (static_cast<int>(scancode) >= 512) return false;
+    return (m_currentKeyState[scancode] == 0) && (m_previousKeyState[scancode] != 0);
 }
 
 bool InputManager::isMouseButtonPressed(Mouse button) const {
-    float x, y;
-    SDL_MouseButtonFlags mask = SDL_GetMouseState(&x, &y);
-    return (mask & SDL_BUTTON_MASK(toSDLButton(button))) != 0;
+    return (m_currentMouseState & SDL_BUTTON_MASK(toSDLButton(button))) != 0;
+}
+
+bool InputManager::isMouseButtonJustPressed(Mouse button) const {
+    bool current = (m_currentMouseState & SDL_BUTTON_MASK(toSDLButton(button))) != 0;
+    bool previous = (m_previousMouseState & SDL_BUTTON_MASK(toSDLButton(button))) != 0;
+    return current && !previous;
+}
+
+bool InputManager::isMouseButtonJustReleased(Mouse button) const {
+    bool current = (m_currentMouseState & SDL_BUTTON_MASK(toSDLButton(button))) != 0;
+    bool previous = (m_previousMouseState & SDL_BUTTON_MASK(toSDLButton(button))) != 0;
+    return !current && previous;
 }
 
 glm::vec2 InputManager::getMousePosition() const {
-    float x, y;
-    SDL_GetMouseState(&x, &y);
-    return {x, y};
+    return m_currentMousePos;
+}
+
+glm::vec2 InputManager::getMouseDelta() const {
+    return m_currentMousePos - m_previousMousePos;
 }
 
 void InputManager::mapAction(std::string_view name, Key key) {
@@ -68,6 +108,32 @@ bool InputManager::isActionPressed(std::string_view name) const {
         return isKeyPressed(binding.value.key);
     } else if (binding.type == InputBinding::Type::MouseButton) {
         return isMouseButtonPressed(binding.value.mouse);
+    }
+    return false;
+}
+
+bool InputManager::isActionJustPressed(std::string_view name) const {
+    auto it = m_actions.find(std::string(name));
+    if (it == m_actions.end()) return false;
+
+    const auto& binding = it->second;
+    if (binding.type == InputBinding::Type::Key) {
+        return isKeyJustPressed(binding.value.key);
+    } else if (binding.type == InputBinding::Type::MouseButton) {
+        return isMouseButtonJustPressed(binding.value.mouse);
+    }
+    return false;
+}
+
+bool InputManager::isActionJustReleased(std::string_view name) const {
+    auto it = m_actions.find(std::string(name));
+    if (it == m_actions.end()) return false;
+
+    const auto& binding = it->second;
+    if (binding.type == InputBinding::Type::Key) {
+        return isKeyJustReleased(binding.value.key);
+    } else if (binding.type == InputBinding::Type::MouseButton) {
+        return isMouseButtonJustReleased(binding.value.mouse);
     }
     return false;
 }

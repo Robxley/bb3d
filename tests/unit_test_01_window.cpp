@@ -4,6 +4,7 @@
 #include "bb3d/input/InputManager.hpp"
 
 #include <iostream>
+#include <glm/glm.hpp>
 
 void runWindoTest()
 {
@@ -32,31 +33,35 @@ void runWindoTest()
     {
         BB_PROFILE_SCOPE("Main Loop");
         window->PollEvents();
+        input.update();
 
         // --- Input Test ---
         
         // Low Level Polling
-        if (input.isKeyPressed(bb3d::Key::Escape)) {
+        if (input.isKeyJustPressed(bb3d::Key::Escape)) {
             BB_INFO("Escape pressed. Exiting test.");
             break;
         }
 
         // High Level Action
-        static bool jumpPressed = false;
-        if (input.isActionPressed("Jump")) {
-            if (!jumpPressed) {
-                BB_INFO("Action 'Jump' triggered!");
-                jumpPressed = true;
-            }
-        } else {
-            jumpPressed = false;
+        if (input.isActionJustPressed("Jump")) {
+            BB_INFO("Action 'Jump' triggered (Just Pressed)!");
         }
 
-        // Directional (Just logging once to avoid spam)
-        static bool wPressed = false;
-        if (input.isKeyPressed(bb3d::Key::W)) {
-            if (!wPressed) { BB_INFO("Moving Forward (W)"); wPressed = true; }
-        } else { wPressed = false; }
+        // Directional
+        if (input.isKeyJustPressed(bb3d::Key::W)) {
+            BB_INFO("Moving Forward (W) - Just Pressed");
+        }
+        
+        if (input.isKeyJustReleased(bb3d::Key::W)) {
+            BB_INFO("Stopped Moving Forward (W) - Just Released");
+        }
+
+        // Mouse delta test
+        auto delta = input.getMouseDelta();
+        if (glm::length(delta) > 50.0f) {
+            BB_INFO("Fast mouse movement: {0}, {1}", delta.x, delta.y);
+        }
     }
 
     BB_INFO("Window test finished.");
