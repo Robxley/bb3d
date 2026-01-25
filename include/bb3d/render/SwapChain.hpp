@@ -9,54 +9,47 @@ public:
     SwapChain(VulkanContext& context, int width, int height);
     ~SwapChain();
 
-    // Empêcher la copie
     SwapChain(const SwapChain&) = delete;
     SwapChain& operator=(const SwapChain&) = delete;
 
-    // Initialisation et recréation
     void recreate(int width, int height);
     void cleanup();
 
-    // Accesseurs
-    [[nodiscard]] VkSwapchainKHR getHandle() const { return m_swapChain; }
-    [[nodiscard]] VkFormat getImageFormat() const { return m_imageFormat; }
-    [[nodiscard]] VkExtent2D getExtent() const { return m_extent; }
-    [[nodiscard]] const std::vector<VkImageView>& getImageViews() const { return m_imageViews; }
-    [[nodiscard]] VkImage getImage(uint32_t index) const { return m_images[index]; }
-    [[nodiscard]] size_t getImageCount() const { return m_images.size(); }
+    [[nodiscard]] inline vk::SwapchainKHR getHandle() const { return m_swapChain; }
+    [[nodiscard]] inline vk::Format getImageFormat() const { return m_imageFormat; }
+    [[nodiscard]] inline vk::Extent2D getExtent() const { return m_extent; }
+    [[nodiscard]] inline const std::vector<vk::ImageView>& getImageViews() const { return m_imageViews; }
+    [[nodiscard]] inline vk::Image getImage(uint32_t index) const { return m_images[index]; }
+    [[nodiscard]] inline size_t getImageCount() const { return m_images.size(); }
     
-    // Depth Buffer
-    [[nodiscard]] VkImage getDepthImage() const { return m_depthImage; }
-    [[nodiscard]] VkImageView getDepthImageView() const { return m_depthImageView; }
-    [[nodiscard]] VkFormat getDepthFormat() const { return m_depthFormat; }
+    [[nodiscard]] inline vk::Image getDepthImage() const { return m_depthImage; }
+    [[nodiscard]] inline vk::ImageView getDepthImageView() const { return m_depthImageView; }
+    [[nodiscard]] inline vk::Format getDepthFormat() const { return m_depthFormat; }
 
-    // Opérations de Frame
-    // Retourne l'index de l'image acquise
-    uint32_t acquireNextImage(VkSemaphore semaphore, VkFence fence = VK_NULL_HANDLE);
-    void present(VkSemaphore waitSemaphore, uint32_t imageIndex);
+    uint32_t acquireNextImage(vk::Semaphore semaphore, vk::Fence fence = nullptr);
+    void present(vk::Semaphore waitSemaphore, uint32_t imageIndex);
 
 private:
     void createSwapChain(int width, int height);
     void createImageViews();
     void createDepthResources();
-    VkFormat findDepthFormat();
+    vk::Format findDepthFormat();
 
-    VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
-    VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
-    VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities, int width, int height);
+    vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats);
+    vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes);
+    vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities, int width, int height);
 
     VulkanContext& m_context;
-    VkSwapchainKHR m_swapChain{VK_NULL_HANDLE};
-    std::vector<VkImage> m_images;
-    std::vector<VkImageView> m_imageViews;
-    VkFormat m_imageFormat;
-    VkExtent2D m_extent;
+    vk::SwapchainKHR m_swapChain;
+    std::vector<vk::Image> m_images;
+    std::vector<vk::ImageView> m_imageViews;
+    vk::Format m_imageFormat;
+    vk::Extent2D m_extent;
 
-    // Depth Resources
-    VkImage m_depthImage{VK_NULL_HANDLE};
-    VmaAllocation m_depthImageAllocation{VK_NULL_HANDLE};
-    VkImageView m_depthImageView{VK_NULL_HANDLE};
-    VkFormat m_depthFormat{VK_FORMAT_UNDEFINED};
+    vk::Image m_depthImage;
+    VmaAllocation m_depthImageAllocation = nullptr;
+    vk::ImageView m_depthImageView;
+    vk::Format m_depthFormat = vk::Format::eUndefined;
 };
 
-}
+} // namespace bb3d

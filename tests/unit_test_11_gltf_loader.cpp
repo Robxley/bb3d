@@ -10,6 +10,7 @@
 #include "bb3d/render/Texture.hpp"
 #include "bb3d/resource/ResourceManager.hpp"
 #include "bb3d/core/JobSystem.hpp"
+#include "bb3d/scene/FPSCamera.hpp"
 #include "bb3d/scene/Camera.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -24,344 +25,124 @@ struct UniformBufferObject {
     alignas(16) glm::mat4 proj;
 };
 
-// Helper transition Color
-void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-    barrier.oldLayout = oldLayout;
-    barrier.newLayout = newLayout;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = image;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
-
-    VkPipelineStageFlags sourceStage;
-    VkPipelineStageFlags destinationStage;
-
-    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        destinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    } else if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
-        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        barrier.dstAccessMask = 0;
-        sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+void transitionImageLayout(vk::CommandBuffer cb, vk::Image image, vk::Format format, vk::ImageLayout oldL, vk::ImageLayout newL) {
+    vk::ImageMemoryBarrier b({}, {}, oldL, newL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
+    vk::PipelineStageFlags src, dst;
+    if (oldL == vk::ImageLayout::eUndefined) {
+        b.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+        src = vk::PipelineStageFlagBits::eTopOfPipe; dst = vk::PipelineStageFlagBits::eColorAttachmentOutput;
     } else {
-        throw std::invalid_argument("unsupported layout transition!");
+        b.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+        src = vk::PipelineStageFlagBits::eColorAttachmentOutput; dst = vk::PipelineStageFlagBits::eBottomOfPipe;
     }
-    vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+    cb.pipelineBarrier(src, dst, {}, nullptr, nullptr, b);
 }
 
-// Helper transition Depth
-void transitionDepthLayout(VkCommandBuffer commandBuffer, VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout) {
-    VkImageMemoryBarrier barrier{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-    barrier.oldLayout = oldLayout;
-    barrier.newLayout = newLayout;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = image;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
-
-    VkPipelineStageFlags sourceStage;
-    VkPipelineStageFlags destinationStage;
-
-    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    } else {
-        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+void transitionDepthLayout(vk::CommandBuffer cb, vk::Image image, vk::ImageLayout oldL, vk::ImageLayout newL) {
+    vk::ImageMemoryBarrier b({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, oldL, newL, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, image, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 });
+    if (oldL == vk::ImageLayout::eUndefined) {
+        cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, b);
     }
-
-    vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0, nullptr, 0, nullptr, 1, &barrier);
 }
-
-// Helper RAII
-struct TestResources {
-    VkDevice device;
-    VkDescriptorPool descriptorPool = VK_NULL_HANDLE;
-    VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
-    std::vector<VkSemaphore> imageAvailableSemaphores;
-    std::vector<VkSemaphore> renderFinishedSemaphores;
-    VkFence inFlightFence = VK_NULL_HANDLE;
-    VkCommandPool commandPool = VK_NULL_HANDLE;
-
-    TestResources(VkDevice dev) : device(dev) {}
-
-    ~TestResources() {
-        if (descriptorPool) vkDestroyDescriptorPool(device, descriptorPool, nullptr);
-        if (descriptorSetLayout) vkDestroyDescriptorSetLayout(device, descriptorSetLayout, nullptr);
-        for (auto s : renderFinishedSemaphores) vkDestroySemaphore(device, s, nullptr);
-        for (auto s : imageAvailableSemaphores) vkDestroySemaphore(device, s, nullptr);
-        if (inFlightFence) vkDestroyFence(device, inFlightFence, nullptr);
-        if (commandPool) vkDestroyCommandPool(device, commandPool, nullptr);
-    }
-};
 
 int main() {
     bb3d::Log::Init();
-    BB_CORE_INFO("Test Unitaire 11 : Rendu Mesh GLTF Texturé (Ant)");
-
     try {
         bb3d::EngineConfig config;
-        config.title = "BB3D - GLTF Loader (Textured)";
-        config.width = 1280;
-        config.height = 720;
-        config.cullMode = "None"; 
+        config.window.title = "BB3D - GLTF Loader (Vulkan-Hpp)";
+        config.window.width = 1280;
+        config.window.height = 720;
         bb3d::Window window(config);
 
         bb3d::VulkanContext context;
-#ifdef NDEBUG
-        context.init(window.GetNativeWindow(), "GLTF Test", false);
-#else
         context.init(window.GetNativeWindow(), "GLTF Test", true);
-#endif
-        TestResources res(context.getDevice());
+        vk::Device device = context.getDevice();
 
-        bb3d::SwapChain swapChain(context, config.width, config.height);
-        bb3d::JobSystem jobSystem;
-        jobSystem.init();
+        bb3d::SwapChain swapChain(context, config.window.width, config.window.height);
+        bb3d::JobSystem jobSystem; jobSystem.init();
         bb3d::ResourceManager resources(context, jobSystem);
 
-        // Charger le modèle Fourmi (GLB)
         auto model = resources.load<bb3d::Model>("assets/models/ant.glb");
         auto texture = model->getTexture(0);
-        
-        if (!texture) {
-            throw std::runtime_error("Texture manquante pour le test !");
-        }
+        if (!texture) throw std::runtime_error("Texture manquante !");
 
-        // --- Auto-Fit ---
         auto bounds = model->getBounds();
-        glm::vec3 center = bounds.center();
-        glm::vec3 size = bounds.size();
-        float maxDim = std::max(std::max(size.x, size.y), size.z);
-        
-        float fov = 45.0f;
-        float distance = (maxDim) / std::tan(glm::radians(fov) * 0.5f);
-        distance *= 1.5f;
+        glm::vec3 center = bounds.center(), size = bounds.size();
+        float maxDim = std::max({size.x, size.y, size.z});
+        float fov = 45.0f, dist = maxDim / std::tan(glm::radians(fov) * 0.5f) * 1.5f;
 
-        BB_CORE_INFO("GLTF Bounds: MaxDim={}", maxDim);
-
-        // --- UBO ---
         bb3d::UniformBuffer ubo(context, sizeof(UniformBufferObject));
+        vk::DescriptorSetLayoutBinding b[] = {{0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex}, {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}};
+        vk::DescriptorSetLayout dsl = device.createDescriptorSetLayout({ {}, 2, b });
+        vk::DescriptorPoolSize ps[] = {{vk::DescriptorType::eUniformBuffer, 1}, {vk::DescriptorType::eCombinedImageSampler, 1}};
+        vk::DescriptorPool dp = device.createDescriptorPool({ {}, 1, 2, ps });
+        vk::DescriptorSet ds = device.allocateDescriptorSets({ dp, 1, &dsl })[0];
 
-        // --- Descriptor Set Layout ---
-        VkDescriptorSetLayoutBinding uboLayoutBinding{};
-        uboLayoutBinding.binding = 0;
-        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-
-        VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-        samplerLayoutBinding.binding = 1;
-        samplerLayoutBinding.descriptorCount = 1;
-        samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerLayoutBinding.pImmutableSamplers = nullptr;
-        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-
-        std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
-        VkDescriptorSetLayoutCreateInfo layoutInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-        layoutInfo.pBindings = bindings.data();
-
-        vkCreateDescriptorSetLayout(context.getDevice(), &layoutInfo, nullptr, &res.descriptorSetLayout);
-
-        // --- Pool ---
-        std::array<VkDescriptorPoolSize, 2> poolSizes{};
-        poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSizes[0].descriptorCount = 1;
-        poolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        poolSizes[1].descriptorCount = 1;
-
-        VkDescriptorPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-        poolInfo.poolSizeCount = static_cast<uint32_t>(poolSizes.size());
-        poolInfo.pPoolSizes = poolSizes.data();
-        poolInfo.maxSets = 1;
-        vkCreateDescriptorPool(context.getDevice(), &poolInfo, nullptr, &res.descriptorPool);
-
-        // --- Set ---
-        VkDescriptorSetAllocateInfo allocInfo{VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
-        allocInfo.descriptorPool = res.descriptorPool;
-        allocInfo.descriptorSetCount = 1;
-        allocInfo.pSetLayouts = &res.descriptorSetLayout;
-        VkDescriptorSet descriptorSet;
-        vkAllocateDescriptorSets(context.getDevice(), &allocInfo, &descriptorSet);
-
-        // --- Update Descriptors ---
-        VkDescriptorBufferInfo bufferInfo{};
-        bufferInfo.buffer = ubo.getHandle();
-        bufferInfo.offset = 0;
-        bufferInfo.range = sizeof(UniformBufferObject);
-
-        VkDescriptorImageInfo imageInfo{};
-        imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-        imageInfo.imageView = texture->getImageView();
-        imageInfo.sampler = texture->getSampler();
-
-        std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
-        descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[0].dstSet = descriptorSet;
-        descriptorWrites[0].dstBinding = 0;
-        descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        descriptorWrites[0].descriptorCount = 1;
-        descriptorWrites[0].pBufferInfo = &bufferInfo;
-
-        descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        descriptorWrites[1].dstSet = descriptorSet;
-        descriptorWrites[1].dstBinding = 1;
-        descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        descriptorWrites[1].descriptorCount = 1;
-        descriptorWrites[1].pImageInfo = &imageInfo;
-
-        vkUpdateDescriptorSets(context.getDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+        vk::DescriptorBufferInfo bi(ubo.getHandle(), 0, sizeof(UniformBufferObject));
+        vk::DescriptorImageInfo ii(texture->getSampler(), texture->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+        vk::WriteDescriptorSet w[] = {{ds, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bi}, {ds, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &ii}};
+        device.updateDescriptorSets(2, w, 0, nullptr);
 
         // --- Pipeline ---
-        bb3d::Shader vertShader(context, "assets/shaders/textured_mesh.vert.spv");
-        bb3d::Shader fragShader(context, "assets/shaders/textured_mesh.frag.spv");
-        bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {res.descriptorSetLayout});
+        bb3d::Shader vert(context, "assets/shaders/textured_mesh.vert.spv");
+        bb3d::Shader frag(context, "assets/shaders/textured_mesh.frag.spv");
+        bb3d::GraphicsPipeline pipeline(context, swapChain, vert, frag, config, {dsl});
 
-        // --- Commands ---
-        VkCommandPoolCreateInfo cmdPoolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
-        cmdPoolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        cmdPoolInfo.queueFamilyIndex = context.getGraphicsQueueFamily();
-        vkCreateCommandPool(context.getDevice(), &cmdPoolInfo, nullptr, &res.commandPool);
+        vk::CommandPool cp = device.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.getGraphicsQueueFamily() });
 
-        VkCommandBuffer commandBuffer;
-        VkCommandBufferAllocateInfo cmdAllocInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-        cmdAllocInfo.commandPool = res.commandPool;
-        cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        cmdAllocInfo.commandBufferCount = 1;
-        vkAllocateCommandBuffers(context.getDevice(), &cmdAllocInfo, &commandBuffer);
+        const int MAX_FRAMES_IN_FLIGHT = 2;
+        std::vector<vk::CommandBuffer> commandBuffers = device.allocateCommandBuffers({ cp, vk::CommandBufferLevel::ePrimary, (uint32_t)MAX_FRAMES_IN_FLIGHT });
 
-        // --- Sync ---
-        uint32_t imageCount = swapChain.getImageCount();
-        res.imageAvailableSemaphores.resize(imageCount);
-        res.renderFinishedSemaphores.resize(imageCount);
-        VkSemaphoreCreateInfo semInfo{VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO};
-        VkFenceCreateInfo fenceInfo{VK_STRUCTURE_TYPE_FENCE_CREATE_INFO, nullptr, VK_FENCE_CREATE_SIGNALED_BIT};
-        for (uint32_t i = 0; i < imageCount; ++i) {
-            vkCreateSemaphore(context.getDevice(), &semInfo, nullptr, &res.imageAvailableSemaphores[i]);
-            vkCreateSemaphore(context.getDevice(), &semInfo, nullptr, &res.renderFinishedSemaphores[i]);
+        std::vector<vk::Semaphore> semA(MAX_FRAMES_IN_FLIGHT), semR(MAX_FRAMES_IN_FLIGHT);
+        std::vector<vk::Fence> inFlightFences(MAX_FRAMES_IN_FLIGHT);
+        for(int i=0; i<MAX_FRAMES_IN_FLIGHT; ++i) { 
+            semA[i] = device.createSemaphore({}); 
+            semR[i] = device.createSemaphore({}); 
+            inFlightFences[i] = device.createFence({ vk::FenceCreateFlagBits::eSignaled });
         }
-        vkCreateFence(context.getDevice(), &fenceInfo, nullptr, &res.inFlightFence);
 
-        bb3d::Camera camera(fov, (float)config.width / (float)config.height, 0.1f, distance * 10.0f);
-        camera.setPosition({0.0f, maxDim * 0.5f, distance});
-        camera.lookAt({0.0f, 0.0f, 0.0f});
+        bb3d::FPSCamera camera(fov, (float)config.window.width/config.window.height, 0.1f, dist*10.0f);
+        camera.setPosition({0, maxDim*0.5f, dist}); camera.lookAt({0,0,0});
 
-        BB_CORE_INFO("Démarrage du rendu...");
-
+        uint32_t currentFrame = 0;
         while (!window.ShouldClose()) {
             window.PollEvents();
+            static auto start = std::chrono::high_resolution_clock::now();
+            float t = std::chrono::duration<float>(std::chrono::high_resolution_clock::now() - start).count();
+            UniformBufferObject data{ glm::rotate(glm::mat4(1.0f), t*0.5f, {0,1,0}) * glm::translate(glm::mat4(1.0f), -center), camera.getViewMatrix(), camera.getProjectionMatrix() };
+            ubo.update(&data, sizeof(data));
 
-            UniformBufferObject uboData{};
-            static auto startTime = std::chrono::high_resolution_clock::now();
-            auto currentTime = std::chrono::high_resolution_clock::now();
-            float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-            
-            glm::mat4 modelMat = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-            modelMat = glm::translate(modelMat, -center);
-            
-            uboData.model = modelMat;
-            uboData.view = camera.getViewMatrix();
-            uboData.proj = camera.getProjectionMatrix();
-            ubo.update(&uboData, sizeof(uboData));
+            auto wr = device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX); 
+            device.resetFences(1, &inFlightFences[currentFrame]);
 
-            vkWaitForFences(context.getDevice(), 1, &res.inFlightFence, VK_TRUE, UINT64_MAX);
-            vkResetFences(context.getDevice(), 1, &res.inFlightFence);
-
-            static uint32_t currentFrame = 0;
-            uint32_t imageIndex = swapChain.acquireNextImage(res.imageAvailableSemaphores[currentFrame]);
-
-            vkResetCommandBuffer(commandBuffer, 0);
-            VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-            vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-            VkImage image = swapChain.getImage(imageIndex);
-            transitionImageLayout(commandBuffer, image, swapChain.getImageFormat(), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-            
-            VkImage depthImage = swapChain.getDepthImage();
-            transitionDepthLayout(commandBuffer, depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-
-            VkRenderingAttachmentInfo colorAttachment{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-            colorAttachment.imageView = swapChain.getImageViews()[imageIndex];
-            colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-            colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            colorAttachment.clearValue.color = {{0.1f, 0.1f, 0.1f, 1.0f}};
-
-            VkRenderingAttachmentInfo depthAttachment{VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO};
-            depthAttachment.imageView = swapChain.getDepthImageView();
-            depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-            depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-            depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            depthAttachment.clearValue.depthStencil = {1.0f, 0};
-
-            VkRenderingInfo renderingInfo{VK_STRUCTURE_TYPE_RENDERING_INFO};
-            renderingInfo.renderArea = {{0, 0}, swapChain.getExtent()};
-            renderingInfo.layerCount = 1;
-            renderingInfo.colorAttachmentCount = 1;
-            renderingInfo.pColorAttachments = &colorAttachment;
-            renderingInfo.pDepthAttachment = &depthAttachment;
-
-            vkCmdBeginRendering(commandBuffer, &renderingInfo);
-
-            pipeline.bind(commandBuffer);
-            
-            VkViewport viewport{0.0f, 0.0f, (float)swapChain.getExtent().width, (float)swapChain.getExtent().height, 0.0f, 1.0f};
-            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-            VkRect2D scissor{{0, 0}, swapChain.getExtent()};
-            vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline.getLayout(), 0, 1, &descriptorSet, 0, nullptr);
-
-            if (model) {
-                model->draw(commandBuffer);
-            }
-
-            vkCmdEndRendering(commandBuffer);
-
-            transitionImageLayout(commandBuffer, image, swapChain.getImageFormat(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-            vkEndCommandBuffer(commandBuffer);
-
-            VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-            VkSemaphore waitSems[] = {res.imageAvailableSemaphores[currentFrame]};
-            VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-            submitInfo.waitSemaphoreCount = 1;
-            submitInfo.pWaitSemaphores = waitSems;
-            submitInfo.pWaitDstStageMask = waitStages;
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &commandBuffer;
-            VkSemaphore signalSems[] = {res.renderFinishedSemaphores[currentFrame]};
-            submitInfo.signalSemaphoreCount = 1;
-            submitInfo.pSignalSemaphores = signalSems;
-
-            vkQueueSubmit(context.getGraphicsQueue(), 1, &submitInfo, res.inFlightFence);
-            swapChain.present(res.renderFinishedSemaphores[currentFrame], imageIndex);
-
-            currentFrame = (currentFrame + 1) % imageCount;
+            uint32_t idx = swapChain.acquireNextImage(semA[currentFrame]);
+            auto& cb = commandBuffers[currentFrame];
+            cb.reset({}); cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+            transitionImageLayout(cb, swapChain.getImage(idx), swapChain.getImageFormat(), vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
+            transitionDepthLayout(cb, swapChain.getDepthImage(), vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal);
+            vk::RenderingAttachmentInfo cAttr(swapChain.getImageViews()[idx], vk::ImageLayout::eColorAttachmentOptimal, vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearValue(vk::ClearColorValue(std::array<float,4>{0.1f,0.1f,0.1f,1.0f})));
+            vk::RenderingAttachmentInfo dAttr(swapChain.getDepthImageView(), vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearValue(vk::ClearDepthStencilValue(1.0f, 0)));
+            vk::RenderingInfo rI({}, {{0,0}, swapChain.getExtent()}, 1, 0, 1, &cAttr, &dAttr);
+            cb.beginRendering(rI); pipeline.bind(cb);
+            cb.setViewport(0, vk::Viewport(0,0,(float)swapChain.getExtent().width, (float)swapChain.getExtent().height, 0, 1));
+            cb.setScissor(0, vk::Rect2D({0,0}, swapChain.getExtent()));
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.getLayout(), 0, 1, &ds, 0, nullptr);
+            model->draw(cb); cb.endRendering();
+            transitionImageLayout(cb, swapChain.getImage(idx), swapChain.getImageFormat(), vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
+            cb.end();
+            vk::PipelineStageFlags wait = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+            device.getQueue(context.getGraphicsQueueFamily(), 0).submit(vk::SubmitInfo(1, &semA[currentFrame], &wait, 1, &cb, 1, &semR[currentFrame]), inFlightFences[currentFrame]);
+            swapChain.present(semR[currentFrame], idx); 
+            currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
         }
-
-        vkDeviceWaitIdle(context.getDevice());
+        device.waitIdle();
+        for(int i=0; i<MAX_FRAMES_IN_FLIGHT; ++i) { 
+            device.destroySemaphore(semA[i]); 
+            device.destroySemaphore(semR[i]); 
+            device.destroyFence(inFlightFences[i]);
+        }
+        device.destroyFence(fen); device.destroyCommandPool(cp); device.destroyDescriptorPool(dp); device.destroyDescriptorSetLayout(dsl);
         jobSystem.shutdown();
-
-    } catch (const std::exception& e) {
-        BB_CORE_ERROR("Erreur fatale : {}", e.what());
-        return -1;
-    }
-
+    } catch (const std::exception& e) { BB_CORE_ERROR("Fail: {}", e.what()); return -1; }
     return 0;
 }

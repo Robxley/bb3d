@@ -1,3 +1,11 @@
+#include "bb3d/render/VulkanContext.hpp"
+#include "bb3d/core/Log.hpp"
+
+#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
+#include <vulkan/vulkan.hpp>
+
+VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
+
 #ifdef _MSC_VER
 #pragma warning(push, 0)
 #endif
@@ -7,13 +15,8 @@
 #pragma warning(pop)
 #endif
 
-#include "bb3d/render/VulkanContext.hpp"
-#include "bb3d/core/Log.hpp"
-
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
-#include <vector>
-#include <stdexcept>
 #include <set>
 
 namespace bb3d {
@@ -36,27 +39,20 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     return VK_FALSE;
 }
 
+VulkanContext::VulkanContext() = default;
+
 VulkanContext::~VulkanContext() {
     cleanup();
 }
 
 void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enableValidationLayers) {
-    // 1. Création de l'Instance
-    std::string appNameStr(appName);
-    VkApplicationInfo appInfo{};
-    appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    appInfo.pApplicationName = appNameStr.c_str();
-    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.pEngineName = "biobazard3d";
-    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_3;
+    // Initialisation du Dispatch Dynamique pour les fonctions de base (vkGetInstanceProcAddr)
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
 
-    VkInstanceCreateInfo createInfo{};
-    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    createInfo.pApplicationInfo = &appInfo;
+    // 1. Instance
+    vk::ApplicationInfo appInfo(appName.data(), VK_MAKE_VERSION(1, 0, 0), "biobazard3d", VK_MAKE_VERSION(1, 0, 0), VK_API_VERSION_1_3);
 
-    // Extensions requises par SDL
-    Uint32 sdlExtensionCount = 0;
+    uint32_t sdlExtensionCount = 0;
     const char* const* sdlExtensions = SDL_Vulkan_GetInstanceExtensions(&sdlExtensionCount);
     std::vector<const char*> extensions(sdlExtensions, sdlExtensions + sdlExtensionCount);
 
@@ -64,258 +60,172 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-    createInfo.ppEnabledExtensionNames = extensions.data();
+    vk::InstanceCreateInfo createInfo({}, &appInfo, 0, nullptr, static_cast<uint32_t>(extensions.size()), extensions.data());
 
-    // Validation Layers
     const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
     if (enableValidationLayers) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         createInfo.ppEnabledLayerNames = validationLayers.data();
-    } else {
-        createInfo.enabledLayerCount = 0;
     }
 
-    if (vkCreateInstance(&createInfo, nullptr, &m_instance) != VK_SUCCESS) {
-        BB_CORE_ERROR("VulkanContext: Échec de la création de l'instance !");
-        throw std::runtime_error("Échec de la création de l'instance Vulkan !");
-    }
-    BB_CORE_INFO("VulkanContext: Instance Vulkan créée.");
+    m_instance = vk::createInstance(createInfo);
+    
+    // Initialisation du Dispatch Dynamique pour les extensions de l'instance
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance);
+
+    BB_CORE_INFO("VulkanContext: Instance Vulkan créée (Vulkan-Hpp).");
 
     // 2. Debug Messenger
     if (enableValidationLayers) {
-        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
-        debugCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        debugCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        debugCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        debugCreateInfo.pfnUserCallback = debugCallback;
-
-        auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkCreateDebugUtilsMessengerEXT");
-        if (func != nullptr) {
-            func(m_instance, &debugCreateInfo, nullptr, &m_debugMessenger);
-            BB_CORE_INFO("VulkanContext: Messager de débogage activé.");
-        }
+        vk::DebugUtilsMessengerCreateInfoEXT debugInfo(
+            {},
+            vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError,
+            vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance,
+            reinterpret_cast<PFN_vkDebugUtilsMessengerCallbackEXT>(debugCallback)
+        );
+        m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(debugInfo);
+        BB_CORE_INFO("VulkanContext: Debug Messenger activé.");
     }
 
-    // 3. Création de la Surface (SDL3)
+    // 3. Surface
     if (window) {
-        if (!SDL_Vulkan_CreateSurface(window, m_instance, nullptr, &m_surface)) {
-             BB_CORE_ERROR("VulkanContext: Échec de la création de la Surface !");
-             throw std::runtime_error("Échec de la création de la Surface Vulkan via SDL !");
+        VkSurfaceKHR surface;
+        if (!SDL_Vulkan_CreateSurface(window, static_cast<VkInstance>(m_instance), nullptr, &surface)) {
+            throw std::runtime_error("Failed to create SDL Vulkan Surface");
         }
-        BB_CORE_INFO("VulkanContext: Surface Vulkan créée via SDL.");
-    } else {
-        BB_CORE_WARN("VulkanContext::init appelé sans fenêtre : La Surface n'est pas créée.");
+        m_surface = vk::SurfaceKHR(surface);
     }
 
-    // 4. Sélection du Physical Device
-    uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(m_instance, &deviceCount, nullptr);
-    if (deviceCount == 0) {
-        BB_CORE_ERROR("VulkanContext: Aucun GPU supportant Vulkan trouvé !");
-        throw std::runtime_error("Aucun GPU supportant Vulkan trouvé !");
+    // 4. Physical Device
+    auto physicalDevices = m_instance.enumeratePhysicalDevices();
+    if (physicalDevices.empty()) {
+        throw std::runtime_error("No Vulkan GPUs found");
     }
 
-    std::vector<VkPhysicalDevice> devices(deviceCount);
-    vkEnumeratePhysicalDevices(m_instance, &deviceCount, devices.data());
+    for (const auto& device : physicalDevices) {
+        auto props = device.getProperties();
+        auto queueFamilies = device.getQueueFamilyProperties();
 
-    // Choix du GPU
-    int graphicsQueueFamily = -1;
-    int presentQueueFamily = -1;
+        int graphicsIndex = -1;
+        int presentIndex = -1;
 
-    for (const auto& device : devices) {
-        VkPhysicalDeviceProperties props;
-        vkGetPhysicalDeviceProperties(device, &props);
-
-        // Recherche des Queues Families
-        uint32_t queueFamilyCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
-
-        int i = 0;
-        int currentGraphics = -1;
-        int currentPresent = -1;
-
-        for (const auto& queueFamily : queueFamilies) {
-            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                currentGraphics = i;
+        for (uint32_t i = 0; i < queueFamilies.size(); ++i) {
+            if (queueFamilies[i].queueFlags & vk::QueueFlagBits::eGraphics) {
+                graphicsIndex = i;
             }
             
-            VkBool32 presentSupport = false;
             if (m_surface) {
-                vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &presentSupport);
-                if (presentSupport) {
-                    currentPresent = i;
+                if (device.getSurfaceSupportKHR(i, m_surface)) {
+                    presentIndex = i;
                 }
             } else {
-                currentPresent = i; // Fallback
+                presentIndex = graphicsIndex; // If no surface, just use graphics index
             }
-
-            if (currentGraphics != -1 && currentPresent != -1) {
-                break;
-            }
-            i++;
+            
+            if (graphicsIndex != -1 && presentIndex != -1) break;
         }
 
-        if (currentGraphics != -1 && currentPresent != -1) {
+        if (graphicsIndex != -1 && presentIndex != -1) {
             m_physicalDevice = device;
-            m_deviceName = props.deviceName;
-            m_graphicsQueueFamily = static_cast<uint32_t>(currentGraphics);
-            m_presentQueueFamily = static_cast<uint32_t>(currentPresent);
-            
-            graphicsQueueFamily = currentGraphics;
-            presentQueueFamily = currentPresent;
-            
-            if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU) {
-                break;
-            }
+            m_graphicsQueueFamily = graphicsIndex;
+            m_presentQueueFamily = presentIndex;
+            m_deviceName = props.deviceName.data();
+            if (props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) break;
         }
     }
 
-    if (m_physicalDevice == VK_NULL_HANDLE) {
-        BB_CORE_ERROR("VulkanContext: Aucun GPU compatible (Graphics + Present) trouvé !");
-        throw std::runtime_error("Aucun GPU compatible (Graphics + Present) trouvé !");
-    }
+    BB_CORE_INFO("VulkanContext: GPU sélectionné : {}", m_deviceName);
 
-    BB_CORE_INFO("VulkanContext: GPU sélectionné : {0}", m_deviceName);
-
-    // 5. Création du Logical Device
-    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<int> uniqueQueueFamilies = { static_cast<int>(m_graphicsQueueFamily), static_cast<int>(m_presentQueueFamily) };
-
+    // 5. Logical Device
+    std::set<uint32_t> uniqueQueueFamilies = { m_graphicsQueueFamily, m_presentQueueFamily };
+    std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
     float queuePriority = 1.0f;
-    for (int queueFamily : uniqueQueueFamilies) {
-        VkDeviceQueueCreateInfo queueCreateInfo{};
-        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfo.queueFamilyIndex = queueFamily;
-        queueCreateInfo.queueCount = 1;
-        queueCreateInfo.pQueuePriorities = &queuePriority;
-        queueCreateInfos.push_back(queueCreateInfo);
+    for (uint32_t family : uniqueQueueFamilies) {
+        queueCreateInfos.push_back({ {}, family, 1, &queuePriority });
     }
 
-    // Dynamic Rendering (Vulkan 1.3)
-    VkPhysicalDeviceDynamicRenderingFeaturesKHR dynamicRenderingFeatures{};
-    dynamicRenderingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DYNAMIC_RENDERING_FEATURES_KHR;
-    dynamicRenderingFeatures.dynamicRendering = VK_TRUE;
-
-    VkDeviceCreateInfo deviceCreateInfo{};
-    deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.pNext = &dynamicRenderingFeatures;
-    deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
-    deviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-    
-    // Extensions Device
     std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-    deviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-    deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
-
-    if (vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device) != VK_SUCCESS) {
-        BB_CORE_ERROR("VulkanContext: Échec de la création du Logical Device !");
-        throw std::runtime_error("Échec de la création du Logical Device !");
-    }
-
-    vkGetDeviceQueue(m_device, m_graphicsQueueFamily, 0, &m_graphicsQueue);
-    vkGetDeviceQueue(m_device, m_presentQueueFamily, 0, &m_presentQueue);
-    BB_CORE_INFO("VulkanContext: Logical Device créé (Queues: Graphics={0}, Present={1})", m_graphicsQueueFamily, m_presentQueueFamily);
-
-    // 6. Initialisation VMA
-    VmaAllocatorCreateInfo allocatorInfo = {};
-    allocatorInfo.physicalDevice = m_physicalDevice;
-    allocatorInfo.device = m_device;
-    allocatorInfo.instance = m_instance;
-    allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
     
-    if (vmaCreateAllocator(&allocatorInfo, &m_allocator) != VK_SUCCESS) {
-        BB_CORE_ERROR("VulkanContext: Échec de l'initialisation de VMA !");
-        throw std::runtime_error("Échec de l'initialisation de VMA !");
-    }
-    BB_CORE_INFO("VulkanContext: Allocateur VMA initialisé.");
+    vk::PhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures(VK_TRUE);
+    vk::PhysicalDeviceFeatures deviceFeatures{}; // Basic features
+    
+    vk::DeviceCreateInfo deviceCreateInfo({}, 
+        static_cast<uint32_t>(queueCreateInfos.size()), queueCreateInfos.data(),
+        0, nullptr,
+        static_cast<uint32_t>(deviceExtensions.size()), deviceExtensions.data(),
+        &deviceFeatures);
+    
+    deviceCreateInfo.pNext = &dynamicRenderingFeatures;
 
-    // 7. Création du Command Pool pour les commandes courtes
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT; // Indique que les buffers seront de courte durée
-    poolInfo.queueFamilyIndex = m_graphicsQueueFamily;
+    m_device = m_physicalDevice.createDevice(deviceCreateInfo);
+    
+    // Initialisation du Dispatch Dynamique pour les extensions du device
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(m_device);
 
-    if (vkCreateCommandPool(m_device, &poolInfo, nullptr, &m_shortLivedCommandPool) != VK_SUCCESS) {
-        throw std::runtime_error("VulkanContext: Échec de la création du Command Pool de transfert !");
-    }
+    m_graphicsQueue = m_device.getQueue(m_graphicsQueueFamily, 0);
+    m_presentQueue = m_device.getQueue(m_presentQueueFamily, 0);
+
+    // 6. VMA
+    VmaAllocatorCreateInfo allocatorInfo{};
+    allocatorInfo.physicalDevice = static_cast<VkPhysicalDevice>(m_physicalDevice);
+    allocatorInfo.device = static_cast<VkDevice>(m_device);
+    allocatorInfo.instance = static_cast<VkInstance>(m_instance);
+    allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+    vmaCreateAllocator(&allocatorInfo, &m_allocator);
+
+    // 7. Command Pool
+    m_shortLivedCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_graphicsQueueFamily });
+    
+    BB_CORE_INFO("VulkanContext: Initialisation terminée.");
 }
 
 void VulkanContext::cleanup() {
-    BB_CORE_INFO("VulkanContext: Début du nettoyage.");
-
-    if (m_shortLivedCommandPool != VK_NULL_HANDLE) {
-        vkDestroyCommandPool(m_device, m_shortLivedCommandPool, nullptr);
-        m_shortLivedCommandPool = VK_NULL_HANDLE;
-    }
-
-    if (m_allocator != VK_NULL_HANDLE) {
-        vmaDestroyAllocator(m_allocator);
-        m_allocator = VK_NULL_HANDLE;
-        BB_CORE_INFO("VulkanContext: Allocateur VMA détruit.");
-    }
-
-    if (m_device != VK_NULL_HANDLE) {
-        vkDestroyDevice(m_device, nullptr);
-        m_device = VK_NULL_HANDLE;
-        BB_CORE_INFO("VulkanContext: Logical Device détruit.");
-    }
-
-    if (m_surface != VK_NULL_HANDLE) {
-        vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-        m_surface = VK_NULL_HANDLE;
-        BB_CORE_INFO("VulkanContext: Surface Vulkan détruite.");
-    }
-
-    if (m_debugMessenger != VK_NULL_HANDLE) {
-        auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(m_instance, "vkDestroyDebugUtilsMessengerEXT");
-        if (func != nullptr) {
-            func(m_instance, m_debugMessenger, nullptr);
+    BB_CORE_TRACE("VulkanContext: Starting cleanup...");
+    if (m_device) {
+        m_device.waitIdle();
+        if (m_shortLivedCommandPool) {
+            m_device.destroyCommandPool(m_shortLivedCommandPool);
+            BB_CORE_TRACE("VulkanContext: Destroyed short-lived command pool.");
         }
-        m_debugMessenger = VK_NULL_HANDLE;
-        BB_CORE_INFO("VulkanContext: Messager de débogage détruit.");
+        if (m_allocator) {
+            vmaDestroyAllocator(m_allocator);
+            BB_CORE_TRACE("VulkanContext: Destroyed VMA Allocator.");
+        }
+        m_device.destroy();
+        BB_CORE_TRACE("VulkanContext: Destroyed Logical Device.");
+    }
+    if (m_surface) {
+        m_instance.destroySurfaceKHR(m_surface);
+        BB_CORE_TRACE("VulkanContext: Destroyed Surface.");
+    }
+    if (m_debugMessenger) {
+        m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger);
+        BB_CORE_TRACE("VulkanContext: Destroyed Debug Messenger.");
+    }
+    if (m_instance) {
+        m_instance.destroy();
+        BB_CORE_TRACE("VulkanContext: Destroyed Vulkan Instance.");
     }
 
-    if (m_instance != VK_NULL_HANDLE) {
-        vkDestroyInstance(m_instance, nullptr);
-        m_instance = VK_NULL_HANDLE;
-        BB_CORE_INFO("VulkanContext: Instance Vulkan détruite.");
-    }
+    m_device = nullptr;
+    m_surface = nullptr;
+    m_instance = nullptr;
+    m_allocator = nullptr;
 }
 
-VkCommandBuffer VulkanContext::beginSingleTimeCommands() {
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool = m_shortLivedCommandPool;
-    allocInfo.commandBufferCount = 1;
-
-    VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(m_device, &allocInfo, &commandBuffer);
-
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
+vk::CommandBuffer VulkanContext::beginSingleTimeCommands() {
+    vk::CommandBufferAllocateInfo allocInfo(m_shortLivedCommandPool, vk::CommandBufferLevel::ePrimary, 1);
+    vk::CommandBuffer commandBuffer = m_device.allocateCommandBuffers(allocInfo)[0];
+    commandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
     return commandBuffer;
 }
 
-void VulkanContext::endSingleTimeCommands(VkCommandBuffer commandBuffer) {
-    vkEndCommandBuffer(commandBuffer);
-
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
-
-    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_graphicsQueue);
-
-    vkFreeCommandBuffers(m_device, m_shortLivedCommandPool, 1, &commandBuffer);
+void VulkanContext::endSingleTimeCommands(vk::CommandBuffer commandBuffer) {
+    commandBuffer.end();
+    vk::SubmitInfo submitInfo(0, nullptr, nullptr, 1, &commandBuffer);
+    m_graphicsQueue.submit(submitInfo, nullptr);
+    m_graphicsQueue.waitIdle();
+    m_device.freeCommandBuffers(m_shortLivedCommandPool, commandBuffer);
 }
 
 } // namespace bb3d

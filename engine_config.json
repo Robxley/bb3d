@@ -1,15 +1,41 @@
 {
-    "title": "biobazard3d - Test Window",
-    "width": 1600,
-    "height": 900,
-    "vsync": true,
-    "fpsMax": 0,
-    "cullMode": "Back",
-    "frontFace": "CCW",
-    "enablePhysics": true,
-    "physicsBackend": "jolt",
-    "enableAudio": false,
-    "enableJobSystem": true,
-    "maxThreads": 8,
-    "assetPath": "assets"
+    "window": {
+        "title": "biobazard3d - Test Window",
+        "width": 1600,
+        "height": 900,
+        "fullscreen": false,
+        "resizable": true
+    },
+    "graphics": {
+        "vsync": true,
+        "fpsMax": 0,
+        "buffering": "triple",
+        "msaaSamples": 1,
+        "anisotropy": 16.0,
+        "shadowMapResolution": 2048,
+        "enableValidationLayers": true
+    },
+    "rasterizer": {
+        "cullMode": "Back",
+        "frontFace": "CCW",
+        "polygonMode": "Fill"
+    },
+    "depthStencil": {
+        "depthTest": true,
+        "depthWrite": true,
+        "depthCompareOp": "Less",
+        "stencilTest": false
+    },
+    "modules": {
+        "enablePhysics": true,
+        "physicsBackend": "jolt",
+        "enableAudio": false,
+        "enableJobSystem": true,
+        "enableHotReload": true
+    },
+    "system": {
+        "maxThreads": 8,
+        "assetPath": "assets",
+        "logLevel": "Info"
+    }
 }

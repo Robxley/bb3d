@@ -11,27 +11,26 @@ public:
     GraphicsPipeline(VulkanContext& context, SwapChain& swapChain, 
                      const Shader& vertShader, const Shader& fragShader,
                      const EngineConfig& config,
-                     const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts = {},
+                     const std::vector<vk::DescriptorSetLayout>& descriptorSetLayouts = {},
                      bool useVertexInput = true);
     ~GraphicsPipeline();
 
-    // Empêcher la copie
     GraphicsPipeline(const GraphicsPipeline&) = delete;
     GraphicsPipeline& operator=(const GraphicsPipeline&) = delete;
 
-    void bind(VkCommandBuffer commandBuffer);
+    void bind(vk::CommandBuffer commandBuffer);
 
-    [[nodiscard]] VkPipeline getHandle() const { return m_pipeline; }
-    [[nodiscard]] VkPipelineLayout getLayout() const { return m_pipelineLayout; }
+    [[nodiscard]] inline vk::Pipeline getHandle() const { return m_pipeline; }
+    [[nodiscard]] inline vk::PipelineLayout getLayout() const { return m_pipelineLayout; }
 
 private:
-    void createPipelineLayout(const std::vector<VkDescriptorSetLayout>& descriptorSetLayouts);
+    void createPipelineLayout(const std::vector<vk::DescriptorSetLayout>& descriptorSetLayouts);
     void createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, bool useVertexInput);
 
     VulkanContext& m_context;
     SwapChain& m_swapChain;
-    VkPipelineLayout m_pipelineLayout{VK_NULL_HANDLE};
-    VkPipeline m_pipeline{VK_NULL_HANDLE};
+    vk::PipelineLayout m_pipelineLayout;
+    vk::Pipeline m_pipeline;
 };
 
-}
+} // namespace bb3d

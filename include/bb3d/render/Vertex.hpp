@@ -2,7 +2,8 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/hash.hpp>
 #include <glm/glm.hpp>
-#include <vulkan/vulkan.h>
+#include "bb3d/core/Config.hpp"
+#include <vulkan/vulkan.hpp>
 #include <vector>
 #include <array>
 
@@ -10,43 +11,34 @@ namespace bb3d {
 
 struct Vertex {
     glm::vec3 position;
+    glm::vec3 normal;
     glm::vec3 color;
     glm::vec2 uv;
 
-    static VkVertexInputBindingDescription getBindingDescription() {
-        VkVertexInputBindingDescription bindingDescription{};
-        bindingDescription.binding = 0;
-        bindingDescription.stride = sizeof(Vertex);
-        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        return bindingDescription;
+    static inline vk::VertexInputBindingDescription getBindingDescription() {
+        return { 0, sizeof(Vertex), vk::VertexInputRate::eVertex };
     }
 
-    static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
+    static inline std::array<vk::VertexInputAttributeDescription, 4> getAttributeDescriptions() {
+        std::array<vk::VertexInputAttributeDescription, 4> attributeDescriptions;
 
         // Position
-        attributeDescriptions[0].binding = 0;
-        attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[0].offset = offsetof(Vertex, position);
+        attributeDescriptions[0] = { EngineConfig::LAYOUT_LOCATION_POSITION, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, position) };
+
+        // Normal
+        attributeDescriptions[1] = { EngineConfig::LAYOUT_LOCATION_NORMAL, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, normal) };
 
         // Color
-        attributeDescriptions[1].binding = 0;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        attributeDescriptions[1].offset = offsetof(Vertex, color);
+        attributeDescriptions[2] = { EngineConfig::LAYOUT_LOCATION_COLOR, 0, vk::Format::eR32G32B32Sfloat, offsetof(Vertex, color) };
 
         // UV
-        attributeDescriptions[2].binding = 0;
-        attributeDescriptions[2].location = 2;
-        attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-        attributeDescriptions[2].offset = offsetof(Vertex, uv);
+        attributeDescriptions[3] = { EngineConfig::LAYOUT_LOCATION_TEXCOORD, 0, vk::Format::eR32G32Sfloat, offsetof(Vertex, uv) };
 
         return attributeDescriptions;
     }
 
     bool operator==(const Vertex& other) const {
-        return position == other.position && color == other.color && uv == other.uv;
+        return position == other.position && normal == other.normal && color == other.color && uv == other.uv;
     }
 };
 
@@ -55,9 +47,11 @@ struct Vertex {
 namespace std {
     template<> struct hash<bb3d::Vertex> {
         size_t operator()(bb3d::Vertex const& vertex) const {
-            return ((hash<glm::vec3>()(vertex.position) ^
-                   (hash<glm::vec3>()(vertex.color) << 1)) >> 1) ^
-                   (hash<glm::vec2>()(vertex.uv) << 1);
+            size_t h1 = hash<glm::vec3>()(vertex.position);
+            size_t h2 = hash<glm::vec3>()(vertex.normal);
+            size_t h3 = hash<glm::vec3>()(vertex.color);
+            size_t h4 = hash<glm::vec2>()(vertex.uv);
+            return h1 ^ (h2 << 1) ^ (h3 << 2) ^ (h4 << 3);
         }
     };
 }

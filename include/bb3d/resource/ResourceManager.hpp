@@ -8,81 +8,66 @@
 #include <unordered_map>
 #include <string>
 #include <string_view>
-#include <shared_mutex> // C++17/20 : Read-Write Lock
+#include <shared_mutex>
 #include <functional>
 #include <typeindex>
 #include <type_traits>
 
 namespace bb3d {
 
-// --- Interface interne ---
+/** @brief Interface interne pour l'effacement générique du cache. */
 class IResourceCache {
 public:
     virtual ~IResourceCache() = default;
     virtual void clear() = 0;
 };
 
-// --- Functor de hachage transparent (C++20) ---
-// Permet d'utiliser string_view pour chercher dans une map<string> sans allocation
+/** @brief Foncteur de hachage transparent pour optimiser les recherches par string_view. */
 struct StringHash {
-    using is_transparent = void; // Tag C++20
-    size_t operator()(std::string_view sv) const {
-        return std::hash<std::string_view>{}(sv);
-    }
-    size_t operator()(const std::string& s) const {
-        return std::hash<std::string>{}(s);
-    }
-    size_t operator()(const char* s) const {
-        return std::hash<std::string_view>{}(s);
-    }
+    using is_transparent = void;
+    size_t operator()(std::string_view sv) const { return std::hash<std::string_view>{}(sv); }
+    size_t operator()(const std::string& s) const { return std::hash<std::string>{}(s); }
+    size_t operator()(const char* s) const { return std::hash<std::string_view>{}(s); }
 };
 
-// Forward declaration
 class VulkanContext;
 class ResourceManager;
 
-// --- Cache spécialisé par type ---
+/**
+ * @brief Cache spécialisé pour un type de ressource donné.
+ * @tparam T Type de la ressource (doit dériver de Resource).
+ */
 template<typename T>
 class ResourceCache : public IResourceCache {
 public:
     ResourceCache(VulkanContext& context, ResourceManager* manager) 
         : m_context(context), m_manager(manager) {}
 
+    /**
+     * @brief Récupère une ressource du cache ou la charge si nécessaire.
+     */
     Ref<T> getOrLoad(std::string_view path) {
-        // 1. FAST PATH
         {
             std::shared_lock<std::shared_mutex> readLock(m_mutex);
             auto it = m_resources.find(path);
-            if (it != m_resources.end()) {
-                BB_CORE_INFO("ResourceCache: Cache hit for '{0}'", std::string(path));
-                return it->second;
-            }
-        } // Unlock Read
-
-        // 2. SLOW PATH : Écriture (Exclusive Write)
-        std::unique_lock<std::shared_mutex> writeLock(m_mutex);
-        
-        auto it = m_resources.find(path);
-        if (it != m_resources.end()) {
-            return it->second;
+            if (it != m_resources.end()) return it->second;
         }
 
-        BB_CORE_INFO("ResourceCache: Loading '{0}'...", std::string(path));
+        std::unique_lock<std::shared_mutex> writeLock(m_mutex);
+        auto it = m_resources.find(path);
+        if (it != m_resources.end()) return it->second;
+
+        BB_CORE_INFO("ResourceCache: Loading '{0}'", path);
         
         Ref<T> resource = nullptr;
         try {
-            // Injection de dépendances dynamique (Compile-time check)
             if constexpr (std::is_constructible_v<T, VulkanContext&, ResourceManager&, std::string>) {
-                if (m_manager) {
-                    resource = CreateRef<T>(m_context, *m_manager, std::string(path));
-                } else {
-                    throw std::runtime_error("ResourceManager required but null");
-                }
+                resource = CreateRef<T>(m_context, *m_manager, std::string(path));
             } else {
                 resource = CreateRef<T>(m_context, std::string(path));
             }
         } catch (const std::exception& e) {
-            BB_CORE_ERROR("ResourceCache: Failed to load '{0}' : {1}", std::string(path), e.what());
+            BB_CORE_ERROR("ResourceCache: Failed to load '{0}': {1}", path, e.what());
             return nullptr; 
         }
 
@@ -102,51 +87,53 @@ private:
     std::unordered_map<std::string, Ref<T>, StringHash, std::equal_to<>> m_resources;
 };
 
-// --- Façade Resource Manager ---
+/**
+ * @brief Gestionnaire global des ressources avec mise en cache et chargement asynchrone.
+ */
 class ResourceManager {
 public:
     ResourceManager(VulkanContext& context, JobSystem& jobSystem);
     ~ResourceManager() = default;
 
+    /**
+     * @brief Charge une ressource de manière synchrone.
+     * @tparam T Type de la ressource.
+     */
     template<typename T>
     Ref<T> load(std::string_view path) {
         return getCache<T>().getOrLoad(path);
     }
 
+    /**
+     * @brief Charge une ressource de manière asynchrone via le JobSystem.
+     * @tparam T Type de la ressource.
+     * @param callback Fonction appelée une fois le chargement terminé.
+     */
     template<typename T>
     void loadAsync(std::string_view path, std::function<void(Ref<T>)> callback) {
         std::string sPath(path);
         m_jobSystem.execute([this, sPath, callback](std::stop_token) {
-            try {
-                auto resource = load<T>(sPath);
-                if (callback) callback(resource);
-            } catch (const std::exception& e) {
-                BB_CORE_ERROR("ResourceManager: Failed to load asset {} asynchronously: {}", sPath, e.what());
-            }
+            auto resource = load<T>(sPath);
+            if (callback) callback(resource);
         });
     }
 
+    /** @brief Vide tous les caches de ressources. */
     void clearCache();
 
 private:
     template<typename T>
     ResourceCache<T>& getCache() {
         std::type_index typeIdx(typeid(T));
-
         {
             std::shared_lock<std::shared_mutex> readLock(m_registryMutex);
             auto it = m_caches.find(typeIdx);
-            if (it != m_caches.end()) {
-                return static_cast<ResourceCache<T>&>(*it->second);
-            }
+            if (it != m_caches.end()) return static_cast<ResourceCache<T>&>(*it->second);
         }
 
         std::unique_lock<std::shared_mutex> writeLock(m_registryMutex);
-        
         auto it = m_caches.find(typeIdx);
-        if (it != m_caches.end()) {
-            return static_cast<ResourceCache<T>&>(*it->second);
-        }
+        if (it != m_caches.end()) return static_cast<ResourceCache<T>&>(*it->second);
 
         auto cache = std::make_unique<ResourceCache<T>>(m_context, this);
         auto& ref = *cache;
@@ -156,7 +143,6 @@ private:
 
     VulkanContext& m_context;
     JobSystem& m_jobSystem;
-    
     std::shared_mutex m_registryMutex;
     std::unordered_map<std::type_index, std::unique_ptr<IResourceCache>> m_caches;
 };

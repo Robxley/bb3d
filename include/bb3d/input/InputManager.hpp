@@ -8,6 +8,7 @@
 
 namespace bb3d {
 
+/** @brief Structure interne pour lier une action à une touche ou un bouton. */
 struct InputBinding {
     enum class Type { Key, MouseButton, None } type = Type::None;
     union {
@@ -20,32 +21,47 @@ struct InputBinding {
     InputBinding(Mouse m) : type(Type::MouseButton) { value.mouse = m; }
 };
 
+/** @brief Structure pour lier un axe à deux touches (ex: Horizontal -> Q/D). */
 struct AxisBinding {
     Key positive;
     Key negative;
 };
 
+/**
+ * @brief Gère les entrées utilisateur et le mapping d'actions.
+ * 
+ * Permet d'abstraire les entrées physiques (Clavier/Souris) en actions logiques (ex: "Jump").
+ */
 class InputManager {
 public:
     InputManager() = default;
     ~InputManager() = default;
 
-    // Mise à jour de l'état (si nécessaire, ex: delta souris)
+    /** @brief Met à jour l'état interne (appelé par Engine). */
     void update(); 
 
-    // --- Low Level Polling ---
-    bool isKeyPressed(Key key) const;
-    bool isMouseButtonPressed(Mouse button) const;
-    glm::vec2 getMousePosition() const;
+    /** @name Polling Bas Niveau
+     * @{
+     */
+    [[nodiscard]] bool isKeyPressed(Key key) const;
+    [[nodiscard]] bool isMouseButtonPressed(Mouse button) const;
+    [[nodiscard]] glm::vec2 getMousePosition() const;
+    /** @} */
 
-    // --- High Level Mapping ---
+    /** @name Mapping Haut Niveau
+     * @{
+     */
     void mapAction(std::string_view name, Key key);
     void mapAction(std::string_view name, Mouse button);
     void mapAxis(std::string_view name, Key positive, Key negative);
+    /** @} */
 
-    // --- High Level Queries ---
-    bool isActionPressed(std::string_view name) const;
-    float getAxis(std::string_view name) const;
+    /** @name Requêtes d'Actions
+     * @{
+     */
+    [[nodiscard]] bool isActionPressed(std::string_view name) const;
+    [[nodiscard]] float getAxis(std::string_view name) const;
+    /** @} */
 
 private:
     std::unordered_map<std::string, InputBinding> m_actions;

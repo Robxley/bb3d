@@ -8,18 +8,16 @@ namespace bb3d {
 
     void Log::Init()
     {
-        // Set the pattern for the logs
+        // Pattern: [Time] Name: Message
         spdlog::set_pattern("%^[%T] %n: %v%$");
 
-        // Create the core logger
-        s_CoreLogger = spdlog::stdout_color_mt("BB3D");
+        s_CoreLogger = spdlog::stdout_color_mt("CORE");
         s_CoreLogger->set_level(spdlog::level::trace);
 
-        // Create the client logger
         s_ClientLogger = spdlog::stdout_color_mt("APP");
         s_ClientLogger->set_level(spdlog::level::trace);
 
-        BB_CORE_INFO("Initialized Logging System");
+        BB_CORE_INFO("Logging System Initialized");
     }
 
-}
+} // namespace bb3d

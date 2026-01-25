@@ -17,10 +17,10 @@ Window::Window(const EngineConfig& config)
 
     // Create the window
     m_Window = SDL_CreateWindow(
-        config.title.c_str(),
-        config.width,
-        config.height,
-        SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE
+        config.window.title.c_str(),
+        config.window.width,
+        config.window.height,
+        SDL_WINDOW_VULKAN | (config.window.resizable ? SDL_WINDOW_RESIZABLE : 0) | (config.window.fullscreen ? SDL_WINDOW_FULLSCREEN : 0)
     );
 
     if (!m_Window) {
@@ -29,7 +29,7 @@ Window::Window(const EngineConfig& config)
         throw std::runtime_error("SDL_CreateWindow failed");
     }
 
-    BB_CORE_INFO("Window created: '{}' ({}x{})", config.title, config.width, config.height);
+    BB_CORE_INFO("Window created: '{}' ({}x{})", config.window.title, config.window.width, config.window.height);
 }
 
 Window::~Window()

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "bb3d/core/Base.hpp"
-#include "bb3d/core/Log.hpp" // Added
+#include "bb3d/core/Log.hpp"
 #include <functional>
 #include <vector>
 #include <deque>
@@ -15,29 +15,43 @@
 
 namespace bb3d {
 
-// Un compteur atomique pour suivre la fin d'un groupe de tâches
+/**
+ * @brief Un compteur atomique pour suivre l'achèvement d'un groupe de tâches.
+ */
 using JobCounter = std::shared_ptr<std::atomic<int>>;
 
+/**
+ * @brief Système de gestion de tâches (Job System) multi-threadé.
+ * 
+ * Utilise un Thread Pool avec vol de travail (Work Stealing) pour répartir
+ * la charge CPU sur tous les cœurs disponibles.
+ */
 class JobSystem {
 public:
     JobSystem();
     ~JobSystem();
 
+    /**
+     * @brief Initialise le pool de threads.
+     * @param threadCount Nombre de threads (0 pour détection automatique).
+     */
     void init(uint32_t threadCount = 0);
+    
+    /**
+     * @brief Arrête proprement tous les threads.
+     */
     void shutdown();
 
-    uint32_t getThreadCount() const { return static_cast<uint32_t>(m_workers.size()); }
-
-    // --- API Fluent & Templates ---
+    /** @brief Récupère le nombre de threads actifs. */
+    [[nodiscard]] inline uint32_t getThreadCount() const { return static_cast<uint32_t>(m_workers.size()); }
 
     /**
      * @brief Lance un job asynchrone.
-     * @param job La fonction à exécuter.
-     * @param counter (Optionnel) Un compteur à décrémenter à la fin du job.
+     * @param job La fonction à exécuter (Callable).
+     * @param counter (Optionnel) Un compteur à décrémenter à la fin.
      */
     template<typename Callable>
     void execute(Callable&& job, JobCounter counter = nullptr) {
-        // Wrapper normalisé
         auto wrappedJob = [job = std::forward<Callable>(job), counter](std::stop_token st) mutable {
             if constexpr (std::invocable<Callable, std::stop_token>) {
                 job(st);
@@ -46,8 +60,6 @@ public:
             }
             if (counter) {
                 counter->fetch_sub(1, std::memory_order_release);
-                // Notification globale (pour réveiller ceux qui attendent sur le counter)
-                // Note: std::atomic::notify_all est C++20
                 counter->notify_all(); 
             }
         };
@@ -56,7 +68,7 @@ public:
     }
 
     /**
-     * @brief Exécute safe (try-catch) avec support compteur.
+     * @brief Exécute un job de manière sécurisée (capture les exceptions).
      */
     template<typename Callable>
     void executeSafe(Callable&& job, JobCounter counter = nullptr) {
@@ -68,24 +80,24 @@ public:
                     job();
                 }
             } catch (const std::exception& e) {
-                BB_CORE_ERROR("JobSystem: Exception caught in job: {0}", e.what());
+                BB_CORE_ERROR("JobSystem: Exception caught: {0}", e.what());
             } catch (...) {
-                BB_CORE_ERROR("JobSystem: Unknown exception caught in job.");
+                BB_CORE_ERROR("JobSystem: Unknown exception caught.");
             }
         }, counter);
     }
 
     /**
-     * @brief Découpe une boucle en plusieurs jobs parallèles.
-     * @param jobCount Nombre total d'éléments.
-     * @param groupSize Nombre d'éléments par job (Batching).
+     * @brief Découpe une boucle en plusieurs jobs parallèles (Parallel For).
+     * @param jobCount Nombre total d'itérations.
+     * @param groupSize Taille du batch par thread.
      * @param func Fonction prenant (jobIndex, count).
      */
     void dispatch(uint32_t jobCount, uint32_t groupSize, const std::function<void(uint32_t, uint32_t)>& func);
 
     /**
      * @brief Attend qu'un compteur atteigne 0.
-     * IMPORTANT : En attendant, le thread appelant AIDE à exécuter des jobs !
+     * @note Le thread appelant aide à exécuter les jobs en attente durant le wait.
      */
     void wait(const JobCounter& counter);
 
@@ -96,9 +108,8 @@ private:
 
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable: 4324) // Structure was padded due to alignment specifier
+#pragma warning(disable: 4324) 
 #endif
-    // Structure alignée pour éviter le "False Sharing" entre threads
     struct alignas(64) WorkerQueue {
         std::mutex mutex;
         std::deque<Job> queue;
@@ -109,18 +120,14 @@ private:
 
     void workerLoop(uint32_t threadIndex, std::stop_token st);
     void pushInternal(std::function<void(std::stop_token)>&& job);
-    
-    // Tente de récupérer un job (Local -> Vol -> Rien)
     bool popJob(Job& outJob, uint32_t threadIndex);
 
     std::vector<std::jthread> m_workers;
-    std::vector<std::unique_ptr<WorkerQueue>> m_queues; // Pointeurs pour garantir l'adresse stable
+    std::vector<std::unique_ptr<WorkerQueue>> m_queues; 
+    std::atomic<uint32_t> m_nextQueueIndex{0}; 
     
-    std::atomic<uint32_t> m_nextQueueIndex{0}; // Pour le Round-Robin dispatch
-    
-    // Condition globale pour réveiller les workers qui dorment
     std::condition_variable_any m_globalCondition;
-    std::mutex m_globalMutex; // Utilisé uniquement pour le wait de la CV
+    std::mutex m_globalMutex; 
 };
 
 } // namespace bb3d

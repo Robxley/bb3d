@@ -23,6 +23,7 @@ Ce document détaille le plan de développement séquentiel du moteur **biobazar
   * Intégrer les dépendances dans le CMake : spdlog (Logging), Tracy (Profiling), nlohmann\_json (Config).  
   * Définir les alias de types fondamentaux (bb3d::Ref, bb3d::Scope) et les macros de debug (BB\_PROFILE\_SCOPE).  
   * Implémenter le système de log initial.  
+  * **Documentation :** Mettre en place la documentation systématique au format **Doxygen**.
 * **Validation (unit\_test\_00\_infrastructure.cpp) :**  
   * Compile en C++20.  
   * Affiche "Hello Engine" via spdlog.  

@@ -4,6 +4,9 @@
 
 namespace bb3d {
 
+/**
+ * @brief Énumération des boutons de la souris.
+ */
 enum class Mouse : uint8_t {
     Left = 1,
     Middle = 2,
@@ -12,19 +15,22 @@ enum class Mouse : uint8_t {
     Button5 = 5
 };
 
+/**
+ * @brief Énumération des codes de touches du clavier (basé sur les Scancodes SDL).
+ */
 enum class Key : uint16_t {
     Unknown = 0,
 
-    // Letters
+    // Lettres
     A = 4, B = 5, C = 6, D = 7, E = 8, F = 9, G = 10, H = 11, I = 12,
     J = 13, K = 14, L = 15, M = 16, N = 17, O = 18, P = 19, Q = 20, R = 21,
     S = 22, T = 23, U = 24, V = 25, W = 26, X = 27, Y = 28, Z = 29,
 
-    // Numbers
+    // Nombres
     D1 = 30, D2 = 31, D3 = 32, D4 = 33, D5 = 34,
     D6 = 35, D7 = 36, D8 = 37, D9 = 38, D0 = 39,
 
-    // Function Keys
+    // Touches Spéciales
     Enter = 40, Escape = 41, Backspace = 42, Tab = 43, Space = 44,
     Minus = 45, Equal = 46, LeftBracket = 47, RightBracket = 48,
     Backslash = 49, Semicolon = 51, Apostrophe = 52, GraveAccent = 53,

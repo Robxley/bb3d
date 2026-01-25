@@ -3,12 +3,14 @@
 #include "bb3d/core/Base.hpp"
 #include "bb3d/render/Buffer.hpp"
 #include "bb3d/render/Vertex.hpp"
-#include "bb3d/render/Texture.hpp" // Pour le futur (Material)
+#include "bb3d/render/Texture.hpp"
 #include <vector>
-#include <limits> // FLT_MAX
+#include <limits>
+#include <glm/glm.hpp>
 
 namespace bb3d {
 
+/** @brief Boîte englobante alignée sur les axes (Axis-Aligned Bounding Box). */
 struct AABB {
     glm::vec3 min{std::numeric_limits<float>::max()};
     glm::vec3 max{std::numeric_limits<float>::lowest()};
@@ -23,23 +25,21 @@ struct AABB {
         max = glm::max(max, other.max);
     }
 
-    glm::vec3 center() const { return (min + max) * 0.5f; }
-    glm::vec3 size() const { return max - min; }
+    [[nodiscard]] inline glm::vec3 center() const { return (min + max) * 0.5f; }
+    [[nodiscard]] inline glm::vec3 size() const { return max - min; }
 
-    AABB transform(const glm::mat4& m) const {
+    /** @brief Calcule une nouvelle AABB après transformation par une matrice. */
+    [[nodiscard]] AABB transform(const glm::mat4& m) const {
         glm::vec3 newMin = m[3];
         glm::vec3 newMax = m[3];
-        
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
                 float a = m[j][i] * min[j];
                 float b = m[j][i] * max[j];
                 if (a < b) {
-                    newMin[i] += a;
-                    newMax[i] += b;
+                    newMin[i] += a; newMax[i] += b;
                 } else {
-                    newMin[i] += b;
-                    newMax[i] += a;
+                    newMin[i] += b; newMax[i] += a;
                 }
             }
         }
@@ -47,6 +47,9 @@ struct AABB {
     }
 };
 
+/**
+ * @brief Représente une partie de géométrie indexée avec ses tampons GPU.
+ */
 class Mesh {
 public:
     Mesh(VulkanContext& context, 
@@ -57,7 +60,6 @@ public:
         m_vertexBuffer = Buffer::CreateVertexBuffer(context, vertices.data(), vertices.size() * sizeof(Vertex));
         m_indexBuffer = Buffer::CreateIndexBuffer(context, indices.data(), indices.size() * sizeof(uint32_t));
 
-        // Calculate AABB
         for (const auto& v : vertices) {
             m_bounds.extend(v.position);
         }
@@ -65,19 +67,17 @@ public:
 
     ~Mesh() = default;
 
-    const AABB& getBounds() const { return m_bounds; }
+    /** @brief Récupère l'AABB locale du maillage. */
+    [[nodiscard]] inline const AABB& getBounds() const { return m_bounds; }
 
-    void draw(VkCommandBuffer commandBuffer) const {
-        VkBuffer vertexBuffers[] = {m_vertexBuffer->getHandle()};
-        VkDeviceSize offsets[] = {0};
-        
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, m_indexBuffer->getHandle(), 0, VK_INDEX_TYPE_UINT32);
-        
-        vkCmdDrawIndexed(commandBuffer, m_indexCount, 1, 0, 0, 0);
+    /** @brief Enregistre les commandes de rendu pour ce maillage. */
+    inline void draw(vk::CommandBuffer commandBuffer) const {
+        vk::Buffer vbs[] = {m_vertexBuffer->getHandle()};
+        vk::DeviceSize offsets[] = {0};
+        commandBuffer.bindVertexBuffers(0, 1, vbs, offsets);
+        commandBuffer.bindIndexBuffer(m_indexBuffer->getHandle(), 0, vk::IndexType::eUint32);
+        commandBuffer.drawIndexed(m_indexCount, 1, 0, 0, 0);
     }
-
-    // TODO: Material support
 
 private:
     Scope<Buffer> m_vertexBuffer;

@@ -15,37 +15,37 @@
 #include <array>
 #include <variant>
 #include <unordered_map>
+#include <filesystem>
 
-// Define traits for GLM types to be used with fastgltf
+// Trait pour GLM dans fastgltf
 template <>
 struct fastgltf::ElementTraits<glm::vec3> : fastgltf::ElementTraitsBase<float, fastgltf::AccessorType::Vec3> {};
 
 template <>
 struct fastgltf::ElementTraits<glm::vec2> : fastgltf::ElementTraitsBase<float, fastgltf::AccessorType::Vec2> {};
 
-// Helper pour récupérer le pointeur de données depuis le variant fastgltf::DataSource
-const uint8_t* getBufferData(const fastgltf::Buffer& buffer) {
-    return std::visit([](const auto& arg) -> const uint8_t* {
+/** @brief Récupère les données d'un buffer fastgltf. */
+static const std::byte* getBufferData(const fastgltf::Buffer& buffer) {
+    return std::visit([](const auto& arg) -> const std::byte* {
         using T = std::decay_t<decltype(arg)>;
         if constexpr (std::is_same_v<T, fastgltf::sources::Vector>) {
-            return reinterpret_cast<const uint8_t*>(arg.bytes.data());
+            return reinterpret_cast<const std::byte*>(arg.bytes.data());
         }
         else if constexpr (std::is_same_v<T, fastgltf::sources::ByteView>) {
-            return reinterpret_cast<const uint8_t*>(arg.bytes.data());
+            return reinterpret_cast<const std::byte*>(arg.bytes.data());
         }
         else if constexpr (std::is_same_v<T, fastgltf::sources::Array>) {
-            return reinterpret_cast<const uint8_t*>(arg.bytes.data());
+            return reinterpret_cast<const std::byte*>(arg.bytes.data());
         }
-        else if constexpr (std::is_same_v<T, std::monostate>) {
-            return nullptr;
-        }
-        else {
-            return nullptr;
-        }
+        return (const std::byte*)nullptr;
     }, buffer.data);
 }
 
 namespace bb3d {
+
+Model::~Model() {
+    BB_CORE_TRACE("Model: Destroying model {} ({} meshes)", m_path, m_meshes.size());
+}
 
 Model::Model(VulkanContext& context, ResourceManager& resourceManager, std::string_view path)
     : Resource(std::string(path)), m_context(context), m_resourceManager(resourceManager) {
@@ -58,14 +58,14 @@ Model::Model(VulkanContext& context, ResourceManager& resourceManager, std::stri
     }
 }
 
-void Model::draw(VkCommandBuffer commandBuffer) {
+void Model::draw(vk::CommandBuffer commandBuffer) {
     for (const auto& mesh : m_meshes) {
         mesh->draw(commandBuffer);
     }
 }
 
 void Model::loadOBJ(std::string_view path) {
-    BB_CORE_INFO("Chargement du modèle OBJ: {}", path);
+    BB_CORE_INFO("Model: Loading OBJ {}", path);
 
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -77,14 +77,9 @@ void Model::loadOBJ(std::string_view path) {
     if (!baseDir.empty()) baseDir += "/";
 
     if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path.data(), baseDir.c_str())) {
-        throw std::runtime_error("Erreur tinyobjloader: " + warn + err);
+        throw std::runtime_error("tinyobjloader error: " + err);
     }
 
-    if (!warn.empty()) {
-        BB_CORE_WARN("tinyobjloader warning: {}", warn);
-    }
-
-    // Pour chaque shape (mesh)
     for (const auto& shape : shapes) {
         std::vector<Vertex> vertices;
         std::vector<uint32_t> indices;
@@ -92,40 +87,25 @@ void Model::loadOBJ(std::string_view path) {
 
         for (const auto& index : shape.mesh.indices) {
             Vertex vertex{};
-
-            // Position
             vertex.position = {
                 attrib.vertices[3 * index.vertex_index + 0],
                 attrib.vertices[3 * index.vertex_index + 1],
                 attrib.vertices[3 * index.vertex_index + 2]
             };
 
-            // UV
             if (index.texcoord_index >= 0) {
                 vertex.uv = {
                     attrib.texcoords[2 * index.texcoord_index + 0],
-                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1] // Flip V for Vulkan
+                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
                 };
             }
 
-            // Color
             if (!attrib.colors.empty()) {
                 vertex.color = {
                     attrib.colors[3 * index.vertex_index + 0],
                     attrib.colors[3 * index.vertex_index + 1],
                     attrib.colors[3 * index.vertex_index + 2]
                 };
-            }
-            // Fallback: Normal -> Color (pour debug visuel simple)
-            else if (index.normal_index >= 0) {
-                // Map normals [-1, 1] to color [0, 1]
-                vertex.color = {
-                    attrib.normals[3 * index.normal_index + 0],
-                    attrib.normals[3 * index.normal_index + 1],
-                    attrib.normals[3 * index.normal_index + 2]
-                };
-                // Optional: normalize to 0..1 for visualization
-                vertex.color = vertex.color * 0.5f + 0.5f; 
             } else {
                 vertex.color = {1.0f, 1.0f, 1.0f};
             }
@@ -134,146 +114,80 @@ void Model::loadOBJ(std::string_view path) {
                 uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
                 vertices.push_back(vertex);
             }
-
             indices.push_back(uniqueVertices[vertex]);
         }
 
         auto mesh = CreateScope<Mesh>(m_context, vertices, indices);
         m_bounds.extend(mesh->getBounds());
         m_meshes.push_back(std::move(mesh));
-        
-        // Texture loading (Cache warmup)
-        if (!shape.mesh.material_ids.empty() && shape.mesh.material_ids[0] >= 0) {
-            int matId = shape.mesh.material_ids[0];
-            if (!materials[matId].diffuse_texname.empty()) {
-                std::string texPath = baseDir + materials[matId].diffuse_texname;
-                // Just load to ensure it works and is cached
-                try {
-                    m_resourceManager.load<Texture>(texPath); 
-                    BB_CORE_INFO("Texture chargée pour OBJ: {}", texPath);
-                } catch (const std::exception& e) {
-                    BB_CORE_ERROR("Impossible de charger la texture OBJ: {} ({})", texPath, e.what());
-                }
-            }
-        }
     }
 }
 
 void Model::loadGLTF(std::string_view path) {
     auto absPath = std::filesystem::absolute(path);
-    BB_CORE_INFO("Chargement du modèle GLTF: {} (Chemin absolu: {})", path, absPath.string());
+    BB_CORE_INFO("Model: Loading GLTF {}", absPath.string());
 
     fastgltf::Parser parser;
-    constexpr auto gltfOptions = fastgltf::Options::DontRequireValidAssetMember | 
-                                 fastgltf::Options::AllowDouble | 
-                                 fastgltf::Options::LoadExternalBuffers |
-                                 fastgltf::Options::LoadExternalImages;
+    constexpr auto options = fastgltf::Options::DontRequireValidAssetMember | 
+                             fastgltf::Options::LoadExternalBuffers |
+                             fastgltf::Options::LoadExternalImages;
 
     auto data = fastgltf::GltfDataBuffer::FromPath(absPath);
-    if (data.error() != fastgltf::Error::None) {
-        throw std::runtime_error("Impossible de charger le fichier GLTF (FromPath): " + absPath.string() + " Error: " + std::to_string(fastgltf::to_underlying(data.error())));
-    }
+    if (data.error() != fastgltf::Error::None) throw std::runtime_error("GLTF: Failed to load file");
 
     auto type = fastgltf::determineGltfFileType(data.get());
-    fastgltf::Expected<fastgltf::Asset> asset = fastgltf::Error::None;
+    auto asset = (type == fastgltf::GltfType::GLB) 
+        ? parser.loadGltfBinary(data.get(), absPath.parent_path(), options)
+        : parser.loadGltf(data.get(), absPath.parent_path(), options);
 
-    if (type == fastgltf::GltfType::GLB) {
-        asset = parser.loadGltfBinary(data.get(), absPath.parent_path(), gltfOptions);
-    } else if (type == fastgltf::GltfType::glTF) {
-        asset = parser.loadGltf(data.get(), absPath.parent_path(), gltfOptions);
-    } else {
-        throw std::runtime_error("Format GLTF non reconnu pour: " + absPath.string());
-    }
-
-    if (asset.error() != fastgltf::Error::None) {
-        std::string errorMsg = "Erreur de parsing GLTF (" + std::string(absPath.extension().string()) + "): " + 
-                               std::string(fastgltf::getErrorName(asset.error()));
-        BB_CORE_ERROR(errorMsg);
-        throw std::runtime_error(errorMsg);
-    }
+    if (asset.error() != fastgltf::Error::None) throw std::runtime_error("GLTF: Parse error");
 
     const auto& gltf = asset.get();
 
-    // Charger les textures
-    m_textures.reserve(gltf.images.size());
+    // Textures
     for (const auto& image : gltf.images) {
-        // Utilisation d'un lambda pour visiter le variant image.data
         auto texture = std::visit(fastgltf::visitor {
-            [&](const fastgltf::sources::URI&) -> Ref<Texture> {
-                BB_CORE_WARN("Chargement de texture par URI non implémenté pour cette version de fastgltf.");
-                return nullptr;
-            },
             [&](const fastgltf::sources::Vector& vector) -> Ref<Texture> {
-                return CreateRef<Texture>(m_context, vector.bytes.data(), vector.bytes.size());
+                return CreateRef<Texture>(m_context, std::span<const std::byte>(reinterpret_cast<const std::byte*>(vector.bytes.data()), vector.bytes.size()));
             },
             [&](const fastgltf::sources::ByteView& byteView) -> Ref<Texture> {
-                return CreateRef<Texture>(m_context, byteView.bytes.data(), byteView.bytes.size());
+                return CreateRef<Texture>(m_context, std::span<const std::byte>(reinterpret_cast<const std::byte*>(byteView.bytes.data()), byteView.bytes.size()));
             },
             [&](const fastgltf::sources::BufferView& view) -> Ref<Texture> {
-                auto& bufferView = gltf.bufferViews[view.bufferViewIndex];
-                auto& buffer = gltf.buffers[bufferView.bufferIndex];
-                const uint8_t* bufferData = getBufferData(buffer);
-                if (bufferData) {
-                    const uint8_t* data = bufferData + bufferView.byteOffset;
-                    return CreateRef<Texture>(m_context, data, bufferView.byteLength);
-                }
-                return nullptr;
+                auto& bv = gltf.bufferViews[view.bufferViewIndex];
+                const std::byte* ptr = getBufferData(gltf.buffers[bv.bufferIndex]);
+                return ptr ? CreateRef<Texture>(m_context, std::span<const std::byte>(ptr + bv.byteOffset, bv.byteLength)) : nullptr;
             },
             [](auto&) -> Ref<Texture> { return nullptr; }
         }, image.data);
-
-        if (texture) {
-            m_textures.push_back(texture);
-        } else {
-            BB_CORE_WARN("Impossible de charger une texture du GLTF: {}", image.name);
-            // Ajouter un placeholder null pour garder l'indexation
-            m_textures.push_back(nullptr); 
-        }
+        m_textures.push_back(texture);
     }
 
-    // Iterate over meshes
+    // Meshes
     for (const auto& mesh : gltf.meshes) {
-        BB_CORE_INFO("Parsing Mesh: {}", mesh.name);
-
         for (const auto& primitive : mesh.primitives) {
             std::vector<Vertex> vertices;
             std::vector<uint32_t> indices;
 
-            // --- Indices ---
             if (primitive.indicesAccessor.has_value()) {
                 auto& accessor = gltf.accessors[primitive.indicesAccessor.value()];
                 indices.resize(accessor.count);
-                
-                fastgltf::iterateAccessorWithIndex<uint32_t>(gltf, accessor, [&](uint32_t index, size_t i) {
-                    indices[i] = index;
-                });
+                fastgltf::iterateAccessorWithIndex<uint32_t>(gltf, accessor, [&](uint32_t idx, size_t i) { indices[i] = idx; });
             }
 
-            // --- Attributes ---
-            const auto* positionIt = primitive.findAttribute("POSITION");
-            const auto* uvIt = primitive.findAttribute("TEXCOORD_0");
-
-            size_t vertexCount = 0;
-            if (positionIt != primitive.attributes.end()) {
-                vertexCount = gltf.accessors[positionIt->accessorIndex].count;
-            }
-            vertices.resize(vertexCount);
-
-            // Position
-            if (positionIt != primitive.attributes.end()) {
-                auto& accessor = gltf.accessors[positionIt->accessorIndex];
-                
+            const auto* posAttr = primitive.findAttribute("POSITION");
+            if (posAttr != primitive.attributes.end()) {
+                auto& accessor = gltf.accessors[posAttr->accessorIndex];
+                vertices.resize(accessor.count);
                 fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, accessor, [&](glm::vec3 pos, size_t i) {
                     vertices[i].position = pos;
                     vertices[i].color = {1.0f, 1.0f, 1.0f};
                 });
             }
 
-            // UV
-            if (uvIt != primitive.attributes.end()) {
-                auto& accessor = gltf.accessors[uvIt->accessorIndex];
-                
-                fastgltf::iterateAccessorWithIndex<glm::vec2>(gltf, accessor, [&](glm::vec2 uv, size_t i) {
+            const auto* uvAttr = primitive.findAttribute("TEXCOORD_0");
+            if (uvAttr != primitive.attributes.end()) {
+                fastgltf::iterateAccessorWithIndex<glm::vec2>(gltf, gltf.accessors[uvAttr->accessorIndex], [&](glm::vec2 uv, size_t i) {
                     vertices[i].uv = uv;
                 });
             }
@@ -283,8 +197,6 @@ void Model::loadGLTF(std::string_view path) {
             m_meshes.push_back(std::move(newMesh));
         }
     }
-
-    BB_CORE_INFO("Modèle chargé avec succès. {} meshes créés.", m_meshes.size());
 }
 
 } // namespace bb3d

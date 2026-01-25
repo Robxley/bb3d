@@ -4,147 +4,72 @@
 
 namespace bb3d {
 
-Buffer::Buffer(VulkanContext& context, VkDeviceSize size, VkBufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags allocFlags)
+Buffer::Buffer(VulkanContext& context, vk::DeviceSize size, vk::BufferUsageFlags usage, VmaMemoryUsage memoryUsage, VmaAllocationCreateFlags allocFlags)
     : m_context(context), m_size(size) {
     
-    VkBufferCreateInfo bufferInfo{};
-    bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferInfo.size = size;
-    bufferInfo.usage = usage;
-    bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    vk::BufferCreateInfo bufferInfo({}, size, usage);
 
-    VmaAllocationCreateInfo allocInfo{};
+    VmaAllocationCreateInfo allocInfo = {};
     allocInfo.usage = memoryUsage;
     allocInfo.flags = allocFlags;
 
-    VmaAllocationInfo allocationInfoResult;
-    if (vmaCreateBuffer(m_context.getAllocator(), &bufferInfo, &allocInfo, &m_buffer, &m_allocation, &allocationInfoResult) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create buffer via VMA!");
-    }
+    VkBuffer buffer;
+    vmaCreateBuffer(m_context.getAllocator(), reinterpret_cast<VkBufferCreateInfo*>(&bufferInfo), &allocInfo, &buffer, &m_allocation, nullptr);
+    m_buffer = vk::Buffer(buffer);
 
     if (allocFlags & VMA_ALLOCATION_CREATE_MAPPED_BIT) {
-        m_mappedData = allocationInfoResult.pMappedData;
+        VmaAllocationInfo info;
+        vmaGetAllocationInfo(m_context.getAllocator(), m_allocation, &info);
+        m_mappedData = info.pMappedData;
     }
 }
 
 Buffer::~Buffer() {
-    // Si mappé persistent, VMA gère l'unmap à la destruction via vmaDestroyBuffer
-    if (m_buffer != VK_NULL_HANDLE) {
-        vmaDestroyBuffer(m_context.getAllocator(), m_buffer, m_allocation);
+    if (m_buffer) {
+        vmaDestroyBuffer(m_context.getAllocator(), static_cast<VkBuffer>(m_buffer), m_allocation);
+        BB_CORE_TRACE("Buffer: Destroyed buffer of size {} bytes.", m_size);
     }
 }
 
-void Buffer::upload(const void* data, VkDeviceSize size) {
+void Buffer::upload(const void* data, vk::DeviceSize size) {
     if (m_mappedData) {
-        // Chemin rapide (Persistent Mapping)
-        memcpy(m_mappedData, data, size);
+        std::memcpy(m_mappedData, data, static_cast<size_t>(size));
     } else {
-        // Chemin lent (Map/Unmap)
-        void* mappedData;
-        vmaMapMemory(m_context.getAllocator(), m_allocation, &mappedData);
-        memcpy(mappedData, data, size);
+        // Fallback: map temporary if not already mapped
+        void* mapped;
+        vmaMapMemory(m_context.getAllocator(), m_allocation, &mapped);
+        std::memcpy(mapped, data, static_cast<size_t>(size));
         vmaUnmapMemory(m_context.getAllocator(), m_allocation);
     }
 }
 
-Scope<Buffer> Buffer::CreateVertexBuffer(VulkanContext& context, const void* data, VkDeviceSize size) {
-    // 1. Créer un Staging Buffer (CPU Visible)
-    Buffer stagingBuffer(context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY);
-    stagingBuffer.upload(data, size);
+Scope<Buffer> Buffer::CreateVertexBuffer(VulkanContext& context, const void* data, vk::DeviceSize size) {
+    // 1. Staging Buffer (Host Visible)
+    Buffer staging(context, size, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    staging.upload(data, size);
 
-    // 2. Créer le GPU Buffer (Local au GPU)
-    auto gpuBuffer = CreateScope<Buffer>(context, size, 
-        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
-        VMA_MEMORY_USAGE_GPU_ONLY);
+    // 2. Vertex Buffer (Device Local)
+    auto vertexBuffer = CreateScope<Buffer>(context, size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer, VMA_MEMORY_USAGE_GPU_ONLY);
 
-    // 3. Copier via Command Buffer (nécessite une petite infrastructure de commande temporaire)
-    // Pour l'instant, on va faire un "One-time submit" (simplifié pour l'étape 3.2)
-    
-    VkCommandBufferAllocateInfo allocInfo{};
-    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    // Note: On utilise un Pool temporaire ou on en demande un au contexte.
-    // Pour ce test, on va créer un pool local.
-    
-    VkCommandPool pool;
-    VkCommandPoolCreateInfo poolInfo{};
-    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = context.getGraphicsQueueFamily();
-    vkCreateCommandPool(context.getDevice(), &poolInfo, nullptr, &pool);
+    // 3. Copy
+    vk::CommandBuffer commandBuffer = context.beginSingleTimeCommands();
+    vk::BufferCopy copyRegion(0, 0, size);
+    commandBuffer.copyBuffer(staging.getHandle(), vertexBuffer->getHandle(), 1, &copyRegion);
+    context.endSingleTimeCommands(commandBuffer);
 
-    allocInfo.commandPool = pool;
-    allocInfo.commandBufferCount = 1;
-
-    VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(context.getDevice(), &allocInfo, &commandBuffer);
-
-    VkCommandBufferBeginInfo beginInfo{};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
-    
-    VkBufferCopy copyRegion{};
-    copyRegion.size = size;
-    vkCmdCopyBuffer(commandBuffer, stagingBuffer.getHandle(), gpuBuffer->getHandle(), 1, &copyRegion);
-    
-    vkEndCommandBuffer(commandBuffer);
-
-    VkSubmitInfo submitInfo{};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
-
-    vkQueueSubmit(context.getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(context.getGraphicsQueue());
-
-    vkFreeCommandBuffers(context.getDevice(), pool, 1, &commandBuffer);
-    vkDestroyCommandPool(context.getDevice(), pool, nullptr);
-
-    return gpuBuffer;
+    return vertexBuffer;
 }
 
-Scope<Buffer> Buffer::CreateIndexBuffer(VulkanContext& context, const void* data, VkDeviceSize size) {
-    // 1. Staging Buffer (CPU -> GPU Transfer)
-    Buffer stagingBuffer(context, size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
-    stagingBuffer.upload(data, size);
+Scope<Buffer> Buffer::CreateIndexBuffer(VulkanContext& context, const void* data, vk::DeviceSize size) {
+    Buffer staging(context, size, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    staging.upload(data, size);
 
-    // 2. Index Buffer (GPU Only)
-    auto indexBuffer = CreateScope<Buffer>(context, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VMA_MEMORY_USAGE_GPU_ONLY);
+    auto indexBuffer = CreateScope<Buffer>(context, size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer, VMA_MEMORY_USAGE_GPU_ONLY);
 
-    // 3. Copy (TODO: DRY - Don't Repeat Yourself)
-    VkCommandBufferAllocateInfo allocInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
-    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    
-    VkCommandPool pool;
-    VkCommandPoolCreateInfo poolInfo{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
-    poolInfo.queueFamilyIndex = context.getGraphicsQueueFamily();
-    vkCreateCommandPool(context.getDevice(), &poolInfo, nullptr, &pool);
-
-    allocInfo.commandPool = pool;
-    allocInfo.commandBufferCount = 1;
-
-    VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(context.getDevice(), &allocInfo, &commandBuffer);
-
-    VkCommandBufferBeginInfo beginInfo{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
-    VkBufferCopy copyRegion{};
-    copyRegion.size = size;
-    vkCmdCopyBuffer(commandBuffer, stagingBuffer.getHandle(), indexBuffer->getHandle(), 1, &copyRegion);
-    vkEndCommandBuffer(commandBuffer);
-
-    VkSubmitInfo submitInfo{VK_STRUCTURE_TYPE_SUBMIT_INFO};
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
-
-    vkQueueSubmit(context.getGraphicsQueue(), 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(context.getGraphicsQueue());
-
-    vkFreeCommandBuffers(context.getDevice(), pool, 1, &commandBuffer);
-    vkDestroyCommandPool(context.getDevice(), pool, nullptr);
+    vk::CommandBuffer commandBuffer = context.beginSingleTimeCommands();
+    vk::BufferCopy copyRegion(0, 0, size);
+    commandBuffer.copyBuffer(staging.getHandle(), indexBuffer->getHandle(), 1, &copyRegion);
+    context.endSingleTimeCommands(commandBuffer);
 
     return indexBuffer;
 }

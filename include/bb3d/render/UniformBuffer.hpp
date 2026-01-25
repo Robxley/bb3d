@@ -5,11 +5,12 @@ namespace bb3d {
 
 class UniformBuffer : public Buffer {
 public:
-    UniformBuffer(VulkanContext& context, VkDeviceSize size);
+    UniformBuffer(VulkanContext& context, vk::DeviceSize size);
     ~UniformBuffer() = default;
 
-    // Met à jour les données du buffer (le buffer est mappé en permanence car CPU_TO_GPU)
-    void update(const void* data, VkDeviceSize size);
+    inline void update(const void* data, vk::DeviceSize size) {
+        upload(data, size);
+    }
 };
 
 } // namespace bb3d

@@ -9,57 +9,39 @@
 #include <iostream>
 #include <vector>
 
-void transitionImageLayout(VkCommandBuffer commandBuffer, VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-    VkImageMemoryBarrier barrier{};
-    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    barrier.oldLayout = oldLayout;
-    barrier.newLayout = newLayout;
-    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    barrier.image = image;
-    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    barrier.subresourceRange.baseMipLevel = 0;
-    barrier.subresourceRange.levelCount = 1;
-    barrier.subresourceRange.baseArrayLayer = 0;
-    barrier.subresourceRange.layerCount = 1;
+void transitionImageLayout(vk::CommandBuffer commandBuffer, vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) {
+    vk::ImageMemoryBarrier barrier({}, {}, oldLayout, newLayout, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
 
-    VkPipelineStageFlags sourceStage;
-    VkPipelineStageFlags destinationStage;
+    vk::PipelineStageFlags sourceStage;
+    vk::PipelineStageFlags destinationStage;
 
-    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
-        barrier.srcAccessMask = 0;
-        barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        destinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    } else if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
-        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        barrier.dstAccessMask = 0;
-        sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    if (oldLayout == vk::ImageLayout::eUndefined && newLayout == vk::ImageLayout::eColorAttachmentOptimal) {
+        barrier.srcAccessMask = vk::AccessFlags();
+        barrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+        sourceStage = vk::PipelineStageFlagBits::eTopOfPipe;
+        destinationStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+    } else if (oldLayout == vk::ImageLayout::eColorAttachmentOptimal && newLayout == vk::ImageLayout::ePresentSrcKHR) {
+        barrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+        barrier.dstAccessMask = vk::AccessFlags();
+        sourceStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+        destinationStage = vk::PipelineStageFlagBits::eBottomOfPipe;
     } else {
         throw std::invalid_argument("unsupported layout transition!");
     }
 
-    vkCmdPipelineBarrier(
-        commandBuffer,
-        sourceStage, destinationStage,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier
-    );
+    commandBuffer.pipelineBarrier(sourceStage, destinationStage, {}, nullptr, nullptr, barrier);
 }
 
 int main() {
     bb3d::Log::Init();
-    BB_CORE_INFO("Test Unitaire 04 : Hello Triangle (Dynamic Rendering)");
+    BB_CORE_INFO("Test Unitaire 04 : Hello Triangle (Vulkan-Hpp)");
 
     try {
         bb3d::EngineConfig config;
-        config.title = "BB3D - Hello Triangle";
-        config.width = 800;
-        config.height = 600;
-        config.cullMode = "None"; // Désactiver le culling pour voir le triangle
+        config.window.title = "BB3D - Hello Triangle";
+        config.window.width = 800;
+        config.window.height = 600;
+        config.rasterizer.cullMode = "None";
         bb3d::Window window(config);
 
         bb3d::VulkanContext context;
@@ -68,165 +50,88 @@ int main() {
 #else
         context.init(window.GetNativeWindow(), "Hello Triangle", true);
 #endif
-        bb3d::SwapChain swapChain(context, config.width, config.height);
+        bb3d::SwapChain swapChain(context, config.window.width, config.window.height);
 
-        // --- Shaders ---
-        // Les shaders doivent être dans le dossier assets/shaders relatif à l'exécutable
         bb3d::Shader vertShader(context, "assets/shaders/triangle.vert.spv");
         bb3d::Shader fragShader(context, "assets/shaders/triangle.frag.spv");
 
-        // --- Pipeline ---
-        // On passe {} pour descriptorSetLayouts et false pour useVertexInput car les sommets sont hardcodés
         bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {}, false);
 
-        // --- Command Pool ---
-        VkCommandPool commandPool;
-        VkCommandPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = context.getGraphicsQueueFamily();
+        vk::Device device = context.getDevice();
+        vk::CommandPool commandPool = device.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.getGraphicsQueueFamily() });
 
-        if (vkCreateCommandPool(context.getDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create command pool!");
-        }
-
-        // --- Command Buffer ---
-        VkCommandBuffer commandBuffer;
-        VkCommandBufferAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-        allocInfo.commandPool = commandPool;
-        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-        allocInfo.commandBufferCount = 1;
-
-        if (vkAllocateCommandBuffers(context.getDevice(), &allocInfo, &commandBuffer) != VK_SUCCESS) {
-            throw std::runtime_error("failed to allocate command buffers!");
-        }
+        // --- Frames In Flight ---
+        const int MAX_FRAMES_IN_FLIGHT = 2;
+        
+        // --- Command Buffers ---
+        std::vector<vk::CommandBuffer> commandBuffers = device.allocateCommandBuffers({ commandPool, vk::CommandBufferLevel::ePrimary, (uint32_t)MAX_FRAMES_IN_FLIGHT });
 
         // --- Sync Objects ---
-        VkSemaphore imageAvailableSemaphore;
-        VkSemaphore renderFinishedSemaphore;
-        VkFence inFlightFence;
+        std::vector<vk::Semaphore> imageAvailableSemaphores(MAX_FRAMES_IN_FLIGHT);
+        std::vector<vk::Semaphore> renderFinishedSemaphores(MAX_FRAMES_IN_FLIGHT);
+        std::vector<vk::Fence> inFlightFences(MAX_FRAMES_IN_FLIGHT);
 
-        VkSemaphoreCreateInfo semaphoreInfo{};
-        semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        VkFenceCreateInfo fenceInfo{};
-        fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-        fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            imageAvailableSemaphores[i] = device.createSemaphore({});
+            renderFinishedSemaphores[i] = device.createSemaphore({});
+            inFlightFences[i] = device.createFence({ vk::FenceCreateFlagBits::eSignaled });
+        }
 
-        vkCreateSemaphore(context.getDevice(), &semaphoreInfo, nullptr, &imageAvailableSemaphore);
-        vkCreateSemaphore(context.getDevice(), &semaphoreInfo, nullptr, &renderFinishedSemaphore);
-        vkCreateFence(context.getDevice(), &fenceInfo, nullptr, &inFlightFence);
-
+        uint32_t currentFrame = 0;
 
         BB_CORE_INFO("Démarrage de la boucle de rendu...");
         
         while (!window.ShouldClose()) {
             window.PollEvents();
 
-            vkWaitForFences(context.getDevice(), 1, &inFlightFence, VK_TRUE, UINT64_MAX);
-            vkResetFences(context.getDevice(), 1, &inFlightFence);
+            auto waitResult = device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+            device.resetFences(1, &inFlightFences[currentFrame]);
 
             uint32_t imageIndex;
             try {
-                imageIndex = swapChain.acquireNextImage(imageAvailableSemaphore);
-            } catch (const std::runtime_error& e) {
-                 // Resize ignoré pour ce test
-                 continue;
-            }
+                imageIndex = swapChain.acquireNextImage(imageAvailableSemaphores[currentFrame]);
+            } catch (...) { continue; }
 
-            // --- Recording ---
-            vkResetCommandBuffer(commandBuffer, 0);
-            VkCommandBufferBeginInfo beginInfo{};
-            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            auto& commandBuffer = commandBuffers[currentFrame];
+            commandBuffer.reset({});
+            commandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
-            if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS) {
-                throw std::runtime_error("failed to begin recording command buffer!");
-            }
+            vk::Image image = swapChain.getImage(imageIndex);
+            transitionImageLayout(commandBuffer, image, swapChain.getImageFormat(), vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);
 
-            // 1. Transition: Undefined -> Color Attachment
-            VkImage image = swapChain.getImage(imageIndex);
-            transitionImageLayout(commandBuffer, image, swapChain.getImageFormat(), 
-                VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+            vk::RenderingAttachmentInfo colorAttachment(swapChain.getImageViews()[imageIndex], vk::ImageLayout::eColorAttachmentOptimal, vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearValue(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f})));
 
-            // 2. Begin Rendering (Dynamic Rendering)
-            VkRenderingAttachmentInfo colorAttachment{};
-            colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-            colorAttachment.imageView = swapChain.getImageViews()[imageIndex];
-            colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-            colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-            colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-            colorAttachment.clearValue.color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+            vk::RenderingInfo renderingInfo({}, {{0, 0}, swapChain.getExtent()}, 1, 0, 1, &colorAttachment);
 
-            VkRenderingInfo renderingInfo{};
-            renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
-            renderingInfo.renderArea = {{0, 0}, swapChain.getExtent()};
-            renderingInfo.layerCount = 1;
-            renderingInfo.colorAttachmentCount = 1;
-            renderingInfo.pColorAttachments = &colorAttachment;
-
-            vkCmdBeginRendering(commandBuffer, &renderingInfo);
-
-            // 3. Draw
+            commandBuffer.beginRendering(renderingInfo);
             pipeline.bind(commandBuffer);
             
-            VkViewport viewport{};
-            viewport.x = 0.0f;
-            viewport.y = 0.0f;
-            viewport.width = (float)swapChain.getExtent().width;
-            viewport.height = (float)swapChain.getExtent().height;
-            viewport.minDepth = 0.0f;
-            viewport.maxDepth = 1.0f;
-            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+            commandBuffer.setViewport(0, vk::Viewport(0.0f, 0.0f, (float)swapChain.getExtent().width, (float)swapChain.getExtent().height, 0.0f, 1.0f));
+            commandBuffer.setScissor(0, vk::Rect2D({0, 0}, swapChain.getExtent()));
 
-            VkRect2D scissor{};
-            scissor.offset = {0, 0};
-            scissor.extent = swapChain.getExtent();
-            vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+            commandBuffer.draw(3, 1, 0, 0);
+            commandBuffer.endRendering();
 
-            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+            transitionImageLayout(commandBuffer, image, swapChain.getImageFormat(), vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
 
-            vkCmdEndRendering(commandBuffer);
+            commandBuffer.end();
 
-            // 4. Transition Color Attachment -> Present
-            transitionImageLayout(commandBuffer, image, swapChain.getImageFormat(), 
-                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+            vk::PipelineStageFlags waitStages[] = { vk::PipelineStageFlagBits::eColorAttachmentOutput };
+            vk::SubmitInfo submitInfo(1, &imageAvailableSemaphores[currentFrame], waitStages, 1, &commandBuffer, 1, &renderFinishedSemaphores[currentFrame]);
 
-            if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-                throw std::runtime_error("failed to record command buffer!");
-            }
+            context.getGraphicsQueue().submit(submitInfo, inFlightFences[currentFrame]);
+            swapChain.present(renderFinishedSemaphores[currentFrame], imageIndex);
 
-            // --- Submit ---
-            VkSubmitInfo submitInfo{};
-            submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-            VkSemaphore waitSemaphores[] = {imageAvailableSemaphore};
-            VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-            submitInfo.waitSemaphoreCount = 1;
-            submitInfo.pWaitSemaphores = waitSemaphores;
-            submitInfo.pWaitDstStageMask = waitStages;
-
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &commandBuffer;
-
-            VkSemaphore signalSemaphores[] = {renderFinishedSemaphore};
-            submitInfo.signalSemaphoreCount = 1;
-            submitInfo.pSignalSemaphores = signalSemaphores;
-
-            if (vkQueueSubmit(context.getGraphicsQueue(), 1, &submitInfo, inFlightFence) != VK_SUCCESS) {
-                throw std::runtime_error("failed to submit draw command buffer!");
-            }
-
-            // --- Present ---
-            swapChain.present(renderFinishedSemaphore, imageIndex);
+            currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
         }
 
-        vkDeviceWaitIdle(context.getDevice());
-
-        // Cleanup
-        vkDestroySemaphore(context.getDevice(), renderFinishedSemaphore, nullptr);
-        vkDestroySemaphore(context.getDevice(), imageAvailableSemaphore, nullptr);
-        vkDestroyFence(context.getDevice(), inFlightFence, nullptr);
-        vkDestroyCommandPool(context.getDevice(), commandPool, nullptr);
+        device.waitIdle();
+        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            device.destroySemaphore(renderFinishedSemaphores[i]);
+            device.destroySemaphore(imageAvailableSemaphores[i]);
+            device.destroyFence(inFlightFences[i]);
+        }
+        device.destroyCommandPool(commandPool);
     } catch (const std::exception& e) {
         BB_CORE_ERROR("Erreur fatale : {}", e.what());
         return -1;

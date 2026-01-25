@@ -9,14 +9,12 @@ ResourceManager::ResourceManager(VulkanContext& context, JobSystem& jobSystem)
 }
 
 void ResourceManager::clearCache() {
-    // Lock exclusif pour nettoyer la map des caches
     std::unique_lock<std::shared_mutex> lock(m_registryMutex);
-    
+    BB_CORE_TRACE("ResourceManager: Clearing {} resource caches...", m_caches.size());
     for (auto& [type, cache] : m_caches) {
         cache->clear();
     }
-    
-    BB_CORE_INFO("ResourceManager: Tous les caches ont été vidés.");
+    m_caches.clear();
 }
 
 } // namespace bb3d

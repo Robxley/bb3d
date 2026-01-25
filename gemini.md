@@ -7,8 +7,8 @@ Ce document définit les standards techniques, l'architecture et les contraintes
 * **Nom du Projet :** biobazard3d  
 * **Namespace :** bb3d  
 * **Langage :** C++20 (ou supérieur) \- Utilisation intensive des smart pointers (std::unique\_ptr, std::shared\_ptr) et de la RAII.  
-* **Windowing/Input :** SDL3 (prioritaire) avec abstraction stricte pour permettre un fallback SDL2 si nécessaire.  
-* **Graphics API :** Vulkan 1.3+ (Focus sur la performance et la gestion explicite de la mémoire).  
+* **Windowing/Input :** SDL3 (Focus sur la performance)
+* **Graphics API :** Vulkan 1.3+ via **Vulkan-Hpp** (Focus sur la performance, la sécurité des types et la gestion explicite de la mémoire).  
 * **Gestion Mémoire :** Vulkan Memory Allocator (VMA).  
 * **Maths :** GLM (OpenGL Mathematics).  
 * **Physique :** Jolt Physics.  
@@ -24,8 +24,8 @@ Ce document définit les standards techniques, l'architecture et les contraintes
 
 L'architecture vise une **opacité totale** des technologies sous-jacentes (Vulkan/SDL) pour l'utilisateur du moteur.
 
-1. **Core / Engine (Façade) :** Point d'entrée unique. L'utilisateur instancie Engine, charge des ressources et manipule des objets bb3d. Il ne voit jamais de types Vk\* ou SDL\_\*.  
-2. **Renderer (Backend) :** Isole l'implémentation Vulkan. Gère les pipelines PBR, le Shadow Mapping, le post-process et la swapchain.  
+1. **Core / Engine (Façade) :** Point d'entrée unique. L'utilisateur instancie Engine, charge des ressources et manipule des objets bb3d. Il n'a jamais besoin de manipuler les types `vk::*` ou `SDL_*` sauf s'il le demande explicitement.  
+2. **Renderer (Backend) :** Gère les pipelines PBR, le Shadow Mapping, le post-process et la swapchain. Isole l'implémentation Vulkan (via Vulkan-Hpp) uniquement si cela ne fait pas d'overhead de fonction à la compilation !  
 3. **Scene Graph :** Structure logique des objets (transformations, hiérarchie) indépendante du rendu.  
 4. **Physics World :** Simulation physique découplée du rendu.  
 5. **Audio System :** Gestion spatiale du son.  
@@ -137,11 +137,12 @@ Pour les futures versions, l'outillage sera séparé du Runtime.
 
 ### **1\. Abstraction & Portabilité**
 
-* **API Publique :** Aucun type Vulkan (Vk...) ou SDL dans les headers publics.  
+* **API Publique :** Aucun type Vulkan (`vk::...`) ou SDL dans les headers de haut niveau du moteur.  
 * **Physique :** Ne pas exposer directement les types du moteur physique sous-jacent (ex: btRigidBody).
 
 ### **2\. Gestion de Vulkan (Interne)**
 
+* **Vulkan-Hpp :** Utilisation systématique des wrappers C++ (`vulkan.hpp`).
 * **VMA :** Usage exclusif pour l'allocation mémoire.  
 * **Synchronisation :** Gestion explicite et documentée.
 
@@ -150,7 +151,7 @@ Pour les futures versions, l'outillage sera séparé du Runtime.
 * **Structure de Fichiers (Approche Hybride) :** * **Interne (Engine) :** Privilégier les **Modules C++** (import/export) pour isoler les composants internes et accélérer la compilation.  
   * **API Publique :** Exposer l'API via des **Headers traditionnels (.hpp)** ou une interface de module propre pour garantir la compatibilité avec le code client (le jeu) quel que soit le build system.  
   * **Règle Absolue :** Une classe majeure par fichier.  
-* **Modern C++ Features (C++20/23) :** * **Concepts :** Utiliser les **Concepts** pour contraindre les paramètres de template (template\<typename T\> requires std::integral\<T\>) au lieu de SFINAE.  
+* **Modern C++ Features (C++20/23) :** * **Concepts :** Utiliser les **Concepts** pour contraindre les paramètres de template (template\<typename T\> requires std::integral\<T\>) au lieu de SFINAE.  Utiliser les mots clés c++ (ex: requires, if constexpr, local, constexpr, const). Eviter au maximum l'overhead de fonction (utiliser inline).
   * **Ranges :** Utiliser std::ranges et les vues (std::views) pour la manipulation de collections et les algorithmes (ex: filtrage, transformation) au lieu des boucles brutes.  
   * **Coroutines :** Utiliser les coroutines (co\_await, co\_return) pour les tâches asynchrones (chargement d'assets, scripts de comportement) plutôt que des callbacks complexes.  
 * **Standard Library (STL) :** Utilisation intensive et prioritaire de la STL.  
@@ -164,8 +165,10 @@ Pour les futures versions, l'outillage sera séparé du Runtime.
   * **Séquences :** Utiliser std::span\<T\> (C++20) au lieu de const std::vector\<T\>&.  
 * **Smart Pointers :** Utiliser `bb3d::Ref` (shared) et `bb3d::Scope` (unique).  
 * **Naming :** PascalCase (Classes), camelCase (Méthodes), m\_variable (Privé).  
+* **Documentation (Doxygen) :** Tout le code (classes, méthodes, membres publics) doit être documenté systématiquement au format Doxygen (`/** ... */`).
 * **Developer Experience (DX) \- Defaults :** * **Règle :** Tous les objets de haut niveau (Components, Resources) doivent être générés avec des **paramètres par défaut fonctionnels**.  
   * **Objectif :** Simplifier la tâche de l'utilisateur. Une instantiation sans argument (ex: entity.add\<Light\>()) doit produire un résultat immédiatement valide et visible (ex: Lumière blanche, intensité 1.0, portée standard) sans nécessiter de configuration complexe obligatoire.
+
 
 ### **4\. Sérialisation & Réflexion (Sauvegarde)**
 
@@ -175,6 +178,7 @@ Pour les futures versions, l'outillage sera séparé du Runtime.
 
 ### **5\. Performance (Jeu Vidéo)**
 
+* **Zero-Overhead :** Interdire tout overhead de fonction inutile sur les appels aux APIs de base (Vulkan, SDL3, Jolt). Les wrappers doivent être `inline` ou résolus à la compilation pour garantir une performance identique à l'appel natif.
 * **Hot Path Safety :** Pas d'allocations dans update() ou render().  
 * **Data-Oriented Design :** Contiguïté mémoire pour les composants (Transform, RigidBody).  
 * **Instancing :** Rendu instancié automatique pour les particules et objets répétés.  
@@ -193,7 +197,7 @@ Pour les futures versions, l'outillage sera séparé du Runtime.
 
 ## **🔍 Instructions pour l'IA**
 
-1. **Focus Abstraction :** Engine n'inclut jamais \<vulkan/vulkan.h\>.  
+1. **Focus Abstraction :** Engine n'inclut jamais `<vulkan/vulkan.h>` ni `<vulkan/vulkan.hpp>`.  
 2. **PBR :** Les shaders générés doivent être PBR.  
 3. **Maths :** Toujours utiliser GLM.  
 4. **Physique :** Interface générique (IPhysicsBackend).  
