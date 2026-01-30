@@ -4,6 +4,8 @@
 #include "bb3d/render/UniformBuffer.hpp"
 #include "bb3d/scene/Components.hpp"
 #include <array>
+#include <filesystem>
+#include <SDL3/SDL.h>
 
 namespace bb3d {
 
@@ -15,9 +17,21 @@ Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& c
     createSyncObjects();
     createGlobalDescriptors();
 
-    // Chargement shaders par défaut
-    m_defaultVert = CreateScope<Shader>(context, "assets/shaders/simple_3d.vert.spv");
-    m_defaultFrag = CreateScope<Shader>(context, "assets/shaders/simple_3d.frag.spv");
+    // Chargement shaders par défaut avec vérification
+    const std::string vertPath = "assets/shaders/simple_3d.vert.spv";
+    const std::string fragPath = "assets/shaders/simple_3d.frag.spv";
+
+    if (!std::filesystem::exists(vertPath)) {
+        BB_CORE_ERROR("Renderer: Vertex shader not found at {}", vertPath);
+        throw std::runtime_error("Missing vertex shader");
+    }
+    if (!std::filesystem::exists(fragPath)) {
+        BB_CORE_ERROR("Renderer: Fragment shader not found at {}", fragPath);
+        throw std::runtime_error("Missing fragment shader");
+    }
+
+    m_defaultVert = CreateScope<Shader>(context, vertPath);
+    m_defaultFrag = CreateScope<Shader>(context, fragPath);
     
     vk::PushConstantRange pcr(vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4));
     m_defaultPipeline = CreateScope<GraphicsPipeline>(context, *m_swapChain, *m_defaultVert, *m_defaultFrag, config, std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout}, std::vector<vk::PushConstantRange>{pcr});
@@ -42,37 +56,36 @@ Renderer::~Renderer() {
 
 void Renderer::createSyncObjects() {
     auto dev = m_context.getDevice();
-    const uint32_t imageCount = static_cast<uint32_t>(m_swapChain->getImageCount());
-    m_imageAvailableSemaphores.resize(imageCount);
-    m_renderFinishedSemaphores.resize(imageCount);
-    m_inFlightFences.resize(imageCount);
+    
+    m_imageAvailableSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    m_renderFinishedSemaphores.resize(MAX_FRAMES_IN_FLIGHT);
+    m_inFlightFences.resize(MAX_FRAMES_IN_FLIGHT);
 
-    for (size_t i = 0; i < imageCount; i++) {
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         m_imageAvailableSemaphores[i] = dev.createSemaphore({});
         m_renderFinishedSemaphores[i] = dev.createSemaphore({});
         m_inFlightFences[i] = dev.createFence({ vk::FenceCreateFlagBits::eSignaled });
     }
 
     m_commandPool = dev.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, m_context.getGraphicsQueueFamily() });
-    m_commandBuffers = dev.allocateCommandBuffers({ m_commandPool, vk::CommandBufferLevel::ePrimary, imageCount });
+    m_commandBuffers = dev.allocateCommandBuffers({ m_commandPool, vk::CommandBufferLevel::ePrimary, MAX_FRAMES_IN_FLIGHT });
 }
 
 void Renderer::createGlobalDescriptors() {
     auto dev = m_context.getDevice();
-    const uint32_t imageCount = static_cast<uint32_t>(m_swapChain->getImageCount());
     
     m_cameraUbo = CreateScope<UniformBuffer>(m_context, sizeof(GlobalUBO));
 
     vk::DescriptorSetLayoutBinding cameraBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex);
     m_globalDescriptorLayout = dev.createDescriptorSetLayout({ {}, 1, &cameraBinding });
 
-    vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, imageCount);
-    m_descriptorPool = dev.createDescriptorPool({ {}, imageCount, 1, &poolSize });
+    vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT);
+    m_descriptorPool = dev.createDescriptorPool({ {}, MAX_FRAMES_IN_FLIGHT, 1, &poolSize });
 
-    std::vector<vk::DescriptorSetLayout> layouts(imageCount, m_globalDescriptorLayout);
-    m_globalDescriptorSets = dev.allocateDescriptorSets({ m_descriptorPool, imageCount, layouts.data() });
+    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_globalDescriptorLayout);
+    m_globalDescriptorSets = dev.allocateDescriptorSets({ m_descriptorPool, MAX_FRAMES_IN_FLIGHT, layouts.data() });
 
-    for (size_t i = 0; i < imageCount; i++) {
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vk::DescriptorBufferInfo bufferInfo(m_cameraUbo->getHandle(), 0, sizeof(GlobalUBO));
         vk::WriteDescriptorSet write(m_globalDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bufferInfo);
         dev.updateDescriptorSets(1, &write, 0, nullptr);
@@ -81,10 +94,9 @@ void Renderer::createGlobalDescriptors() {
 
 void Renderer::render(Scene& scene) {
     auto dev = m_context.getDevice();
-    const uint32_t imageCount = static_cast<uint32_t>(m_swapChain->getImageCount());
     
     // Attendre la frame
-    [[maybe_unused]] auto waitRes = dev.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+    (void)dev.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
     
     // Chercher la caméra active
     Camera* activeCamera = nullptr;
@@ -107,9 +119,20 @@ void Renderer::render(Scene& scene) {
     uint32_t imageIndex;
     try {
         imageIndex = m_swapChain->acquireNextImage(m_imageAvailableSemaphores[m_currentFrame]);
-    } catch (...) { return; }
+    } catch (const vk::OutOfDateKHRError&) {
+        int w, h;
+        SDL_GetWindowSize(m_window.GetNativeWindow(), &w, &h);
+        onResize(w, h);
+        return; // Passer cette frame, swapchain recréée
+    } catch (const vk::SystemError& e) {
+        BB_CORE_ERROR("Vulkan Error in acquireNextImage: {}", e.what());
+        return;
+    } catch (...) {
+        BB_CORE_ERROR("Unknown Error in acquireNextImage");
+        return;
+    }
 
-    dev.resetFences(1, &m_inFlightFences[m_currentFrame]);
+    (void)dev.resetFences(1, &m_inFlightFences[m_currentFrame]);
 
     auto& cb = m_commandBuffers[m_currentFrame];
     cb.reset({});
@@ -170,8 +193,17 @@ void Renderer::render(Scene& scene) {
     vk::PipelineStageFlags waitStages = vk::PipelineStageFlagBits::eColorAttachmentOutput;
     m_context.getGraphicsQueue().submit(vk::SubmitInfo(1, &m_imageAvailableSemaphores[m_currentFrame], &waitStages, 1, &cb, 1, &m_renderFinishedSemaphores[m_currentFrame]), m_inFlightFences[m_currentFrame]);
 
-    m_swapChain->present(m_renderFinishedSemaphores[m_currentFrame], imageIndex);
-    m_currentFrame = (m_currentFrame + 1) % imageCount;
+    try {
+        m_swapChain->present(m_renderFinishedSemaphores[m_currentFrame], imageIndex);
+    } catch (const vk::OutOfDateKHRError&) {
+        int w, h;
+        SDL_GetWindowSize(m_window.GetNativeWindow(), &w, &h);
+        onResize(w, h);
+    } catch (const vk::SystemError& e) {
+        BB_CORE_ERROR("Vulkan Error in present: {}", e.what());
+    }
+
+    m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void Renderer::onResize(int width, int height) {

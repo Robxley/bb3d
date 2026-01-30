@@ -16,6 +16,9 @@
 
 namespace bb3d {
 
+class PhysicsWorld;
+class AudioSystem;
+
 /**
  * @brief La classe principale représentant le moteur de jeu biobazard3d.
  * 
@@ -61,6 +64,8 @@ public:
     inline JobSystem& jobs() { return *m_JobSystem; }
     inline EventBus& events() { return *m_EventBus; }
     inline InputManager& input() { return *m_InputManager; }
+    inline PhysicsWorld& physics() { return *m_PhysicsWorld; }
+    inline AudioSystem& audio() { return *m_AudioSystem; }
     /** @} */
 
     /** @name Accesseurs Originaux
@@ -72,6 +77,8 @@ public:
     Window& GetWindow() { return *m_Window; }
     JobSystem* GetJobSystem() { return m_JobSystem.get(); }
     EventBus& GetEventBus() { return *m_EventBus; }
+    PhysicsWorld* GetPhysicsWorld() { return m_PhysicsWorld.get(); }
+    AudioSystem* GetAudioSystem() { return m_AudioSystem.get(); }
     /** @} */
 
     Ref<Scene> CreateScene();
@@ -94,6 +101,8 @@ private:
     Scope<JobSystem> m_JobSystem;
     Scope<EventBus> m_EventBus;
     Scope<InputManager> m_InputManager;
+    Scope<PhysicsWorld> m_PhysicsWorld;
+    Scope<AudioSystem> m_AudioSystem;
     Ref<Scene> m_ActiveScene;
 
     bool m_Running = false;

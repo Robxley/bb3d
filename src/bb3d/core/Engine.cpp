@@ -1,5 +1,7 @@
 #include "bb3d/core/Engine.hpp"
 #include "bb3d/core/Log.hpp"
+#include "bb3d/physics/PhysicsWorld.hpp"
+#include "bb3d/audio/AudioSystem.hpp"
 #include <SDL3/SDL.h>
 #include <stdexcept>
 
@@ -80,6 +82,18 @@ void Engine::Init() {
     // 7. Resource Manager
     m_ResourceManager = CreateScope<ResourceManager>(*m_VulkanContext, *m_JobSystem);
 
+    // 8. Physics
+    if (m_Config.modules.enablePhysics) {
+        m_PhysicsWorld = CreateScope<PhysicsWorld>();
+        m_PhysicsWorld->init();
+    }
+
+    // 9. Audio
+    if (m_Config.modules.enableAudio) {
+        m_AudioSystem = CreateScope<AudioSystem>();
+        m_AudioSystem->init();
+    }
+
     BB_CORE_INFO("Engine: Initialization complete.");
 }
 
@@ -89,6 +103,16 @@ void Engine::Shutdown() {
 
     if (m_VulkanContext && m_VulkanContext->getDevice()) {
         m_VulkanContext->getDevice().waitIdle();
+    }
+
+    if (m_AudioSystem) {
+        m_AudioSystem->shutdown();
+        m_AudioSystem.reset();
+    }
+
+    if (m_PhysicsWorld) {
+        m_PhysicsWorld->shutdown();
+        m_PhysicsWorld.reset();
     }
 
     m_ActiveScene.reset();
@@ -141,6 +165,14 @@ void Engine::Update(float deltaTime) {
     
     if (m_EventBus) {
         m_EventBus->dispatchQueued();
+    }
+
+    if (m_PhysicsWorld) {
+        m_PhysicsWorld->update(deltaTime);
+    }
+
+    if (m_AudioSystem) {
+        m_AudioSystem->update(deltaTime);
     }
 
     if (m_ActiveScene) {

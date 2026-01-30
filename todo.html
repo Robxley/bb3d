@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biobazard3D - Roadmap & Todo</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0a0;
+            --accent-done: #4caf50;
+            --accent-progress: #2196f3;
+            --accent-todo: #ff9800;
+            --accent-backlog: #9e9e9e;
+            --border-radius: 8px;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--text-primary);
+            margin-bottom: 40px;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 10px;
+        }
+
+        .column {
+            background-color: #181818;
+            border-radius: var(--border-radius);
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .column-header {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .col-done { border-color: var(--accent-done); color: var(--accent-done); }
+        .col-progress { border-color: var(--accent-progress); color: var(--accent-progress); }
+        .col-todo { border-color: var(--accent-todo); color: var(--accent-todo); }
+        .col-backlog { border-color: var(--accent-backlog); color: var(--accent-backlog); }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            transition: transform 0.2s;
+            border-left: 4px solid transparent;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+        }
+
+        .card.priority-high { border-left-color: #f44336; }
+        .card.priority-med { border-left-color: #ff9800; }
+        .card.priority-low { border-left-color: #4caf50; }
+
+        .card-title {
+            font-weight: bold;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .card-desc {
+            font-size: 0.9em;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+        }
+
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        .tag {
+            font-size: 0.75em;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background-color: #333;
+            color: #ccc;
+        }
+
+        .meta {
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🚀 Biobazard3D - Suivi de Développement</h1>
+
+    <div class="board">
+        <!-- DONE -->
+        <div class="column">
+            <div class="column-header col-done">
+                <span>Terminé ✅</span>
+                <span id="count-done">8</span>
+            </div>
+            
+            <div class="card priority-low">
+                <span class="card-title">Architecture Core</span>
+                <div class="card-desc">Engine, Config, Log, JobSystem, EventBus implémentés et fonctionnels.</div>
+                <div class="tags"><span class="tag">Core</span></div>
+            </div>
+
+            <div class="card priority-low">
+                <span class="card-title">Windowing & Input</span>
+                <div class="card-desc">Intégration SDL3, gestion fenêtre et input manager.</div>
+                <div class="tags"><span class="tag">System</span></div>
+            </div>
+
+            <div class="card priority-low">
+                <span class="card-title">Vulkan Setup</span>
+                <div class="card-desc">Instance, Device, Swapchain, VMA via Vulkan-Hpp.</div>
+                <div class="tags"><span class="tag">Render</span></div>
+            </div>
+
+            <div class="card priority-low">
+                <span class="card-title">Resource Manager</span>
+                <div class="card-desc">Chargement asynchrone, cache thread-safe.</div>
+                <div class="tags"><span class="tag">Resource</span></div>
+            </div>
+
+            <div class="card priority-low">
+                <span class="card-title">Basic Renderer</span>
+                <div class="card-desc">Pipeline graphique simple, chargement GLTF/OBJ.</div>
+                <div class="tags"><span class="tag">Render</span></div>
+            </div>
+
+            <div class="card priority-low">
+                <span class="card-title">ECS Setup</span>
+                <div class="card-desc">Intégration EnTT et composants de base.</div>
+                <div class="tags"><span class="tag">Scene</span></div>
+            </div>
+
+            <div class="card priority-med">
+                <span class="card-title">Sérialisation Composants</span>
+                <div class="card-desc">Hooks `serialize/deserialize` ajoutés aux composants.</div>
+                <div class="tags"><span class="tag">Scene</span><span class="tag">Data</span></div>
+            </div>
+
+            <div class="card priority-med">
+                <span class="card-title">Architecture Modules</span>
+                <div class="card-desc">Intégration propre (Stubs) de AudioSystem et PhysicsWorld dans Engine.</div>
+                <div class="tags"><span class="tag">Core</span></div>
+            </div>
+        </div>
+
+        <!-- IN PROGRESS -->
+        <div class="column">
+            <div class="column-header col-progress">
+                <span>En Cours 🚧</span>
+                <span id="count-progress">0</span>
+            </div>
+            <!-- Actuellement rien n'est "activement" en cours de modification par l'agent, tout a été commité -->
+             <div class="card priority-high">
+                <span class="card-title">Stabilisation Build</span>
+                <div class="card-desc">Correction warnings compilation et erreurs linkage.</div>
+                <div class="tags"><span class="tag">DevOps</span></div>
+            </div>
+        </div>
+
+        <!-- TODO -->
+        <div class="column">
+            <div class="column-header col-todo">
+                <span>À Faire (Next) 📋</span>
+                <span id="count-todo">4</span>
+            </div>
+
+            <div class="card priority-high">
+                <span class="card-title">Scene Serializer</span>
+                <div class="card-desc">Implémenter `SceneSerializer` pour sauver la scène en JSON sur le disque.</div>
+                <div class="tags"><span class="tag">Scene</span><span class="tag">IO</span></div>
+            </div>
+
+            <div class="card priority-high">
+                <span class="card-title">Physique (Jolt)</span>
+                <div class="card-desc">Implémenter `PhysicsWorld` avec Jolt Physics (Shape, BodyCreation).</div>
+                <div class="tags"><span class="tag">Physics</span></div>
+            </div>
+
+            <div class="card priority-med">
+                <span class="card-title">Audio (Miniaudio)</span>
+                <div class="card-desc">Implémenter `AudioSystem` pour jouer des sons 3D.</div>
+                <div class="tags"><span class="tag">Audio</span></div>
+            </div>
+
+             <div class="card priority-med">
+                <span class="card-title">PBR Shaders</span>
+                <div class="card-desc">Remplacer `simple_3d` par un shader compatible PBR (Metallic/Roughness).</div>
+                <div class="tags"><span class="tag">Render</span></div>
+            </div>
+        </div>
+
+        <!-- BACKLOG -->
+        <div class="column">
+            <div class="column-header col-backlog">
+                <span>Backlog / Futur 🔮</span>
+                <span id="count-backlog">4</span>
+            </div>
+
+            <div class="card priority-med">
+                <span class="card-title">Éditeur (ImGui)</span>
+                <div class="card-desc">Ajouter couche ImGui, Gizmos, Panneau de propriétés.</div>
+                <div class="tags"><span class="tag">Tools</span></div>
+            </div>
+
+            <div class="card priority-low">
+                <span class="card-title">Shadow Mapping</span>
+                <div class="card-desc">Cascaded Shadow Maps pour la lumière directionnelle.</div>
+                <div class="tags"><span class="tag">Render</span></div>
+            </div>
+
+            <div class="card priority-low">
+                <span class="card-title">Post-Processing</span>
+                <div class="card-desc">Bloom, Tone Mapping, Gamma Correction.</div>
+                <div class="tags"><span class="tag">Render</span></div>
+            </div>
+
+            <div class="card priority-low">
+                <span class="card-title">Scripting (Lua/C#?)</span>
+                <div class="card-desc">Étendre NativeScript vers un langage de script complet.</div>
+                <div class="tags"><span class="tag">Gameplay</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="meta">
+        Dernière mise à jour : 30 Janvier 2026 - Généré par Gemini CLI Agent
+    </div>
+
+</body>
+</html>
