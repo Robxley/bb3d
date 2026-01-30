@@ -42,6 +42,17 @@ Texture::Texture(VulkanContext& context, std::span<const std::byte> data)
     BB_CORE_INFO("Texture chargée depuis la mémoire ({}x{})", m_width, m_height);
 }
 
+Texture::Texture(VulkanContext& context, std::span<const std::byte> data, int width, int height)
+    : m_context(context), m_width(width), m_height(height), m_channels(4) {
+    
+    if (data.size() != width * height * 4) {
+        throw std::runtime_error("Texture: Raw data size mismatch with dimensions");
+    }
+
+    initFromPixels(reinterpret_cast<const unsigned char*>(data.data()));
+    BB_CORE_INFO("Texture chargée depuis pixels bruts ({}x{})", m_width, m_height);
+}
+
 void Texture::initFromPixels(const unsigned char* pixels) {
     vk::DeviceSize imageSize = static_cast<vk::DeviceSize>(m_width) * m_height * 4;
 

@@ -25,13 +25,16 @@ public:
     void draw(vk::CommandBuffer commandBuffer);
 
     /** 
-     * @brief Normalise le modèle (centre à l'origine et échelle pour tenir dans l'unité).
+     * @brief Normalise le modèle (centre à l'origine et échelle pour tenir dans la boîte spécifiée).
      * Modifie les sommets de tous les meshes.
+     * @param targetSize Dimensions de la boîte englobante cible (par défaut 1x1x1).
      */
-    void normalize();
+    void normalize(const glm::vec3& targetSize = glm::vec3(1.0f));
 
     const AABB& getBounds() const { return m_bounds; }
     Ref<Texture> getTexture(size_t index) const { return index < m_textures.size() ? m_textures[index] : nullptr; }
+    
+    const std::vector<Scope<Mesh>>& getMeshes() const { return m_meshes; }
 
 private:
     void loadOBJ(std::string_view path);

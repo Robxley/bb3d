@@ -44,6 +44,13 @@ int main() {
     
     // Modèle OBJ (Test 10)
     auto houseModel = assets.load<bb3d::Model>("assets/models/house.obj");
+    auto brickTexture = assets.load<bb3d::Texture>("assets/textures/Bricks092_1K-JPG_Color.jpg");
+    
+    // Assigner la texture manuellement aux meshes de la maison
+    for (auto& mesh : houseModel->getMeshes()) {
+        mesh->setTexture(brickTexture);
+    }
+    
     houseModel->normalize();
     
     // Modèle GLTF (Test 11)

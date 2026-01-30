@@ -64,7 +64,7 @@ void Model::draw(vk::CommandBuffer commandBuffer) {
     }
 }
 
-void Model::normalize() {
+void Model::normalize(const glm::vec3& targetSize) {
     if (m_meshes.empty()) return;
 
     // 1. Calculer les bounds globaux actuels
@@ -75,11 +75,15 @@ void Model::normalize() {
 
     glm::vec3 center = globalBounds.center();
     glm::vec3 size = globalBounds.size();
-    float maxDim = std::max({size.x, size.y, size.z});
     
-    if (maxDim <= 0.0001f) return; // Éviter division par zéro
+    // Calcul de l'échelle pour tenir dans targetSize (Uniform scaling)
+    float scaleX = (size.x > 0.0001f) ? targetSize.x / size.x : std::numeric_limits<float>::max();
+    float scaleY = (size.y > 0.0001f) ? targetSize.y / size.y : std::numeric_limits<float>::max();
+    float scaleZ = (size.z > 0.0001f) ? targetSize.z / size.z : std::numeric_limits<float>::max();
 
-    float scale = 1.0f / maxDim;
+    float scale = std::min({scaleX, scaleY, scaleZ});
+    
+    if (scale == std::numeric_limits<float>::max()) scale = 1.0f; // Fallback si taille nulle
 
     // 2. Appliquer la transformation à tous les sommets
     for (auto& mesh : m_meshes) {
@@ -228,6 +232,30 @@ void Model::loadGLTF(std::string_view path) {
             }
 
             auto newMesh = CreateScope<Mesh>(m_context, vertices, indices);
+            
+            // Texture Assignment
+            if (primitive.materialIndex.has_value()) {
+                const auto& material = gltf.materials[primitive.materialIndex.value()];
+                if (material.pbrData.baseColorTexture.has_value()) {
+                    size_t textureInfoIndex = material.pbrData.baseColorTexture.value().textureIndex;
+                    // Note: fastgltf textureIndex points to a Texture object, which points to an Image index.
+                    // But here m_textures stores images directly as fastgltf::Image ~ Texture.
+                    // Wait, standard GLTF: Texture refers to Image + Sampler.
+                    // fastgltf: gltf.textures[index].imageIndex
+                    
+                    if (textureInfoIndex < gltf.textures.size()) {
+                        auto& texInfo = gltf.textures[textureInfoIndex];
+                        if (texInfo.imageIndex.has_value()) {
+                            size_t imageIndex = texInfo.imageIndex.value();
+                            if (imageIndex < m_textures.size()) {
+                                newMesh->setTexture(m_textures[imageIndex]);
+                                BB_CORE_TRACE("Model: Assigned texture {} to mesh", imageIndex);
+                            }
+                        }
+                    }
+                }
+            }
+
             m_bounds.extend(newMesh->getBounds());
             m_meshes.push_back(std::move(newMesh));
         }

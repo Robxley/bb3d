@@ -10,6 +10,7 @@ class Texture : public Resource {
 public:
     Texture(VulkanContext& context, std::string_view filepath);
     Texture(VulkanContext& context, std::span<const std::byte> data);
+    Texture(VulkanContext& context, std::span<const std::byte> data, int width, int height); // Raw RGBA data
     ~Texture();
 
     Texture(const Texture&) = delete;

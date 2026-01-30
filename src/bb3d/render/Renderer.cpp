@@ -17,9 +17,13 @@ Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& c
     createSyncObjects();
     createGlobalDescriptors();
 
+    // Création texture blanche par défaut
+    uint32_t white = 0xFFFFFFFF;
+    m_whiteTexture = CreateRef<Texture>(context, std::span<const std::byte>((const std::byte*)&white, 4), 1, 1);
+
     // Chargement shaders par défaut avec vérification
-    const std::string vertPath = "assets/shaders/simple_3d.vert.spv";
-    const std::string fragPath = "assets/shaders/simple_3d.frag.spv";
+    const std::string vertPath = "assets/shaders/textured_mesh.vert.spv";
+    const std::string fragPath = "assets/shaders/textured_mesh.frag.spv";
 
     if (!std::filesystem::exists(vertPath)) {
         BB_CORE_ERROR("Renderer: Vertex shader not found at {}", vertPath);
@@ -34,7 +38,7 @@ Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& c
     m_defaultFrag = CreateScope<Shader>(context, fragPath);
     
     vk::PushConstantRange pcr(vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4));
-    m_defaultPipeline = CreateScope<GraphicsPipeline>(context, *m_swapChain, *m_defaultVert, *m_defaultFrag, config, std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout}, std::vector<vk::PushConstantRange>{pcr});
+    m_defaultPipeline = CreateScope<GraphicsPipeline>(context, *m_swapChain, *m_defaultVert, *m_defaultFrag, config, std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout, m_textureDescriptorLayout}, std::vector<vk::PushConstantRange>{pcr});
 }
 
 Renderer::~Renderer() {
@@ -48,8 +52,12 @@ Renderer::~Renderer() {
             if (m_inFlightFences[i]) dev.destroyFence(m_inFlightFences[i]);
         }
 
+        m_whiteTexture.reset(); // Libérer avant le context
+        
         if (m_descriptorPool) dev.destroyDescriptorPool(m_descriptorPool);
+        if (m_textureDescriptorPool) dev.destroyDescriptorPool(m_textureDescriptorPool);
         if (m_globalDescriptorLayout) dev.destroyDescriptorSetLayout(m_globalDescriptorLayout);
+        if (m_textureDescriptorLayout) dev.destroyDescriptorSetLayout(m_textureDescriptorLayout);
         if (m_commandPool) dev.destroyCommandPool(m_commandPool);
     }
 }
@@ -74,6 +82,7 @@ void Renderer::createSyncObjects() {
 void Renderer::createGlobalDescriptors() {
     auto dev = m_context.getDevice();
     
+    // Set 0: Camera UBO
     m_cameraUbo = CreateScope<UniformBuffer>(m_context, sizeof(GlobalUBO));
 
     vk::DescriptorSetLayoutBinding cameraBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex);
@@ -90,6 +99,37 @@ void Renderer::createGlobalDescriptors() {
         vk::WriteDescriptorSet write(m_globalDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bufferInfo);
         dev.updateDescriptorSets(1, &write, 0, nullptr);
     }
+
+    // Set 1: Texture Sampler
+    vk::DescriptorSetLayoutBinding samplerBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
+    m_textureDescriptorLayout = dev.createDescriptorSetLayout({ {}, 1, &samplerBinding });
+
+    vk::DescriptorPoolSize texPoolSize(vk::DescriptorType::eCombinedImageSampler, 1000); // Max 1000 textures
+    m_textureDescriptorPool = dev.createDescriptorPool({ vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet, 1000, 1, &texPoolSize });
+}
+
+vk::DescriptorSet Renderer::getTextureDescriptorSet(Ref<Texture> texture) {
+    if (!texture) return VK_NULL_HANDLE;
+
+    if (m_textureSets.contains(texture.get())) {
+        return m_textureSets[texture.get()];
+    }
+
+    auto dev = m_context.getDevice();
+    vk::DescriptorSetAllocateInfo allocInfo(m_textureDescriptorPool, 1, &m_textureDescriptorLayout);
+    vk::DescriptorSet set = dev.allocateDescriptorSets(allocInfo)[0];
+
+    vk::DescriptorImageInfo imageInfo(
+        texture->getSampler(),
+        texture->getImageView(),
+        vk::ImageLayout::eShaderReadOnlyOptimal
+    );
+
+    vk::WriteDescriptorSet write(set, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &imageInfo, nullptr);
+    dev.updateDescriptorSets(1, &write, 0, nullptr);
+
+    m_textureSets[texture.get()] = set;
+    return set;
 }
 
 void Renderer::render(Scene& scene) {
@@ -164,6 +204,8 @@ void Renderer::render(Scene& scene) {
     m_defaultPipeline->bind(cb);
     cb.setViewport(0, vk::Viewport(0, 0, (float)m_swapChain->getExtent().width, (float)m_swapChain->getExtent().height, 0, 1));
     cb.setScissor(0, vk::Rect2D({0, 0}, m_swapChain->getExtent()));
+    
+    // Bind Global Set (0)
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_defaultPipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
 
     // Dessiner toutes les entités avec MeshComponent
@@ -173,6 +215,12 @@ void Renderer::render(Scene& scene) {
         auto& transform = meshView.get<TransformComponent>(entity);
 
         if (meshComp.mesh) {
+            // Bind Texture Set (1)
+            Ref<Texture> tex = meshComp.mesh->getTexture();
+            if (!tex) tex = m_whiteTexture;
+            vk::DescriptorSet texSet = getTextureDescriptorSet(tex);
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_defaultPipeline->getLayout(), 1, 1, &texSet, 0, nullptr);
+
             glm::mat4 modelMat = transform.getTransform();
             cb.pushConstants(m_defaultPipeline->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
             meshComp.mesh->draw(cb);
@@ -188,7 +236,16 @@ void Renderer::render(Scene& scene) {
         if (modelComp.model) {
             glm::mat4 modelMat = transform.getTransform();
             cb.pushConstants(m_defaultPipeline->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
-            modelComp.model->draw(cb);
+            
+            // Itération manuelle sur les meshes pour lier la texture par-mesh
+            for (const auto& mesh : modelComp.model->getMeshes()) {
+                Ref<Texture> tex = mesh->getTexture();
+                if (!tex) tex = m_whiteTexture;
+                vk::DescriptorSet texSet = getTextureDescriptorSet(tex);
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_defaultPipeline->getLayout(), 1, 1, &texSet, 0, nullptr);
+                
+                mesh->draw(cb);
+            }
         }
     }
 

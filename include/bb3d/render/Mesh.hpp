@@ -81,6 +81,9 @@ public:
 
     std::vector<Vertex>& getVertices() { return m_vertices; }
     
+    void setTexture(Ref<Texture> texture) { m_texture = texture; }
+    Ref<Texture> getTexture() const { return m_texture; }
+
     void updateVertices() {
         // Re-création simple du buffer (Optimisation possible via Staging Buffer ou mapping)
         m_vertexBuffer = Buffer::CreateVertexBuffer(m_context, m_vertices.data(), m_vertices.size() * sizeof(Vertex));
@@ -98,6 +101,7 @@ private:
     std::vector<uint32_t> m_indices;
     Scope<Buffer> m_vertexBuffer;
     Scope<Buffer> m_indexBuffer;
+    Ref<Texture> m_texture;
     uint32_t m_indexCount;
     AABB m_bounds;
 };

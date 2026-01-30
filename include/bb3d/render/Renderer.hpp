@@ -8,6 +8,7 @@
 #include "bb3d/scene/Scene.hpp"
 #include <glm/glm.hpp>
 #include <vector>
+#include <unordered_map>
 
 namespace bb3d {
 
@@ -33,6 +34,7 @@ public:
 private:
     void createSyncObjects();
     void createGlobalDescriptors();
+    vk::DescriptorSet getTextureDescriptorSet(Ref<Texture> texture);
 
     VulkanContext& m_context;
     Window& m_window;
@@ -62,6 +64,12 @@ private:
     vk::DescriptorSetLayout m_globalDescriptorLayout;
     vk::DescriptorPool m_descriptorPool;
     std::vector<vk::DescriptorSet> m_globalDescriptorSets;
+
+    // Textures
+    vk::DescriptorSetLayout m_textureDescriptorLayout;
+    vk::DescriptorPool m_textureDescriptorPool;
+    std::unordered_map<Texture*, vk::DescriptorSet> m_textureSets;
+    Ref<Texture> m_whiteTexture;
 };
 
 } // namespace bb3d
