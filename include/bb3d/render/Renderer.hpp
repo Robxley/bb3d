@@ -46,7 +46,7 @@ private:
     Scope<Shader> m_defaultFrag;
 
     // Frames in flight management
-    static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
+    static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 3;
     uint32_t m_currentFrame = 0;
 
     vk::CommandPool m_commandPool;

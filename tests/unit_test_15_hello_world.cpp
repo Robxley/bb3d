@@ -55,7 +55,7 @@ int main() {
     
     // Modèle GLTF (Test 11)
     auto antModel = assets.load<bb3d::Model>("assets/models/ant.glb");
-    antModel->normalize();
+    antModel->normalize(glm::vec3(3.0f));
 
     // 5. Création des Entités
     

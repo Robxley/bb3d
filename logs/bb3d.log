@@ -1,10 +1,12 @@
-[2026-01-30 23:45:58.681] [CORE] [info] Logging System Initialized (Console: ON, File: ON)
-[2026-01-30 23:45:58.682] [CORE] [info] Engine: Initializing biobazard3d from memory config...
-[2026-01-30 23:45:58.682] [CORE] [info] JobSystem: Initialisation avec 8 threads (Work Stealing).
-[2026-01-30 23:45:58.819] [CORE] [info] Window created: 'BB3D - Hello World 2.0 (OBJ + GLTF)' (1280x720)
-[2026-01-30 23:45:58.868] [CORE] [info] VulkanContext: Instance Vulkan créée (Vulkan-Hpp).
-[2026-01-30 23:45:58.868] [CORE] [info] VulkanContext: Debug Messenger activé.
-[2026-01-30 23:45:58.873] [CORE] [info] VulkanContext: GPU sélectionné : NVIDIA GeForce RTX 3070 Laptop GPU
-[2026-01-30 23:45:58.926] [CORE] [info] VulkanContext: Initialisation terminée.
-[2026-01-30 23:45:58.944] [CORE] [info] Swapchain créée : 1280x720 (3)
-[2026-01-30 23:45:58.957] [CORE] [error] Renderer: Vertex shader not found at assets/shaders/simple_3d.vert.spv
+[2026-01-31 00:27:08.893] [CORE] [info] Logging System Initialized (Console: ON, File: ON)
+[2026-01-31 00:27:08.894] [CORE] [info] Engine: Initializing biobazard3d from memory config...
+[2026-01-31 00:27:08.894] [CORE] [info] JobSystem: Initialisation avec 8 threads (Work Stealing).
+[2026-01-31 00:27:09.042] [CORE] [info] Window created: 'BB3D - Hello World 2.0 (OBJ + GLTF)' (1280x720)
+[2026-01-31 00:27:09.097] [CORE] [info] VulkanContext: Instance Vulkan créée (Vulkan-Hpp).
+[2026-01-31 00:27:09.097] [CORE] [info] VulkanContext: Debug Messenger activé.
+[2026-01-31 00:27:09.101] [CORE] [info] VulkanContext: GPU sélectionné : NVIDIA GeForce RTX 3070 Laptop GPU
+[2026-01-31 00:27:09.165] [CORE] [info] VulkanContext: Initialisation terminée.
+[2026-01-31 00:27:09.183] [CORE] [info] Swapchain créée : 1280x720 (3)
+[2026-01-31 00:27:09.200] [CORE] [trace] Buffer: Destroyed buffer of size 4 bytes.
+[2026-01-31 00:27:09.201] [CORE] [info] Texture chargée depuis pixels bruts (1x1)
+[2026-01-31 00:27:09.201] [CORE] [error] Renderer: Vertex shader not found at assets/shaders/textured_mesh.vert.spv
