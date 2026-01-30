@@ -2,6 +2,7 @@
 
 #include "bb3d/core/Base.hpp"
 #include "bb3d/render/Model.hpp"
+#include "bb3d/render/Texture.hpp"
 #include "bb3d/core/JsonSerializers.hpp" // GLM JSON serialization
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -19,6 +20,10 @@ namespace bb3d {
 class Entity; // Forward declaration
 
 using json = nlohmann::json;
+
+// --- Enums ---
+enum class BodyType { Static, Dynamic, Kinematic, Character };
+enum class LightType { Directional, Point, Spot };
 
 /** @brief Composant pour identifier une entité par un nom. */
 struct TagComponent {
@@ -81,7 +86,6 @@ struct MeshComponent {
     void deserialize(const json& j) {
         if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath);
         if (j.contains("color")) j.at("color").get_to(color);
-        // Note: Le rechargement du mesh via assetPath se fait généralement par le SceneSerializer
     }
 };
 
@@ -112,12 +116,142 @@ struct CameraComponent {
 
     void serialize(json& j) const {
         j["active"] = active;
-        // Todo: Sérialiser les propriétés internes de la caméra (FOV, Near, Far, etc.)
-        // Cela nécessiterait que la classe Camera elle-même soit sérialisable.
     }
 
     void deserialize(const json& j) {
         if (j.contains("active")) j.at("active").get_to(active);
+    }
+};
+
+/** @brief Composant Lumière. */
+struct LightComponent {
+    LightType type = LightType::Point;
+    glm::vec3 color = { 1.0f, 1.0f, 1.0f };
+    float intensity = 1.0f;
+    float range = 10.0f;
+    bool castShadows = false;
+
+    void serialize(json& j) const {
+        j["type"] = static_cast<int>(type);
+        j["color"] = color;
+        j["intensity"] = intensity;
+        j["range"] = range;
+        j["castShadows"] = castShadows;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("type")) type = static_cast<LightType>(j.at("type").get<int>());
+        if (j.contains("color")) j.at("color").get_to(color);
+        if (j.contains("intensity")) j.at("intensity").get_to(intensity);
+        if (j.contains("range")) j.at("range").get_to(range);
+        if (j.contains("castShadows")) j.at("castShadows").get_to(castShadows);
+    }
+};
+
+/** @brief Composant Physique RigidBody. */
+struct RigidBodyComponent {
+    BodyType type = BodyType::Static;
+    float mass = 1.0f;
+    float friction = 0.5f;
+    float restitution = 0.5f;
+
+    void serialize(json& j) const {
+        j["type"] = static_cast<int>(type);
+        j["mass"] = mass;
+        j["friction"] = friction;
+        j["restitution"] = restitution;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("type")) type = static_cast<BodyType>(j.at("type").get<int>());
+        if (j.contains("mass")) j.at("mass").get_to(mass);
+        if (j.contains("friction")) j.at("friction").get_to(friction);
+        if (j.contains("restitution")) j.at("restitution").get_to(restitution);
+    }
+};
+
+struct BoxColliderComponent {
+    glm::vec3 halfExtents = { 0.5f, 0.5f, 0.5f };
+    void serialize(json& j) const { j["halfExtents"] = halfExtents; }
+    void deserialize(const json& j) { if (j.contains("halfExtents")) j.at("halfExtents").get_to(halfExtents); }
+};
+
+struct SphereColliderComponent {
+    float radius = 0.5f;
+    void serialize(json& j) const { j["radius"] = radius; }
+    void deserialize(const json& j) { if (j.contains("radius")) j.at("radius").get_to(radius); }
+};
+
+struct CapsuleColliderComponent {
+    float radius = 0.5f;
+    float height = 1.0f;
+    void serialize(json& j) const { j["radius"] = radius; j["height"] = height; }
+    void deserialize(const json& j) { 
+        if (j.contains("radius")) j.at("radius").get_to(radius);
+        if (j.contains("height")) j.at("height").get_to(height);
+    }
+};
+
+/** @brief Composant Audio Source. */
+struct AudioSourceComponent {
+    std::string assetPath;
+    float volume = 1.0f;
+    float pitch = 1.0f;
+    bool loop = false;
+    bool spatial = true;
+
+    void serialize(json& j) const {
+        j["assetPath"] = assetPath;
+        j["volume"] = volume;
+        j["pitch"] = pitch;
+        j["loop"] = loop;
+        j["spatial"] = spatial;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath);
+        if (j.contains("volume")) j.at("volume").get_to(volume);
+        if (j.contains("pitch")) j.at("pitch").get_to(pitch);
+        if (j.contains("loop")) j.at("loop").get_to(loop);
+        if (j.contains("spatial")) j.at("spatial").get_to(spatial);
+    }
+};
+
+struct AudioListenerComponent {
+    bool active = true;
+    void serialize(json& j) const { j["active"] = active; }
+    void deserialize(const json& j) { if (j.contains("active")) j.at("active").get_to(active); }
+};
+
+/** @brief Composant Terrain. */
+struct TerrainComponent {
+    std::string heightmapPath;
+    glm::vec3 scale = { 100.0f, 10.0f, 100.0f };
+
+    void serialize(json& j) const {
+        j["heightmapPath"] = heightmapPath;
+        j["scale"] = scale;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("heightmapPath")) j.at("heightmapPath").get_to(heightmapPath);
+        if (j.contains("scale")) j.at("scale").get_to(scale);
+    }
+};
+
+/** @brief Composant Système de Particules. */
+struct ParticleSystemComponent {
+    std::string texturePath;
+    int maxParticles = 1000;
+
+    void serialize(json& j) const {
+        j["texturePath"] = texturePath;
+        j["maxParticles"] = maxParticles;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("texturePath")) j.at("texturePath").get_to(texturePath);
+        if (j.contains("maxParticles")) j.at("maxParticles").get_to(maxParticles);
     }
 };
 

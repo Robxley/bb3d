@@ -85,6 +85,9 @@ public:
     void SetActiveScene(Ref<Scene> scene) { m_ActiveScene = scene; }
     Ref<Scene> GetActiveScene() const { return m_ActiveScene; }
 
+    void exportScene(const std::string& filepath);
+    void importScene(const std::string& filepath);
+
 private:
     void Init();
     void Shutdown();

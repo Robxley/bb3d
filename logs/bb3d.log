@@ -1,10 +1,10 @@
-[2026-01-25 23:34:49.875] [CORE] [info] Logging System Initialized (Console: ON, File: ON)
-[2026-01-25 23:34:49.875] [CORE] [info] Engine: Initializing biobazard3d from memory config...
-[2026-01-25 23:34:49.876] [CORE] [info] JobSystem: Initialisation avec 8 threads (Work Stealing).
-[2026-01-25 23:34:50.012] [CORE] [info] Window created: 'BB3D - Hello World Simplified' (1280x720)
-[2026-01-25 23:34:50.065] [CORE] [info] VulkanContext: Instance Vulkan créée (Vulkan-Hpp).
-[2026-01-25 23:34:50.065] [CORE] [info] VulkanContext: Debug Messenger activé.
-[2026-01-25 23:34:50.069] [CORE] [info] VulkanContext: GPU sélectionné : NVIDIA GeForce RTX 3070 Laptop GPU
-[2026-01-25 23:34:50.123] [CORE] [info] VulkanContext: Initialisation terminée.
-[2026-01-25 23:34:50.143] [CORE] [info] Swapchain créée : 1280x720 (3)
-[2026-01-25 23:34:50.144] [CORE] [error] Shader: Impossible d'ouvrir assets/shaders/simple_3d.vert.spv
+[2026-01-30 23:45:58.681] [CORE] [info] Logging System Initialized (Console: ON, File: ON)
+[2026-01-30 23:45:58.682] [CORE] [info] Engine: Initializing biobazard3d from memory config...
+[2026-01-30 23:45:58.682] [CORE] [info] JobSystem: Initialisation avec 8 threads (Work Stealing).
+[2026-01-30 23:45:58.819] [CORE] [info] Window created: 'BB3D - Hello World 2.0 (OBJ + GLTF)' (1280x720)
+[2026-01-30 23:45:58.868] [CORE] [info] VulkanContext: Instance Vulkan créée (Vulkan-Hpp).
+[2026-01-30 23:45:58.868] [CORE] [info] VulkanContext: Debug Messenger activé.
+[2026-01-30 23:45:58.873] [CORE] [info] VulkanContext: GPU sélectionné : NVIDIA GeForce RTX 3070 Laptop GPU
+[2026-01-30 23:45:58.926] [CORE] [info] VulkanContext: Initialisation terminée.
+[2026-01-30 23:45:58.944] [CORE] [info] Swapchain créée : 1280x720 (3)
+[2026-01-30 23:45:58.957] [CORE] [error] Renderer: Vertex shader not found at assets/shaders/simple_3d.vert.spv

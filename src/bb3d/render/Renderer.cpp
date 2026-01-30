@@ -179,6 +179,19 @@ void Renderer::render(Scene& scene) {
         }
     }
 
+    // Dessiner toutes les entités avec ModelComponent
+    auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
+    for (auto entity : modelView) {
+        auto& modelComp = modelView.get<ModelComponent>(entity);
+        auto& transform = modelView.get<TransformComponent>(entity);
+
+        if (modelComp.model) {
+            glm::mat4 modelMat = transform.getTransform();
+            cb.pushConstants(m_defaultPipeline->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
+            modelComp.model->draw(cb);
+        }
+    }
+
     cb.endRendering();
 
     // Transition Color: Attachment -> Present

@@ -2,6 +2,7 @@
 #include "bb3d/core/Log.hpp"
 #include "bb3d/physics/PhysicsWorld.hpp"
 #include "bb3d/audio/AudioSystem.hpp"
+#include "bb3d/scene/SceneSerializer.hpp"
 #include <SDL3/SDL.h>
 #include <stdexcept>
 
@@ -185,6 +186,21 @@ void Engine::Render() {
     
     if (m_ActiveScene && m_Renderer) {
         m_Renderer->render(*m_ActiveScene);
+    }
+}
+
+void Engine::exportScene(const std::string& filepath) {
+    if (m_ActiveScene) {
+        SceneSerializer serializer(m_ActiveScene);
+        serializer.serialize(filepath);
+    }
+}
+
+void Engine::importScene(const std::string& filepath) {
+    auto scene = CreateScene();
+    SceneSerializer serializer(scene);
+    if (serializer.deserialize(filepath)) {
+        SetActiveScene(scene);
     }
 }
 

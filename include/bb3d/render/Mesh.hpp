@@ -55,10 +55,10 @@ public:
     Mesh(VulkanContext& context, 
          const std::vector<Vertex>& vertices, 
          const std::vector<uint32_t>& indices)
-         : m_indexCount(static_cast<uint32_t>(indices.size())) {
+         : m_context(context), m_vertices(vertices), m_indices(indices), m_indexCount(static_cast<uint32_t>(indices.size())) {
         
-        m_vertexBuffer = Buffer::CreateVertexBuffer(context, vertices.data(), vertices.size() * sizeof(Vertex));
-        m_indexBuffer = Buffer::CreateIndexBuffer(context, indices.data(), indices.size() * sizeof(uint32_t));
+        m_vertexBuffer = Buffer::CreateVertexBuffer(context, m_vertices.data(), m_vertices.size() * sizeof(Vertex));
+        m_indexBuffer = Buffer::CreateIndexBuffer(context, m_indices.data(), m_indices.size() * sizeof(uint32_t));
 
         for (const auto& v : vertices) {
             m_bounds.extend(v.position);
@@ -79,7 +79,23 @@ public:
         commandBuffer.drawIndexed(m_indexCount, 1, 0, 0, 0);
     }
 
+    std::vector<Vertex>& getVertices() { return m_vertices; }
+    
+    void updateVertices() {
+        // Re-création simple du buffer (Optimisation possible via Staging Buffer ou mapping)
+        m_vertexBuffer = Buffer::CreateVertexBuffer(m_context, m_vertices.data(), m_vertices.size() * sizeof(Vertex));
+        
+        // Recalcul des bounds
+        m_bounds = AABB();
+        for (const auto& v : m_vertices) {
+            m_bounds.extend(v.position);
+        }
+    }
+
 private:
+    VulkanContext& m_context;
+    std::vector<Vertex> m_vertices;
+    std::vector<uint32_t> m_indices;
     Scope<Buffer> m_vertexBuffer;
     Scope<Buffer> m_indexBuffer;
     uint32_t m_indexCount;

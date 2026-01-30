@@ -64,6 +64,41 @@ void Model::draw(vk::CommandBuffer commandBuffer) {
     }
 }
 
+void Model::normalize() {
+    if (m_meshes.empty()) return;
+
+    // 1. Calculer les bounds globaux actuels
+    AABB globalBounds;
+    for (const auto& mesh : m_meshes) {
+        globalBounds.extend(mesh->getBounds());
+    }
+
+    glm::vec3 center = globalBounds.center();
+    glm::vec3 size = globalBounds.size();
+    float maxDim = std::max({size.x, size.y, size.z});
+    
+    if (maxDim <= 0.0001f) return; // Éviter division par zéro
+
+    float scale = 1.0f / maxDim;
+
+    // 2. Appliquer la transformation à tous les sommets
+    for (auto& mesh : m_meshes) {
+        auto& vertices = mesh->getVertices();
+        for (auto& v : vertices) {
+            v.position = (v.position - center) * scale;
+        }
+        mesh->updateVertices();
+    }
+
+    // 3. Mettre à jour les bounds du modèle
+    m_bounds = AABB();
+    for (const auto& mesh : m_meshes) {
+        m_bounds.extend(mesh->getBounds());
+    }
+    
+    BB_CORE_INFO("Model: Normalized (Scale: {}, Center Offset: {}, {}, {})", scale, center.x, center.y, center.z);
+}
+
 void Model::loadOBJ(std::string_view path) {
     BB_CORE_INFO("Model: Loading OBJ {}", path);
 

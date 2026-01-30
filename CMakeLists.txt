@@ -184,6 +184,25 @@ add_executable(unit_test_00_infrastructure
 )
 target_link_libraries(unit_test_00_infrastructure PRIVATE biobazard3d)
 
+# --- Deploy Assets Target ---
+# Copies shaders and general assets to the binary output directory
+add_custom_target(DeployAssets DEPENDS CompileShaders)
+
+# 1. Deploy Shaders
+add_custom_command(TARGET DeployAssets POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_BINARY_DIR}/assets/shaders
+    $<TARGET_FILE_DIR:unit_test_00_infrastructure>/assets/shaders
+    COMMENT "Deploying shaders to output directory"
+)
+
+# 2. Deploy General Assets (Models, Textures)
+add_custom_command(TARGET DeployAssets POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/assets
+    $<TARGET_FILE_DIR:unit_test_00_infrastructure>/assets
+    COMMENT "Deploying general assets to output directory"
+)
 
 add_executable(unit_test_01_window
     tests/unit_test_01_window.cpp
@@ -211,50 +230,25 @@ add_executable(unit_test_04_hello_triangle
     tests/unit_test_04_hello_triangle.cpp
 )
 target_link_libraries(unit_test_04_hello_triangle PRIVATE biobazard3d)
-add_dependencies(unit_test_04_hello_triangle CompileShaders)
-
-# Copy shaders to executable directory
-add_custom_command(TARGET unit_test_04_hello_triangle POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_04_hello_triangle>/assets/shaders
-)
+add_dependencies(unit_test_04_hello_triangle DeployAssets)
 
 add_executable(unit_test_05_vertex_buffer
     tests/unit_test_05_vertex_buffer.cpp
 )
 target_link_libraries(unit_test_05_vertex_buffer PRIVATE biobazard3d)
-add_dependencies(unit_test_05_vertex_buffer CompileShaders)
-
-add_custom_command(TARGET unit_test_05_vertex_buffer POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_05_vertex_buffer>/assets/shaders
-)
+add_dependencies(unit_test_05_vertex_buffer DeployAssets)
 
 add_executable(unit_test_06_rotating_cube
     tests/unit_test_06_rotating_cube.cpp
 )
 target_link_libraries(unit_test_06_rotating_cube PRIVATE biobazard3d)
-add_dependencies(unit_test_06_rotating_cube CompileShaders)
-
-add_custom_command(TARGET unit_test_06_rotating_cube POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_06_rotating_cube>/assets/shaders
-)
+add_dependencies(unit_test_06_rotating_cube DeployAssets)
 
 add_executable(unit_test_07_texture_cube
     tests/unit_test_07_texture_cube.cpp
 )
 target_link_libraries(unit_test_07_texture_cube PRIVATE biobazard3d)
-add_dependencies(unit_test_07_texture_cube CompileShaders)
-
-add_custom_command(TARGET unit_test_07_texture_cube POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_07_texture_cube>/assets/shaders
-)
+add_dependencies(unit_test_07_texture_cube DeployAssets)
 
 add_executable(unit_test_08_core_systems
     tests/unit_test_08_core_systems.cpp
@@ -266,36 +260,14 @@ add_executable(unit_test_10_obj_loader
     tests/unit_test_10_obj_loader.cpp
 )
 target_link_libraries(unit_test_10_obj_loader PRIVATE biobazard3d)
-add_dependencies(unit_test_10_obj_loader CompileShaders)
-
-add_custom_command(TARGET unit_test_10_obj_loader POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_10_obj_loader>/assets/shaders
-)
-add_custom_command(TARGET unit_test_10_obj_loader POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/assets
-    $<TARGET_FILE_DIR:unit_test_10_obj_loader>/assets
-)
+add_dependencies(unit_test_10_obj_loader DeployAssets)
 
 # --- Unit Test 11: GLTF Loader (Box) ---
 add_executable(unit_test_11_gltf_loader
     tests/unit_test_11_gltf_loader.cpp
 )
 target_link_libraries(unit_test_11_gltf_loader PRIVATE biobazard3d)
-add_dependencies(unit_test_11_gltf_loader CompileShaders)
-
-add_custom_command(TARGET unit_test_11_gltf_loader POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_11_gltf_loader>/assets/shaders
-)
-add_custom_command(TARGET unit_test_11_gltf_loader POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/assets
-    $<TARGET_FILE_DIR:unit_test_11_gltf_loader>/assets
-)
+add_dependencies(unit_test_11_gltf_loader DeployAssets)
 
 # --- Unit Test 12: ECS & Scene ---
 add_executable(unit_test_12_ecs
@@ -314,42 +286,20 @@ add_executable(unit_test_14_interactive_cameras
     tests/unit_test_14_interactive_cameras.cpp
 )
 target_link_libraries(unit_test_14_interactive_cameras PRIVATE biobazard3d)
-add_dependencies(unit_test_14_interactive_cameras CompileShaders)
-
-add_custom_command(TARGET unit_test_14_interactive_cameras POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_14_interactive_cameras>/assets/shaders
-)
-add_custom_command(TARGET unit_test_14_interactive_cameras POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/assets/textures
-    $<TARGET_FILE_DIR:unit_test_14_interactive_cameras>/assets/textures
-)
+add_dependencies(unit_test_14_interactive_cameras DeployAssets)
 
 # --- Unit Test 15: Hello World Simplified ---
 add_executable(unit_test_15_hello_world
     tests/unit_test_15_hello_world.cpp
 )
 target_link_libraries(unit_test_15_hello_world PRIVATE biobazard3d)
-add_dependencies(unit_test_15_hello_world CompileShaders)
-
-add_custom_command(TARGET unit_test_15_hello_world POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_15_hello_world>/assets/shaders
-)
+add_dependencies(unit_test_15_hello_world DeployAssets)
 
 add_executable(unit_test_09_resource_manager
     tests/unit_test_09_resource_manager.cpp
 )
 target_link_libraries(unit_test_09_resource_manager PRIVATE biobazard3d)
-
-add_custom_command(TARGET unit_test_09_resource_manager POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/assets
-    $<TARGET_FILE_DIR:unit_test_09_resource_manager>/assets
-)
+add_dependencies(unit_test_09_resource_manager DeployAssets)
 
 # --- CTest Registration ---
 enable_testing()

@@ -123,12 +123,12 @@
         <div class="column">
             <div class="column-header col-done">
                 <span>Terminé ✅</span>
-                <span id="count-done">8</span>
+                <span id="count-done">11</span>
             </div>
             
             <div class="card priority-low">
                 <span class="card-title">Architecture Core</span>
-                <div class="card-desc">Engine, Config, Log, JobSystem, EventBus implémentés et fonctionnels.</div>
+                <div class="card-desc">Engine, Config (Fluent), Log, JobSystem, EventBus.</div>
                 <div class="tags"><span class="tag">Core</span></div>
             </div>
 
@@ -158,20 +158,32 @@
 
             <div class="card priority-low">
                 <span class="card-title">ECS Setup</span>
-                <div class="card-desc">Intégration EnTT et composants de base.</div>
+                <div class="card-desc">Intégration EnTT.</div>
                 <div class="tags"><span class="tag">Scene</span></div>
             </div>
 
             <div class="card priority-med">
-                <span class="card-title">Sérialisation Composants</span>
-                <div class="card-desc">Hooks `serialize/deserialize` ajoutés aux composants.</div>
+                <span class="card-title">Composants & Sérialisation</span>
+                <div class="card-desc">Tous les composants (Physique, Audio, Light...) définis avec hooks JSON.</div>
                 <div class="tags"><span class="tag">Scene</span><span class="tag">Data</span></div>
+            </div>
+
+             <div class="card priority-high">
+                <span class="card-title">Scene Serializer</span>
+                <div class="card-desc">Export/Import complet de la scène en JSON.</div>
+                <div class="tags"><span class="tag">Scene</span><span class="tag">IO</span></div>
             </div>
 
             <div class="card priority-med">
                 <span class="card-title">Architecture Modules</span>
                 <div class="card-desc">Intégration propre (Stubs) de AudioSystem et PhysicsWorld dans Engine.</div>
                 <div class="tags"><span class="tag">Core</span></div>
+            </div>
+            
+             <div class="card priority-high">
+                <span class="card-title">Système de Build</span>
+                <div class="card-desc">Correction concurrence CMake (DeployAssets).</div>
+                <div class="tags"><span class="tag">DevOps</span></div>
             </div>
         </div>
 
@@ -181,25 +193,19 @@
                 <span>En Cours 🚧</span>
                 <span id="count-progress">0</span>
             </div>
-            <!-- Actuellement rien n'est "activement" en cours de modification par l'agent, tout a été commité -->
-             <div class="card priority-high">
-                <span class="card-title">Stabilisation Build</span>
-                <div class="card-desc">Correction warnings compilation et erreurs linkage.</div>
-                <div class="tags"><span class="tag">DevOps</span></div>
-            </div>
         </div>
 
         <!-- TODO -->
         <div class="column">
             <div class="column-header col-todo">
                 <span>À Faire (Next) 📋</span>
-                <span id="count-todo">4</span>
+                <span id="count-todo">8</span>
             </div>
-
+            
             <div class="card priority-high">
-                <span class="card-title">Scene Serializer</span>
-                <div class="card-desc">Implémenter `SceneSerializer` pour sauver la scène en JSON sur le disque.</div>
-                <div class="tags"><span class="tag">Scene</span><span class="tag">IO</span></div>
+                <span class="card-title">Entity Fluent API</span>
+                <div class="card-desc">Permettre le chaînage <code>.add().at().tag()</code> dans <code>Entity.hpp</code>.</div>
+                <div class="tags"><span class="tag">Scene</span><span class="tag">API</span></div>
             </div>
 
             <div class="card priority-high">
@@ -219,13 +225,37 @@
                 <div class="card-desc">Remplacer `simple_3d` par un shader compatible PBR (Metallic/Roughness).</div>
                 <div class="tags"><span class="tag">Render</span></div>
             </div>
+
+            <div class="card priority-high">
+                <span class="card-title">API Simplifiée</span>
+                <div class="card-desc">Créer des méthodes de création rapide et des builders dédiés pour réduire la verbosité.</div>
+                <div class="tags"><span class="tag">API</span><span class="tag">UX</span></div>
+            </div>
+
+            <div class="card priority-med">
+                <span class="card-title">Valeurs par Défaut</span>
+                <div class="card-desc">Implémenter des valeurs par défaut intelligentes pour réduire la configuration minimale.</div>
+                <div class="tags"><span class="tag">Core</span><span class="tag">API</span></div>
+            </div>
+
+            <div class="card priority-med">
+                <span class="card-title">Système de Préréglages</span>
+                <div class="card-desc">Ajouter des préréglages pour les entités courantes (joueur, lumière, etc.).</div>
+                <div class="tags"><span class="tag">Scene</span><span class="tag">API</span></div>
+            </div>
+
+            <div class="card priority-low">
+                <span class="card-title">Documentation API</span>
+                <div class="card-desc">Mettre à jour la documentation avec les nouvelles méthodes simplifiées.</div>
+                <div class="tags"><span class="tag">Docs</span></div>
+            </div>
         </div>
 
         <!-- BACKLOG -->
         <div class="column">
             <div class="column-header col-backlog">
                 <span>Backlog / Futur 🔮</span>
-                <span id="count-backlog">4</span>
+                <span id="count-backlog">6</span>
             </div>
 
             <div class="card priority-med">
@@ -251,11 +281,23 @@
                 <div class="card-desc">Étendre NativeScript vers un langage de script complet.</div>
                 <div class="tags"><span class="tag">Gameplay</span></div>
             </div>
+
+            <div class="card priority-med">
+                <span class="card-title">Optimisation API</span>
+                <div class="card-desc">Analyser et optimiser les performances des nouvelles méthodes d'API.</div>
+                <div class="tags"><span class="tag">Perf</span><span class="tag">API</span></div>
+            </div>
+
+            <div class="card priority-low">
+                <span class="card-title">Exemples Complets</span>
+                <div class="card-desc">Créer des exemples de démonstration utilisant les nouvelles API simplifiées.</div>
+                <div class="tags"><span class="tag">Docs</span><span class="tag">Samples</span></div>
+            </div>
         </div>
     </div>
 
     <div class="meta">
-        Dernière mise à jour : 30 Janvier 2026 - Généré par Gemini CLI Agent
+        Dernière mise à jour : 15 Juin 2024 - Mise à jour par l'Agent IA après revue de code
     </div>
 
 </body>
