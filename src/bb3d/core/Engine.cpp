@@ -118,8 +118,13 @@ void Engine::Shutdown() {
     }
 
     m_ActiveScene.reset();
-    m_ResourceManager.reset();
-    m_Renderer.reset();
+    
+    m_Renderer.reset(); // On détruit le Renderer d'abord car il possède bcp de ressources VMA
+
+    if (m_ResourceManager) {
+        m_ResourceManager->clearCache();
+        m_ResourceManager.reset();
+    }
     
     Material::Cleanup(); // Libérer les textures par défaut
 

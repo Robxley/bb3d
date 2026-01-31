@@ -7,6 +7,12 @@
 namespace bb3d {
 
     enum class PhysicsBackend { None, Jolt };
+
+    NLOHMANN_JSON_SERIALIZE_ENUM(PhysicsBackend, {
+        {PhysicsBackend::None, "none"},
+        {PhysicsBackend::Jolt, "jolt"}
+    })
+
     enum class FogType { None, Linear, Exponential, ExponentialHeight };
 
     struct WindowConfig {

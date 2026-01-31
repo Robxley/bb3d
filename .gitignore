@@ -9,3 +9,5 @@ CMakeUserPresets.json
 # Assets (binary files, generated models, etc.)
 assets/
 temp_textures/
+# Compiled Shaders
+*.spv

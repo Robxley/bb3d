@@ -28,6 +28,7 @@ PBRMaterial::PBRMaterial(VulkanContext& context) : Material(context) {
     m_aoMap = s_defaultWhite; m_emissiveMap = s_defaultBlack;
     m_paramBuffer = CreateScope<UniformBuffer>(context, sizeof(PBRParameters));
 }
+PBRMaterial::~PBRMaterial() { m_paramBuffer.reset(); }
 vk::DescriptorSetLayout PBRMaterial::CreateLayout(vk::Device device) {
     std::vector<vk::DescriptorSetLayoutBinding> b = {
         {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment},
@@ -63,10 +64,17 @@ void PBRMaterial::updateDescriptorSet() {
 }
 
 // --- UnlitMaterial ---
-UnlitMaterial::UnlitMaterial(VulkanContext& context) : Material(context) { InitDefaults(context); m_baseMap = s_defaultWhite; }
+UnlitMaterial::UnlitMaterial(VulkanContext& context) : Material(context) { 
+    InitDefaults(context); m_baseMap = s_defaultWhite; 
+    m_paramBuffer = CreateScope<UniformBuffer>(context, sizeof(UnlitParameters));
+}
+UnlitMaterial::~UnlitMaterial() { m_paramBuffer.reset(); }
 vk::DescriptorSetLayout UnlitMaterial::CreateLayout(vk::Device device) {
-    vk::DescriptorSetLayoutBinding b(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
-    return device.createDescriptorSetLayout({ {}, 1, &b });
+    std::vector<vk::DescriptorSetLayoutBinding> b = {
+        {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment},
+        {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}
+    };
+    return device.createDescriptorSetLayout({ {}, (uint32_t)b.size(), b.data() });
 }
 vk::DescriptorSet UnlitMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
     if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
@@ -74,16 +82,28 @@ vk::DescriptorSet UnlitMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::D
     return m_set;
 }
 void UnlitMaterial::updateDescriptorSet() {
-    vk::DescriptorImageInfo i(m_baseMap->getSampler(), m_baseMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-    vk::WriteDescriptorSet w(m_set, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &i);
-    m_context.getDevice().updateDescriptorSets(1, &w, 0, nullptr);
+    m_paramBuffer->update(&m_parameters, sizeof(UnlitParameters));
+    vk::DescriptorBufferInfo bInfo(m_paramBuffer->getHandle(), 0, sizeof(UnlitParameters));
+    vk::DescriptorImageInfo iInfo(m_baseMap->getSampler(), m_baseMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    std::vector<vk::WriteDescriptorSet> writes = {
+        { m_set, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo },
+        { m_set, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfo }
+    };
+    m_context.getDevice().updateDescriptorSets(writes, {});
 }
 
 // --- ToonMaterial ---
-ToonMaterial::ToonMaterial(VulkanContext& context) : Material(context) { InitDefaults(context); m_baseMap = s_defaultWhite; }
+ToonMaterial::ToonMaterial(VulkanContext& context) : Material(context) { 
+    InitDefaults(context); m_baseMap = s_defaultWhite; 
+    m_paramBuffer = CreateScope<UniformBuffer>(context, sizeof(ToonParameters));
+}
+ToonMaterial::~ToonMaterial() { m_paramBuffer.reset(); }
 vk::DescriptorSetLayout ToonMaterial::CreateLayout(vk::Device device) {
-    vk::DescriptorSetLayoutBinding b(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
-    return device.createDescriptorSetLayout({ {}, 1, &b });
+    std::vector<vk::DescriptorSetLayoutBinding> b = {
+        {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment},
+        {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}
+    };
+    return device.createDescriptorSetLayout({ {}, (uint32_t)b.size(), b.data() });
 }
 vk::DescriptorSet ToonMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
     if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
@@ -91,13 +111,19 @@ vk::DescriptorSet ToonMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::De
     return m_set;
 }
 void ToonMaterial::updateDescriptorSet() {
-    vk::DescriptorImageInfo i(m_baseMap->getSampler(), m_baseMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-    vk::WriteDescriptorSet w(m_set, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &i);
-    m_context.getDevice().updateDescriptorSets(1, &w, 0, nullptr);
+    m_paramBuffer->update(&m_parameters, sizeof(ToonParameters));
+    vk::DescriptorBufferInfo bInfo(m_paramBuffer->getHandle(), 0, sizeof(ToonParameters));
+    vk::DescriptorImageInfo iInfo(m_baseMap->getSampler(), m_baseMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    std::vector<vk::WriteDescriptorSet> writes = {
+        { m_set, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo },
+        { m_set, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfo }
+    };
+    m_context.getDevice().updateDescriptorSets(writes, {});
 }
 
 // --- SkyboxMaterial ---
 SkyboxMaterial::SkyboxMaterial(VulkanContext& context) : Material(context) { InitDefaults(context); }
+SkyboxMaterial::~SkyboxMaterial() {}
 vk::DescriptorSetLayout SkyboxMaterial::CreateLayout(vk::Device device) {
     vk::DescriptorSetLayoutBinding b(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
     return device.createDescriptorSetLayout({ {}, 1, &b });
@@ -116,6 +142,7 @@ void SkyboxMaterial::updateDescriptorSet() {
 
 // --- SkySphereMaterial ---
 SkySphereMaterial::SkySphereMaterial(VulkanContext& context) : Material(context) { InitDefaults(context); m_texture = s_defaultWhite; }
+SkySphereMaterial::~SkySphereMaterial() {}
 vk::DescriptorSetLayout SkySphereMaterial::CreateLayout(vk::Device device) {
     vk::DescriptorSetLayoutBinding b(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
     return device.createDescriptorSetLayout({ {}, 1, &b });

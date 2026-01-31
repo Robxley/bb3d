@@ -117,6 +117,20 @@ Ces classes sont manipulées directement par l'utilisateur du moteur. **Elles do
 
 Pour optimiser la bande passante mémoire (Bandwidth) et le Vertex Fetch, le moteur supporte plusieurs layouts de sommets. L'utilisation d'une structure "Uber-Vertex" unique est proscrite pour la production.
 
+### **Standard Vertex Layout (SSOT)**
+
+Pour garantir la cohérence entre le C++ (`bb3d::VertexLayout`) et le GLSL, le moteur préconise le layout suivant pour tous les shaders standard (PBR, Unlit, Toon). Bien que non obligatoire pour les pipelines personnalisés bas niveau, le respect de cette norme facilite l'intégration avec `bb3d::Vertex`.
+
+| Attribut | Location | Type GLSL | Type C++ | Description |
+|----------|----------|-----------|----------|-------------|
+| **Position** | `0` | `vec3` | `glm::vec3` | Position du sommet (Model Space) |
+| **Normal** | `1` | `vec3` | `glm::vec3` | Normale du sommet |
+| **Color** | `2` | `vec3` | `glm::vec3` | Couleur du sommet (Vertex Color) |
+| **UV** | `3` | `vec2` | `glm::vec2` | Coordonnées de texture |
+| **Tangent** | `4` | `vec4` | `glm::vec4` | Tangente (xyz) + Signe bitangent (w) |
+| **Joints** | `5` | `uvec4`| `glm::ivec4`| Indices des os (Skinning) |
+| **Weights** | `6` | `vec4` | `glm::vec4` | Poids des os (Skinning) |
+
 * **Système Flexible :** * Implémenter un mécanisme (Traits ou Templates) pour générer automatiquement les VkVertexInputAttributeDescription et VkVertexInputBindingDescription.  
 * **Formats Standards Suggérés :** * **VertexPos :** Uniquement position (pour Shadow Maps, Z-Prepass, Collisions).  
   * **VertexStatic (Standard PBR) :** position, normal, uv, tangent (calculé si besoin).  

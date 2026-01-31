@@ -147,6 +147,15 @@ foreach(SHADER ${SHADERS})
     set(SPV_OUTPUT "${SHADER_BUILD_DIR}/${FILENAME}.spv")
     compile_shader(${SHADER} ${SPV_OUTPUT})
     list(APPEND SPV_SHADERS ${SPV_OUTPUT})
+
+    # [DEV CONVENIENCE] Copy compiled shader back to source directory
+    # allows running executables from project root without cd build/Debug
+    add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv"
+        COMMAND ${CMAKE_COMMAND} -E copy ${SPV_OUTPUT} "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv"
+        DEPENDS ${SPV_OUTPUT}
+        COMMENT "Updating source asset: ${FILENAME}.spv"
+    )
+    list(APPEND SPV_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv")
 endforeach()
 
 add_custom_target(CompileShaders ALL DEPENDS ${SPV_SHADERS})
@@ -325,6 +334,13 @@ add_executable(unit_test_17_skybox
 target_link_libraries(unit_test_17_skybox PRIVATE biobazard3d)
 add_dependencies(unit_test_17_skybox DeployAssets)
 
+# --- Demo Engine ---
+add_executable(demo_engine
+    tests/demo_engine.cpp
+)
+target_link_libraries(demo_engine PRIVATE biobazard3d)
+add_dependencies(demo_engine DeployAssets)
+
 # --- CTest Registration ---
 enable_testing()
 
@@ -346,12 +362,13 @@ add_test(NAME InteractiveCameras COMMAND unit_test_14_interactive_cameras)
 add_test(NAME HelloWorld COMMAND unit_test_15_hello_world)
 add_test(NAME Materials COMMAND unit_test_16_materials)
 add_test(NAME Skybox COMMAND unit_test_17_skybox)
+add_test(NAME Demo COMMAND demo_engine)
 
 # Set working directory for tests to find assets
 set_tests_properties(
     Infrastructure Window VulkanInit SwapChain HelloTriangle VertexBuffer 
     RotatingCube TextureCube CoreSystems ResourceManager ObjLoader GltfLoader 
-    ECS Camera InteractiveCameras HelloWorld Materials Skybox
+    ECS Camera InteractiveCameras HelloWorld Materials Skybox Demo
     PROPERTIES WORKING_DIRECTORY $<TARGET_FILE_DIR:unit_test_00_infrastructure>
 )
 

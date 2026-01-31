@@ -52,6 +52,9 @@ public:
     static Engine& Get();
 
     void Run();
+    void Shutdown();
+
+    // Accesseurs aux systèmes core
     void Stop();
 
     /** @name Accesseurs Haut Niveau (Aliases)
@@ -90,7 +93,6 @@ public:
 
 private:
     void Init();
-    void Shutdown();
     void Update(float deltaTime);
     void Render();
 

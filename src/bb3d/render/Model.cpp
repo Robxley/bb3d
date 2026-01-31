@@ -2,6 +2,7 @@
 #include "bb3d/core/Log.hpp"
 #include "bb3d/resource/ResourceManager.hpp"
 #include "bb3d/render/Texture.hpp"
+#include "bb3d/render/Material.hpp"
 
 #pragma warning(push, 0)
 #include <fastgltf/core.hpp>
@@ -70,39 +71,26 @@ void Model::draw(vk::CommandBuffer commandBuffer) {
 void Model::normalize(const glm::vec3& targetSize) {
     if (m_meshes.empty()) return;
 
-    // 1. Calculer les bounds globaux actuels
     AABB globalBounds;
-    for (const auto& mesh : m_meshes) {
-        globalBounds.extend(mesh->getBounds());
-    }
+    for (const auto& mesh : m_meshes) globalBounds.extend(mesh->getBounds());
 
     glm::vec3 center = globalBounds.center();
     glm::vec3 size = globalBounds.size();
     
-    // Calcul de l'échelle pour tenir dans targetSize (Uniform scaling)
     float scaleX = (size.x > 0.0001f) ? targetSize.x / size.x : std::numeric_limits<float>::max();
     float scaleY = (size.y > 0.0001f) ? targetSize.y / size.y : std::numeric_limits<float>::max();
     float scaleZ = (size.z > 0.0001f) ? targetSize.z / size.z : std::numeric_limits<float>::max();
-
     float scale = std::min({scaleX, scaleY, scaleZ});
-    
-    if (scale == std::numeric_limits<float>::max()) scale = 1.0f; // Fallback si taille nulle
+    if (scale == std::numeric_limits<float>::max()) scale = 1.0f;
 
-    // 2. Appliquer la transformation à tous les sommets
     for (auto& mesh : m_meshes) {
         auto& vertices = mesh->getVertices();
-        for (auto& v : vertices) {
-            v.position = (v.position - center) * scale;
-        }
+        for (auto& v : vertices) v.position = (v.position - center) * scale;
         mesh->updateVertices();
     }
 
-    // 3. Mettre à jour les bounds du modèle
     m_bounds = AABB();
-    for (const auto& mesh : m_meshes) {
-        m_bounds.extend(mesh->getBounds());
-    }
-    
+    for (const auto& mesh : m_meshes) m_bounds.extend(mesh->getBounds());
     BB_CORE_INFO("Model: Normalized (Scale: {}, Center Offset: {}, {}, {})", scale, center.x, center.y, center.z);
 }
 
@@ -122,6 +110,23 @@ void Model::loadOBJ(std::string_view path) {
         throw std::runtime_error("tinyobjloader error: " + err);
     }
 
+    // 1. Charger les matériaux
+    std::vector<Ref<Material>> modelMaterials;
+    for (const auto& m : materials) {
+        auto mat = CreateRef<UnlitMaterial>(m_context);
+        
+        if (!m.diffuse_texname.empty()) {
+            std::string texPath = baseDir + m.diffuse_texname;
+            try {
+                mat->setBaseMap(m_resourceManager.load<Texture>(texPath, true));
+            } catch (...) { BB_CORE_WARN("Model: Failed to load OBJ texture {}", texPath); }
+        }
+        
+        mat->setColor(glm::vec3(m.diffuse[0], m.diffuse[1], m.diffuse[2]));
+        modelMaterials.push_back(mat);
+    }
+
+    // 2. Traiter les géométries
     for (const auto& shape : shapes) {
         std::vector<Vertex> vertices;
         std::vector<uint32_t> indices;
@@ -129,40 +134,14 @@ void Model::loadOBJ(std::string_view path) {
 
         for (const auto& index : shape.mesh.indices) {
             Vertex vertex{};
-            vertex.position = {
-                attrib.vertices[3 * index.vertex_index + 0],
-                attrib.vertices[3 * index.vertex_index + 1],
-                attrib.vertices[3 * index.vertex_index + 2]
-            };
-
-            if (index.texcoord_index >= 0) {
-                vertex.uv = {
-                    attrib.texcoords[2 * index.texcoord_index + 0],
-                    1.0f - attrib.texcoords[2 * index.texcoord_index + 1]
-                };
-            }
-
-            if (index.normal_index >= 0) {
-                vertex.normal = {
-                    attrib.normals[3 * index.normal_index + 0],
-                    attrib.normals[3 * index.normal_index + 1],
-                    attrib.normals[3 * index.normal_index + 2]
-                };
-            } else {
-                vertex.normal = {0.0f, 1.0f, 0.0f};
-            }
-
-            vertex.tangent = {1.0f, 0.0f, 0.0f, 1.0f}; // Default tangent for OBJ
-
-            if (!attrib.colors.empty()) {
-                vertex.color = {
-                    attrib.colors[3 * index.vertex_index + 0],
-                    attrib.colors[3 * index.vertex_index + 1],
-                    attrib.colors[3 * index.vertex_index + 2]
-                };
-            } else {
-                vertex.color = {1.0f, 1.0f, 1.0f};
-            }
+            vertex.position = { attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1], attrib.vertices[3 * index.vertex_index + 2] };
+            if (index.texcoord_index >= 0) vertex.uv = { attrib.texcoords[2 * index.texcoord_index + 0], attrib.texcoords[2 * index.texcoord_index + 1] };
+            if (index.normal_index >= 0) vertex.normal = { attrib.normals[3 * index.normal_index + 0], attrib.normals[3 * index.normal_index + 1], attrib.normals[3 * index.normal_index + 2] };
+            else vertex.normal = {0.0f, 1.0f, 0.0f};
+            vertex.tangent = {1.0f, 0.0f, 0.0f, 1.0f};
+            
+            // Force vertex color to white for OBJ to avoid multiplication by black if colors are missing/zero
+            vertex.color = {1.0f, 1.0f, 1.0f}; 
 
             if (uniqueVertices.count(vertex) == 0) {
                 uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
@@ -172,6 +151,14 @@ void Model::loadOBJ(std::string_view path) {
         }
 
         auto mesh = CreateScope<Mesh>(m_context, vertices, indices);
+        
+        if (!shape.mesh.material_ids.empty() && shape.mesh.material_ids[0] >= 0) {
+            size_t matId = static_cast<size_t>(shape.mesh.material_ids[0]);
+            if (matId < modelMaterials.size()) {
+                mesh->setMaterial(modelMaterials[matId]);
+            }
+        }
+
         m_bounds.extend(mesh->getBounds());
         m_meshes.push_back(std::move(mesh));
     }
@@ -182,31 +169,21 @@ void Model::loadGLTF(std::string_view path) {
     BB_CORE_INFO("Model: Loading GLTF {}", absPath.string());
 
     fastgltf::Parser parser;
-    constexpr auto options = fastgltf::Options::DontRequireValidAssetMember | 
-                             fastgltf::Options::LoadExternalBuffers |
-                             fastgltf::Options::LoadExternalImages;
+    constexpr auto options = fastgltf::Options::DontRequireValidAssetMember | fastgltf::Options::LoadExternalBuffers | fastgltf::Options::LoadExternalImages;
 
     auto data = fastgltf::GltfDataBuffer::FromPath(absPath);
     if (data.error() != fastgltf::Error::None) throw std::runtime_error("GLTF: Failed to load file");
 
     auto type = fastgltf::determineGltfFileType(data.get());
-    auto asset = (type == fastgltf::GltfType::GLB) 
-        ? parser.loadGltfBinary(data.get(), absPath.parent_path(), options)
-        : parser.loadGltf(data.get(), absPath.parent_path(), options);
-
+    auto asset = (type == fastgltf::GltfType::GLB) ? parser.loadGltfBinary(data.get(), absPath.parent_path(), options) : parser.loadGltf(data.get(), absPath.parent_path(), options);
     if (asset.error() != fastgltf::Error::None) throw std::runtime_error("GLTF: Parse error");
 
     const auto& gltf = asset.get();
 
-    // Textures
     for (const auto& image : gltf.images) {
         auto texture = std::visit(fastgltf::visitor {
-            [&](const fastgltf::sources::Vector& vector) -> Ref<Texture> {
-                return CreateRef<Texture>(m_context, std::span<const std::byte>(reinterpret_cast<const std::byte*>(vector.bytes.data()), vector.bytes.size()));
-            },
-            [&](const fastgltf::sources::ByteView& byteView) -> Ref<Texture> {
-                return CreateRef<Texture>(m_context, std::span<const std::byte>(reinterpret_cast<const std::byte*>(byteView.bytes.data()), byteView.bytes.size()));
-            },
+            [&](const fastgltf::sources::Vector& vector) -> Ref<Texture> { return CreateRef<Texture>(m_context, std::span<const std::byte>(reinterpret_cast<const std::byte*>(vector.bytes.data()), vector.bytes.size())); },
+            [&](const fastgltf::sources::ByteView& byteView) -> Ref<Texture> { return CreateRef<Texture>(m_context, std::span<const std::byte>(reinterpret_cast<const std::byte*>(byteView.bytes.data()), byteView.bytes.size())); },
             [&](const fastgltf::sources::BufferView& view) -> Ref<Texture> {
                 auto& bv = gltf.bufferViews[view.bufferViewIndex];
                 const std::byte* ptr = getBufferData(gltf.buffers[bv.bufferIndex]);
@@ -217,7 +194,6 @@ void Model::loadGLTF(std::string_view path) {
         m_textures.push_back(texture);
     }
 
-    // Meshes
     for (const auto& mesh : gltf.meshes) {
         for (const auto& primitive : mesh.primitives) {
             std::vector<Vertex> vertices;
@@ -234,54 +210,36 @@ void Model::loadGLTF(std::string_view path) {
                 auto& accessor = gltf.accessors[posAttr->accessorIndex];
                 vertices.resize(accessor.count);
                 fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, accessor, [&](glm::vec3 pos, size_t i) {
-                    vertices[i].position = pos;
-                    vertices[i].color = {1.0f, 1.0f, 1.0f};
-                    vertices[i].normal = {0.0f, 1.0f, 0.0f}; // Default
-                    vertices[i].tangent = {1.0f, 0.0f, 0.0f, 1.0f}; // Default
+                    vertices[i].position = pos; vertices[i].color = {1.0f, 1.0f, 1.0f}; vertices[i].normal = {0.0f, 1.0f, 0.0f}; vertices[i].tangent = {1.0f, 0.0f, 0.0f, 1.0f};
                 });
             }
 
             const auto* normAttr = primitive.findAttribute("NORMAL");
             if (normAttr != primitive.attributes.end()) {
-                fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, gltf.accessors[normAttr->accessorIndex], [&](glm::vec3 norm, size_t i) {
-                    vertices[i].normal = norm;
-                });
+                fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, gltf.accessors[normAttr->accessorIndex], [&](glm::vec3 norm, size_t i) { vertices[i].normal = norm; });
             }
 
             const auto* tanAttr = primitive.findAttribute("TANGENT");
             if (tanAttr != primitive.attributes.end()) {
-                fastgltf::iterateAccessorWithIndex<glm::vec4>(gltf, gltf.accessors[tanAttr->accessorIndex], [&](glm::vec4 tan, size_t i) {
-                    vertices[i].tangent = tan;
-                });
+                fastgltf::iterateAccessorWithIndex<glm::vec4>(gltf, gltf.accessors[tanAttr->accessorIndex], [&](glm::vec4 tan, size_t i) { vertices[i].tangent = tan; });
             }
 
             const auto* uvAttr = primitive.findAttribute("TEXCOORD_0");
             if (uvAttr != primitive.attributes.end()) {
-                fastgltf::iterateAccessorWithIndex<glm::vec2>(gltf, gltf.accessors[uvAttr->accessorIndex], [&](glm::vec2 uv, size_t i) {
-                    vertices[i].uv = uv;
-                });
+                fastgltf::iterateAccessorWithIndex<glm::vec2>(gltf, gltf.accessors[uvAttr->accessorIndex], [&](glm::vec2 uv, size_t i) { vertices[i].uv = uv; });
             }
 
             auto newMesh = CreateScope<Mesh>(m_context, vertices, indices);
             
-            // Texture Assignment
             if (primitive.materialIndex.has_value()) {
                 const auto& material = gltf.materials[primitive.materialIndex.value()];
                 if (material.pbrData.baseColorTexture.has_value()) {
                     size_t textureInfoIndex = material.pbrData.baseColorTexture.value().textureIndex;
-                    // Note: fastgltf textureIndex points to a Texture object, which points to an Image index.
-                    // But here m_textures stores images directly as fastgltf::Image ~ Texture.
-                    // Wait, standard GLTF: Texture refers to Image + Sampler.
-                    // fastgltf: gltf.textures[index].imageIndex
-                    
                     if (textureInfoIndex < gltf.textures.size()) {
                         auto& texInfo = gltf.textures[textureInfoIndex];
                         if (texInfo.imageIndex.has_value()) {
                             size_t imageIndex = texInfo.imageIndex.value();
-                            if (imageIndex < m_textures.size()) {
-                                newMesh->setTexture(m_textures[imageIndex]);
-                                BB_CORE_TRACE("Model: Assigned texture {} to mesh", imageIndex);
-                            }
+                            if (imageIndex < m_textures.size()) newMesh->setTexture(m_textures[imageIndex]);
                         }
                     }
                 }

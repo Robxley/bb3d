@@ -56,6 +56,10 @@ struct TransformComponent {
                glm::scale(glm::mat4(1.0f), scale);
     }
 
+    [[nodiscard]] inline glm::vec3 getForward() const { return glm::rotate(glm::quat(rotation), glm::vec3(0.0f, 0.0f, -1.0f)); }
+    [[nodiscard]] inline glm::vec3 getUp() const { return glm::rotate(glm::quat(rotation), glm::vec3(0.0f, 1.0f, 0.0f)); }
+    [[nodiscard]] inline glm::vec3 getRight() const { return glm::rotate(glm::quat(rotation), glm::vec3(1.0f, 0.0f, 0.0f)); }
+
     void serialize(json& j) const {
         j["translation"] = translation;
         j["rotation"] = rotation;

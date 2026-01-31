@@ -9,6 +9,18 @@
 
 namespace bb3d {
 
+struct VertexLayout {
+    static constexpr uint32_t Position = 0;
+    static constexpr uint32_t Normal   = 1;
+    static constexpr uint32_t Color    = 2;
+    static constexpr uint32_t UV       = 3;
+    static constexpr uint32_t Tangent  = 4;
+    
+    // Réservé pour l'animation (Skinning)
+    static constexpr uint32_t Joints   = 5;
+    static constexpr uint32_t Weights  = 6;
+};
+
 struct Vertex {
     glm::vec3 position;
     glm::vec3 normal;
@@ -32,27 +44,27 @@ struct Vertex {
         std::array<vk::VertexInputAttributeDescription, 5> attributeDescriptions{};
 
         attributeDescriptions[0].binding = 0;
-        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].location = VertexLayout::Position;
         attributeDescriptions[0].format = vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[0].offset = offsetof(Vertex, position);
 
         attributeDescriptions[1].binding = 0;
-        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].location = VertexLayout::Normal;
         attributeDescriptions[1].format = vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[1].offset = offsetof(Vertex, normal);
 
         attributeDescriptions[2].binding = 0;
-        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].location = VertexLayout::Color;
         attributeDescriptions[2].format = vk::Format::eR32G32B32Sfloat;
         attributeDescriptions[2].offset = offsetof(Vertex, color);
 
         attributeDescriptions[3].binding = 0;
-        attributeDescriptions[3].location = 3;
+        attributeDescriptions[3].location = VertexLayout::UV;
         attributeDescriptions[3].format = vk::Format::eR32G32Sfloat;
         attributeDescriptions[3].offset = offsetof(Vertex, uv);
 
         attributeDescriptions[4].binding = 0;
-        attributeDescriptions[4].location = 4;
+        attributeDescriptions[4].location = VertexLayout::Tangent;
         attributeDescriptions[4].format = vk::Format::eR32G32B32A32Sfloat;
         attributeDescriptions[4].offset = offsetof(Vertex, tangent);
 

@@ -142,6 +142,7 @@ void Texture::initFromPixels(const unsigned char* pixels) {
 
 Texture::~Texture() {
     auto device = m_context.getDevice();
+    BB_CORE_TRACE("Texture: Destroying texture image ({}x{})", m_width, m_height);
     if (m_sampler) {
         device.destroySampler(m_sampler);
     }
@@ -174,7 +175,10 @@ void Texture::createImageView(uint32_t layers) {
 }
 
 void Texture::createSampler() {
-    vk::SamplerCreateInfo samplerInfo({}, vk::Filter::eLinear, vk::Filter::eLinear, vk::SamplerMipmapMode::eLinear, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat, vk::SamplerAddressMode::eRepeat, 0.0f, VK_FALSE, 1.0f, VK_FALSE, vk::CompareOp::eAlways, 0.0f, 0.0f, vk::BorderColor::eIntOpaqueBlack, VK_FALSE);
+    vk::Filter filter = (m_width <= 256 && m_height <= 256) ? vk::Filter::eNearest : vk::Filter::eLinear;
+    vk::SamplerAddressMode addrMode = (m_width <= 256 && m_height <= 256) ? vk::SamplerAddressMode::eClampToEdge : vk::SamplerAddressMode::eRepeat;
+
+    vk::SamplerCreateInfo samplerInfo({}, filter, filter, vk::SamplerMipmapMode::eNearest, addrMode, addrMode, addrMode, 0.0f, VK_FALSE, 1.0f, VK_FALSE, vk::CompareOp::eAlways, 0.0f, 0.0f, vk::BorderColor::eIntOpaqueBlack, VK_FALSE);
     m_sampler = m_context.getDevice().createSampler(samplerInfo);
 }
 

@@ -62,8 +62,10 @@ private:
         glm::mat4 view;
         glm::mat4 proj;
         alignas(16) glm::vec3 camPos;
+        alignas(16) glm::vec3 lightDir;
+        alignas(16) glm::vec3 lightColor;
     };
-    Scope<UniformBuffer> m_cameraUbo;
+    std::vector<Scope<UniformBuffer>> m_cameraUbos;
     vk::DescriptorSetLayout m_globalDescriptorLayout;
     std::vector<vk::DescriptorSet> m_globalDescriptorSets;
 
@@ -71,11 +73,12 @@ private:
     vk::DescriptorPool m_descriptorPool; 
     
     // Cache pour compatibilité avec les Mesh sans Material explicite
-    std::unordered_map<Texture*, Ref<Material>> m_defaultMaterials;
+    std::unordered_map<std::string, Ref<Material>> m_defaultMaterials;
 
     Scope<Mesh> m_skyboxCube;
     Ref<SkyboxMaterial> m_internalSkyboxMat;
     Ref<SkySphereMaterial> m_internalSkySphereMat;
+    Ref<Material> m_fallbackMaterial;
 
     void createPipelines(const EngineConfig& config);
     vk::DescriptorSetLayout getLayoutForType(MaterialType type);

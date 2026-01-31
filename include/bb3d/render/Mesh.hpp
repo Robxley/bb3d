@@ -66,7 +66,10 @@ public:
         }
     }
 
-    ~Mesh() = default;
+    ~Mesh() {
+        m_vertexBuffer.reset();
+        m_indexBuffer.reset();
+    }
 
     /** @brief Récupère l'AABB locale du maillage. */
     [[nodiscard]] inline const AABB& getBounds() const { return m_bounds; }

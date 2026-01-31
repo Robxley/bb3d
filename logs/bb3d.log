@@ -1,17 +1,92 @@
-[2026-01-31 14:47:22.108] [CORE] [info] Logging System Initialized (Console: ON, File: ON)
-[2026-01-31 14:47:22.108] [CORE] [info] Engine: Initializing biobazard3d from memory config...
-[2026-01-31 14:47:22.109] [CORE] [info] JobSystem: Initialisation avec 8 threads (Work Stealing).
-[2026-01-31 14:47:22.247] [CORE] [info] Window created: 'BB3D - SkySphere Final Test' (1280x720)
-[2026-01-31 14:47:22.296] [CORE] [info] VulkanContext: Instance Vulkan créée (Vulkan-Hpp).
-[2026-01-31 14:47:22.297] [CORE] [info] VulkanContext: Debug Messenger activé.
-[2026-01-31 14:47:22.300] [CORE] [info] VulkanContext: GPU sélectionné : NVIDIA GeForce RTX 3070 Laptop GPU
-[2026-01-31 14:47:22.353] [CORE] [info] VulkanContext: Initialisation terminée.
-[2026-01-31 14:47:22.372] [CORE] [info] Swapchain créée : 1280x720 (3)
-[2026-01-31 14:47:22.393] [CORE] [trace] Buffer: Destroyed buffer of size 4 bytes.
-[2026-01-31 14:47:22.393] [CORE] [info] Texture chargée depuis pixels bruts (1x1, format: R8G8B8A8Srgb)
-[2026-01-31 14:47:22.394] [CORE] [trace] Buffer: Destroyed buffer of size 4 bytes.
-[2026-01-31 14:47:22.394] [CORE] [info] Texture chargée depuis pixels bruts (1x1, format: R8G8B8A8Srgb)
-[2026-01-31 14:47:22.394] [CORE] [trace] Buffer: Destroyed buffer of size 4 bytes.
-[2026-01-31 14:47:22.395] [CORE] [info] Texture chargée depuis pixels bruts (1x1, format: R8G8B8A8Unorm)
-[2026-01-31 14:47:22.395] [CORE] [trace] Buffer: Destroyed buffer of size 32 bytes.
-[2026-01-31 14:47:22.395] [CORE] [error] Shader: Impossible d'ouvrir assets/shaders/pbr.vert.spv
+[2026-01-31 17:33:39.166] [CORE] [info] Logging System Initialized (Console: ON, File: ON)
+[2026-01-31 17:33:39.167] [CORE] [info] Engine: Initializing biobazard3d from memory config...
+[2026-01-31 17:33:39.167] [CORE] [info] JobSystem: Initialisation avec 8 threads (Work Stealing).
+[2026-01-31 17:33:39.314] [CORE] [info] Window created: 'BB3D - Multi-Materials Test (PBR, Unlit, Toon)' (1280x720)
+[2026-01-31 17:33:39.421] [CORE] [info] VulkanContext initialized (VMA with dynamic dispatch).
+[2026-01-31 17:33:39.439] [CORE] [info] Swapchain créée : 1280x720 (3)
+[2026-01-31 17:33:39.449] [CORE] [info] Shader: Module créé depuis assets/shaders/pbr.vert.spv
+[2026-01-31 17:33:39.449] [CORE] [info] Shader: Module créé depuis assets/shaders/pbr.frag.spv
+[2026-01-31 17:33:39.450] [CORE] [info] Shader: Module créé depuis assets/shaders/unlit.vert.spv
+[2026-01-31 17:33:39.450] [CORE] [info] Shader: Module créé depuis assets/shaders/unlit.frag.spv
+[2026-01-31 17:33:39.450] [CORE] [info] Shader: Module créé depuis assets/shaders/toon.vert.spv
+[2026-01-31 17:33:39.451] [CORE] [info] Shader: Module créé depuis assets/shaders/toon.frag.spv
+[2026-01-31 17:33:39.451] [CORE] [info] Shader: Module créé depuis assets/shaders/skybox.vert.spv
+[2026-01-31 17:33:39.451] [CORE] [info] Shader: Module créé depuis assets/shaders/skybox.frag.spv
+[2026-01-31 17:33:39.451] [CORE] [info] Shader: Module créé depuis assets/shaders/skysphere.vert.spv
+[2026-01-31 17:33:39.452] [CORE] [info] Shader: Module créé depuis assets/shaders/skysphere.frag.spv
+[2026-01-31 17:33:39.488] [CORE] [trace] Buffer: Destroyed buffer of size 1440 bytes.
+[2026-01-31 17:33:39.488] [CORE] [trace] Buffer: Destroyed buffer of size 144 bytes.
+[2026-01-31 17:33:39.489] [CORE] [trace] Buffer: Destroyed buffer of size 4 bytes.
+[2026-01-31 17:33:39.489] [CORE] [info] Texture chargée depuis pixels bruts (1x1, format: R8G8B8A8Srgb)
+[2026-01-31 17:33:39.490] [CORE] [trace] Buffer: Destroyed buffer of size 4 bytes.
+[2026-01-31 17:33:39.490] [CORE] [info] Texture chargée depuis pixels bruts (1x1, format: R8G8B8A8Srgb)
+[2026-01-31 17:33:39.490] [CORE] [trace] Buffer: Destroyed buffer of size 4 bytes.
+[2026-01-31 17:33:39.490] [CORE] [info] Texture chargée depuis pixels bruts (1x1, format: R8G8B8A8Unorm)
+[2026-01-31 17:33:39.490] [CORE] [info] PhysicsWorld: Initializing (Stub)...
+[2026-01-31 17:33:39.491] [CORE] [info] AudioSystem: Initializing (Stub)...
+[2026-01-31 17:33:39.491] [CORE] [info] Engine: Initialization complete.
+[2026-01-31 17:33:39.491] [CORE] [info] ResourceCache: Loading 'assets/PBR/Bricks092_1K-JPG/Bricks092_1K-JPG_Color.jpg'
+[2026-01-31 17:33:39.544] [CORE] [trace] Buffer: Destroyed buffer of size 4194304 bytes.
+[2026-01-31 17:33:39.544] [CORE] [info] Texture chargée: assets/PBR/Bricks092_1K-JPG/Bricks092_1K-JPG_Color.jpg (1024x1024, format: R8G8B8A8Srgb)
+[2026-01-31 17:33:39.545] [CORE] [info] ResourceCache: Loading 'assets/PBR/Bricks092_1K-JPG/Bricks092_1K-JPG_NormalGL.jpg'
+[2026-01-31 17:33:39.608] [CORE] [trace] Buffer: Destroyed buffer of size 4194304 bytes.
+[2026-01-31 17:33:39.608] [CORE] [info] Texture chargée: assets/PBR/Bricks092_1K-JPG/Bricks092_1K-JPG_NormalGL.jpg (1024x1024, format: R8G8B8A8Unorm)
+[2026-01-31 17:33:39.609] [CORE] [info] ResourceCache: Loading 'assets/PBR/Bricks092_1K-JPG/Bricks092_1K-JPG_Roughness.jpg'
+[2026-01-31 17:33:39.632] [CORE] [trace] Buffer: Destroyed buffer of size 4194304 bytes.
+[2026-01-31 17:33:39.632] [CORE] [info] Texture chargée: assets/PBR/Bricks092_1K-JPG/Bricks092_1K-JPG_Roughness.jpg (1024x1024, format: R8G8B8A8Unorm)
+[2026-01-31 17:33:39.633] [CORE] [info] ResourceCache: Loading 'assets/PBR/Bricks092_1K-JPG/Bricks092_1K-JPG_AmbientOcclusion.jpg'
+[2026-01-31 17:33:39.657] [CORE] [trace] Buffer: Destroyed buffer of size 4194304 bytes.
+[2026-01-31 17:33:39.657] [CORE] [info] Texture chargée: assets/PBR/Bricks092_1K-JPG/Bricks092_1K-JPG_AmbientOcclusion.jpg (1024x1024, format: R8G8B8A8Unorm)
+[2026-01-31 17:33:39.660] [CORE] [trace] Buffer: Destroyed buffer of size 253500 bytes.
+[2026-01-31 17:33:39.661] [CORE] [trace] Buffer: Destroyed buffer of size 98304 bytes.
+[2026-01-31 17:33:39.663] [CORE] [trace] Buffer: Destroyed buffer of size 253500 bytes.
+[2026-01-31 17:33:39.663] [CORE] [trace] Buffer: Destroyed buffer of size 98304 bytes.
+[2026-01-31 17:33:39.666] [CORE] [trace] Buffer: Destroyed buffer of size 253500 bytes.
+[2026-01-31 17:33:39.666] [CORE] [trace] Buffer: Destroyed buffer of size 98304 bytes.
+[2026-01-31 17:33:39.666] [CORE] [info] Scene Materials Ready: Left=Unlit, Center=PBR, Right=Toon
+[2026-01-31 17:33:39.667] [CORE] [info] Engine: Entering main loop.
+[2026-01-31 17:34:08.018] [CORE] [info] Window: Close event received (ESC key)
+[2026-01-31 17:34:08.019] [CORE] [info] Engine: Main loop exited.
+[2026-01-31 17:34:08.019] [CORE] [info] Engine: Shutting down...
+[2026-01-31 17:34:08.019] [CORE] [info] AudioSystem: Shutting down...
+[2026-01-31 17:34:08.019] [CORE] [info] PhysicsWorld: Shutting down...
+[2026-01-31 17:34:08.020] [CORE] [trace] Buffer: Destroyed buffer of size 253500 bytes.
+[2026-01-31 17:34:08.020] [CORE] [trace] Buffer: Destroyed buffer of size 98304 bytes.
+[2026-01-31 17:34:08.020] [CORE] [trace] Buffer: Destroyed buffer of size 32 bytes.
+[2026-01-31 17:34:08.020] [CORE] [trace] Buffer: Destroyed buffer of size 253500 bytes.
+[2026-01-31 17:34:08.020] [CORE] [trace] Buffer: Destroyed buffer of size 98304 bytes.
+[2026-01-31 17:34:08.020] [CORE] [trace] Buffer: Destroyed buffer of size 16 bytes.
+[2026-01-31 17:34:08.021] [CORE] [trace] Buffer: Destroyed buffer of size 253500 bytes.
+[2026-01-31 17:34:08.021] [CORE] [trace] Buffer: Destroyed buffer of size 98304 bytes.
+[2026-01-31 17:34:08.021] [CORE] [trace] Buffer: Destroyed buffer of size 16 bytes.
+[2026-01-31 17:34:08.021] [CORE] [trace] Buffer: Destroyed buffer of size 32 bytes.
+[2026-01-31 17:34:08.021] [CORE] [trace] Buffer: Destroyed buffer of size 1440 bytes.
+[2026-01-31 17:34:08.022] [CORE] [trace] Buffer: Destroyed buffer of size 144 bytes.
+[2026-01-31 17:34:08.022] [CORE] [trace] Buffer: Destroyed buffer of size 176 bytes.
+[2026-01-31 17:34:08.022] [CORE] [trace] Buffer: Destroyed buffer of size 176 bytes.
+[2026-01-31 17:34:08.022] [CORE] [trace] Buffer: Destroyed buffer of size 176 bytes.
+[2026-01-31 17:34:08.022] [CORE] [trace] Shader: Destroyed shader module for 
+[2026-01-31 17:34:08.022] [CORE] [trace] Shader: Destroyed shader module for 
+[2026-01-31 17:34:08.023] [CORE] [trace] Shader: Destroyed shader module for 
+[2026-01-31 17:34:08.023] [CORE] [trace] Shader: Destroyed shader module for 
+[2026-01-31 17:34:08.023] [CORE] [trace] Shader: Destroyed shader module for 
+[2026-01-31 17:34:08.023] [CORE] [trace] Shader: Destroyed shader module for 
+[2026-01-31 17:34:08.023] [CORE] [trace] Shader: Destroyed shader module for 
+[2026-01-31 17:34:08.023] [CORE] [trace] Shader: Destroyed shader module for 
+[2026-01-31 17:34:08.023] [CORE] [trace] Shader: Destroyed shader module for 
+[2026-01-31 17:34:08.023] [CORE] [trace] Shader: Destroyed shader module for 
+[2026-01-31 17:34:08.024] [CORE] [trace] SwapChain: Starting cleanup...
+[2026-01-31 17:34:08.024] [CORE] [trace] SwapChain: Destroyed depth image view.
+[2026-01-31 17:34:08.024] [CORE] [trace] SwapChain: Destroyed depth image.
+[2026-01-31 17:34:08.024] [CORE] [trace] SwapChain: Destroyed 3 image views.
+[2026-01-31 17:34:08.025] [CORE] [trace] SwapChain: Destroyed KHR Swapchain.
+[2026-01-31 17:34:08.025] [CORE] [trace] ResourceManager: Clearing 1 resource caches...
+[2026-01-31 17:34:08.025] [CORE] [trace] Texture: Destroying texture image (1024x1024)
+[2026-01-31 17:34:08.025] [CORE] [trace] Texture: Destroying texture image (1024x1024)
+[2026-01-31 17:34:08.026] [CORE] [trace] Texture: Destroying texture image (1024x1024)
+[2026-01-31 17:34:08.026] [CORE] [trace] Texture: Destroying texture image (1024x1024)
+[2026-01-31 17:34:08.026] [CORE] [trace] Texture: Destroying texture image (1x1)
+[2026-01-31 17:34:08.026] [CORE] [trace] Texture: Destroying texture image (1x1)
+[2026-01-31 17:34:08.026] [CORE] [trace] Texture: Destroying texture image (1x1)
+[2026-01-31 17:34:08.057] [CORE] [info] Window destroyed, SDL quit.
+[2026-01-31 17:34:08.057] [CORE] [info] JobSystem: Shutting down 8 workers...
