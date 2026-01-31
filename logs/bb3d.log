@@ -1,10 +1,16 @@
-[2026-01-31 01:02:48.769] [CORE] [info] Logging System Initialized (Console: ON, File: ON)
-[2026-01-31 01:02:48.769] [CORE] [info] Engine: Initializing biobazard3d from memory config...
-[2026-01-31 01:02:48.770] [CORE] [info] JobSystem: Initialisation avec 8 threads (Work Stealing).
-[2026-01-31 01:02:48.913] [CORE] [info] Window created: 'BB3D - PBR Test' (1280x720)
-[2026-01-31 01:02:48.966] [CORE] [info] VulkanContext: Instance Vulkan créée (Vulkan-Hpp).
-[2026-01-31 01:02:48.967] [CORE] [info] VulkanContext: Debug Messenger activé.
-[2026-01-31 01:02:48.970] [CORE] [info] VulkanContext: GPU sélectionné : NVIDIA GeForce RTX 3070 Laptop GPU
-[2026-01-31 01:02:49.019] [CORE] [info] VulkanContext: Initialisation terminée.
-[2026-01-31 01:02:49.037] [CORE] [info] Swapchain créée : 1280x720 (3)
-[2026-01-31 01:02:49.039] [CORE] [error] Renderer: Vertex shader not found at assets/shaders/pbr.vert.spv
+[2026-01-31 01:28:38.185] [CORE] [info] Logging System Initialized (Console: ON, File: ON)
+[2026-01-31 01:28:38.186] [CORE] [info] Engine: Initializing biobazard3d from memory config...
+[2026-01-31 01:28:38.186] [CORE] [info] JobSystem: Initialisation avec 8 threads (Work Stealing).
+[2026-01-31 01:28:38.332] [CORE] [info] Window created: 'BB3D - Multi-Materials Test (PBR, Unlit, Toon)' (1280x720)
+[2026-01-31 01:28:38.387] [CORE] [info] VulkanContext: Instance Vulkan créée (Vulkan-Hpp).
+[2026-01-31 01:28:38.388] [CORE] [info] VulkanContext: Debug Messenger activé.
+[2026-01-31 01:28:38.392] [CORE] [info] VulkanContext: GPU sélectionné : NVIDIA GeForce RTX 3070 Laptop GPU
+[2026-01-31 01:28:38.454] [CORE] [info] VulkanContext: Initialisation terminée.
+[2026-01-31 01:28:38.473] [CORE] [info] Swapchain créée : 1280x720 (3)
+[2026-01-31 01:28:38.493] [CORE] [trace] Buffer: Destroyed buffer of size 4 bytes.
+[2026-01-31 01:28:38.493] [CORE] [info] Texture chargée depuis pixels bruts (1x1)
+[2026-01-31 01:28:38.494] [CORE] [trace] Buffer: Destroyed buffer of size 4 bytes.
+[2026-01-31 01:28:38.494] [CORE] [info] Texture chargée depuis pixels bruts (1x1)
+[2026-01-31 01:28:38.495] [CORE] [trace] Buffer: Destroyed buffer of size 4 bytes.
+[2026-01-31 01:28:38.495] [CORE] [info] Texture chargée depuis pixels bruts (1x1)
+[2026-01-31 01:28:38.495] [CORE] [error] Shader: Impossible d'ouvrir assets/shaders/pbr.vert.spv

@@ -40,9 +40,11 @@ private:
     Scope<SwapChain> m_swapChain;
     
     // Pipelines
-    Scope<GraphicsPipeline> m_defaultPipeline; // PBR Pipeline
-    Scope<Shader> m_defaultVert;
-    Scope<Shader> m_defaultFrag;
+    std::unordered_map<MaterialType, Scope<GraphicsPipeline>> m_pipelines;
+    std::unordered_map<MaterialType, vk::DescriptorSetLayout> m_layouts;
+    
+    // Shaders cache (to avoid reloading)
+    std::unordered_map<std::string, Scope<Shader>> m_shaders;
 
     // Frames
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 3;
@@ -65,11 +67,13 @@ private:
     std::vector<vk::DescriptorSet> m_globalDescriptorSets;
 
     // Materials
-    vk::DescriptorSetLayout m_materialLayout;
-    vk::DescriptorPool m_descriptorPool; // Pool global (UBOs + Materials)
+    vk::DescriptorPool m_descriptorPool; 
     
     // Cache pour compatibilité avec les Mesh sans Material explicite
     std::unordered_map<Texture*, Ref<Material>> m_defaultMaterials;
+
+    void createPipelines(const EngineConfig& config);
+    vk::DescriptorSetLayout getLayoutForType(MaterialType type);
 };
 
 } // namespace bb3d

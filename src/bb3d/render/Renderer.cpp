@@ -16,25 +16,7 @@ Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& c
     
     createSyncObjects();
     createGlobalDescriptors();
-
-    // Chargement shaders PBR par défaut avec vérification
-    const std::string vertPath = "assets/shaders/pbr.vert.spv";
-    const std::string fragPath = "assets/shaders/pbr.frag.spv";
-
-    if (!std::filesystem::exists(vertPath)) {
-        BB_CORE_ERROR("Renderer: Vertex shader not found at {}", vertPath);
-        throw std::runtime_error("Missing vertex shader");
-    }
-    if (!std::filesystem::exists(fragPath)) {
-        BB_CORE_ERROR("Renderer: Fragment shader not found at {}", fragPath);
-        throw std::runtime_error("Missing fragment shader");
-    }
-
-    m_defaultVert = CreateScope<Shader>(context, vertPath);
-    m_defaultFrag = CreateScope<Shader>(context, fragPath);
-    
-    vk::PushConstantRange pcr(vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4));
-    m_defaultPipeline = CreateScope<GraphicsPipeline>(context, *m_swapChain, *m_defaultVert, *m_defaultFrag, config, std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout, m_materialLayout}, std::vector<vk::PushConstantRange>{pcr});
+    createPipelines(config);
 }
 
 Renderer::~Renderer() {
@@ -49,10 +31,17 @@ Renderer::~Renderer() {
         }
 
         m_defaultMaterials.clear();
+        m_pipelines.clear();
+        m_shaders.clear();
         
         if (m_descriptorPool) dev.destroyDescriptorPool(m_descriptorPool);
         if (m_globalDescriptorLayout) dev.destroyDescriptorSetLayout(m_globalDescriptorLayout);
-        if (m_materialLayout) dev.destroyDescriptorSetLayout(m_materialLayout);
+        
+        for (auto& [type, layout] : m_layouts) {
+            dev.destroyDescriptorSetLayout(layout);
+        }
+        m_layouts.clear();
+
         if (m_commandPool) dev.destroyCommandPool(m_commandPool);
     }
 }
@@ -95,23 +84,52 @@ void Renderer::createGlobalDescriptors() {
         dev.updateDescriptorSets(1, &write, 0, nullptr);
     }
 
-    // Set 1: Material (PBR)
-    std::vector<vk::DescriptorSetLayoutBinding> bindings = {
-        {0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Albedo
-        {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Normal
-        {2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Metallic
-        {3, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Roughness
-        {4, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // AO
-        {5, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Emissive
-    };
-    m_materialLayout = dev.createDescriptorSetLayout({ {}, (uint32_t)bindings.size(), bindings.data() });
-
     // Pool global (assez grand pour UBOs + Materials)
     std::vector<vk::DescriptorPoolSize> poolSizes = {
         {vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT * 10},
         {vk::DescriptorType::eCombinedImageSampler, 1000 * 5} 
     };
     m_descriptorPool = dev.createDescriptorPool({ vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet, 1000, (uint32_t)poolSizes.size(), poolSizes.data() });
+}
+
+void Renderer::createPipelines(const EngineConfig& config) {
+    // Helper to get layout from Material Type
+    auto getLayout = [&](MaterialType type) -> vk::DescriptorSetLayout {
+        if (type == MaterialType::PBR) {
+            PBRMaterial mat(m_context);
+            return mat.getDescriptorSetLayout(m_context.getDevice());
+        } else if (type == MaterialType::Unlit) {
+            UnlitMaterial mat(m_context);
+            return mat.getDescriptorSetLayout(m_context.getDevice());
+        } else if (type == MaterialType::Toon) {
+            ToonMaterial mat(m_context);
+            return mat.getDescriptorSetLayout(m_context.getDevice());
+        }
+        return nullptr;
+    };
+
+    m_layouts[MaterialType::PBR] = getLayout(MaterialType::PBR);
+    m_layouts[MaterialType::Unlit] = getLayout(MaterialType::Unlit);
+    m_layouts[MaterialType::Toon] = getLayout(MaterialType::Toon);
+
+    // Shaders
+    m_shaders["pbr.vert"] = CreateScope<Shader>(m_context, "assets/shaders/pbr.vert.spv");
+    m_shaders["pbr.frag"] = CreateScope<Shader>(m_context, "assets/shaders/pbr.frag.spv");
+    m_shaders["unlit.vert"] = CreateScope<Shader>(m_context, "assets/shaders/unlit.vert.spv");
+    m_shaders["unlit.frag"] = CreateScope<Shader>(m_context, "assets/shaders/unlit.frag.spv");
+    m_shaders["toon.vert"] = CreateScope<Shader>(m_context, "assets/shaders/toon.vert.spv");
+    m_shaders["toon.frag"] = CreateScope<Shader>(m_context, "assets/shaders/toon.frag.spv");
+
+    vk::PushConstantRange pcr(vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4));
+
+    // PBR Pipeline
+    m_pipelines[MaterialType::PBR] = CreateScope<GraphicsPipeline>(m_context, *m_swapChain, *m_shaders["pbr.vert"], *m_shaders["pbr.frag"], config, std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout, m_layouts[MaterialType::PBR]}, std::vector<vk::PushConstantRange>{pcr});
+
+    // Unlit Pipeline
+    m_pipelines[MaterialType::Unlit] = CreateScope<GraphicsPipeline>(m_context, *m_swapChain, *m_shaders["unlit.vert"], *m_shaders["unlit.frag"], config, std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout, m_layouts[MaterialType::Unlit]}, std::vector<vk::PushConstantRange>{pcr});
+
+    // Toon Pipeline
+    m_pipelines[MaterialType::Toon] = CreateScope<GraphicsPipeline>(m_context, *m_swapChain, *m_shaders["toon.vert"], *m_shaders["toon.frag"], config, std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout, m_layouts[MaterialType::Toon]}, std::vector<vk::PushConstantRange>{pcr});
 }
 
 Ref<Material> Renderer::getMaterialForTexture(Ref<Texture> texture) {
@@ -121,7 +139,7 @@ Ref<Material> Renderer::getMaterialForTexture(Ref<Texture> texture) {
         return m_defaultMaterials[texture.get()];
     }
 
-    auto material = CreateRef<Material>(m_context);
+    auto material = CreateRef<PBRMaterial>(m_context);
     material->setAlbedoMap(texture);
     m_defaultMaterials[texture.get()] = material;
     return material;
@@ -197,12 +215,34 @@ void Renderer::render(Scene& scene) {
     vk::RenderingInfo renderInfo({}, {{0, 0}, m_swapChain->getExtent()}, 1, 0, 1, &colorAttr, &depthAttr);
 
     cb.beginRendering(renderInfo);
-    m_defaultPipeline->bind(cb);
+    
     cb.setViewport(0, vk::Viewport(0, 0, (float)m_swapChain->getExtent().width, (float)m_swapChain->getExtent().height, 0, 1));
     cb.setScissor(0, vk::Rect2D({0, 0}, m_swapChain->getExtent()));
     
-    // Bind Global Set (0)
-    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_defaultPipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+    // Gestion du pipeline courant
+    MaterialType currentType = static_cast<MaterialType>(-1); // Invalid
+
+    auto bindPipelineForMaterial = [&](Ref<Material>& mat) {
+        MaterialType type = mat ? mat->getType() : MaterialType::PBR;
+        
+        if (type != currentType) {
+            if (m_pipelines.find(type) != m_pipelines.end()) {
+                m_pipelines[type]->bind(cb);
+                // Bind Global Set (0) - Compatible across all our pipelines
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+                currentType = type;
+            } else {
+                // Fallback to PBR if pipeline missing
+                type = MaterialType::PBR;
+                if (currentType != type) {
+                    m_pipelines[type]->bind(cb);
+                    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+                    currentType = type;
+                }
+            }
+        }
+        return type;
+    };
 
     // Dessiner toutes les entités avec MeshComponent
     auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
@@ -217,16 +257,18 @@ void Renderer::render(Scene& scene) {
                 if (tex) mat = getMaterialForTexture(tex);
                 else {
                     static Ref<Material> defaultMat = nullptr;
-                    if (!defaultMat) defaultMat = CreateRef<Material>(m_context);
+                    if (!defaultMat) defaultMat = CreateRef<PBRMaterial>(m_context);
                     mat = defaultMat;
                 }
             }
 
-            vk::DescriptorSet matSet = mat->getDescriptorSet(m_materialLayout, m_descriptorPool);
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_defaultPipeline->getLayout(), 1, 1, &matSet, 0, nullptr);
+            MaterialType type = bindPipelineForMaterial(mat);
+            
+            vk::DescriptorSet matSet = mat->getDescriptorSet(m_descriptorPool);
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 1, 1, &matSet, 0, nullptr);
 
             glm::mat4 modelMat = transform.getTransform();
-            cb.pushConstants(m_defaultPipeline->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
+            cb.pushConstants(m_pipelines[type]->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
             meshComp.mesh->draw(cb);
         }
     }
@@ -239,7 +281,6 @@ void Renderer::render(Scene& scene) {
 
         if (modelComp.model) {
             glm::mat4 modelMat = transform.getTransform();
-            cb.pushConstants(m_defaultPipeline->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
             
             for (const auto& mesh : modelComp.model->getMeshes()) {
                 Ref<Material> mat = mesh->getMaterial();
@@ -248,14 +289,17 @@ void Renderer::render(Scene& scene) {
                     if (tex) mat = getMaterialForTexture(tex);
                     else {
                         static Ref<Material> defaultMat = nullptr;
-                        if (!defaultMat) defaultMat = CreateRef<Material>(m_context);
+                        if (!defaultMat) defaultMat = CreateRef<PBRMaterial>(m_context);
                         mat = defaultMat;
                     }
                 }
 
-                vk::DescriptorSet matSet = mat->getDescriptorSet(m_materialLayout, m_descriptorPool);
-                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_defaultPipeline->getLayout(), 1, 1, &matSet, 0, nullptr);
+                MaterialType type = bindPipelineForMaterial(mat);
+
+                vk::DescriptorSet matSet = mat->getDescriptorSet(m_descriptorPool);
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 1, 1, &matSet, 0, nullptr);
                 
+                cb.pushConstants(m_pipelines[type]->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
                 mesh->draw(cb);
             }
         }

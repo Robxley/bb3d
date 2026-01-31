@@ -131,6 +131,10 @@ set(SHADERS
     "${SHADER_DIR}/textured_mesh.frag"
     "${SHADER_DIR}/pbr.vert"
     "${SHADER_DIR}/pbr.frag"
+    "${SHADER_DIR}/unlit.vert"
+    "${SHADER_DIR}/unlit.frag"
+    "${SHADER_DIR}/toon.vert"
+    "${SHADER_DIR}/toon.frag"
 )
 
 set(SPV_SHADERS "")
@@ -303,12 +307,12 @@ add_executable(unit_test_09_resource_manager
 target_link_libraries(unit_test_09_resource_manager PRIVATE biobazard3d)
 add_dependencies(unit_test_09_resource_manager DeployAssets)
 
-# --- Unit Test 16: PBR ---
-add_executable(unit_test_16_pbr
-    tests/unit_test_16_pbr.cpp
+# --- Unit Test 16: Materials ---
+add_executable(unit_test_16_materials
+    tests/unit_test_16_materials.cpp
 )
-target_link_libraries(unit_test_16_pbr PRIVATE biobazard3d)
-add_dependencies(unit_test_16_pbr DeployAssets)
+target_link_libraries(unit_test_16_materials PRIVATE biobazard3d)
+add_dependencies(unit_test_16_materials DeployAssets)
 
 # --- CTest Registration ---
 enable_testing()
@@ -329,13 +333,13 @@ add_test(NAME ECS COMMAND unit_test_12_ecs)
 add_test(NAME Camera COMMAND unit_test_13_camera)
 add_test(NAME InteractiveCameras COMMAND unit_test_14_interactive_cameras)
 add_test(NAME HelloWorld COMMAND unit_test_15_hello_world)
-add_test(NAME PBR COMMAND unit_test_16_pbr)
+add_test(NAME Materials COMMAND unit_test_16_materials)
 
 # Set working directory for tests to find assets
 set_tests_properties(
     Infrastructure Window VulkanInit SwapChain HelloTriangle VertexBuffer 
     RotatingCube TextureCube CoreSystems ResourceManager ObjLoader GltfLoader 
-    ECS Camera InteractiveCameras HelloWorld PBR
+    ECS Camera InteractiveCameras HelloWorld Materials
     PROPERTIES WORKING_DIRECTORY $<TARGET_FILE_DIR:unit_test_00_infrastructure>
 )
 
