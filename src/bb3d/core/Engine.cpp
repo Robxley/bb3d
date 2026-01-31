@@ -3,6 +3,7 @@
 #include "bb3d/physics/PhysicsWorld.hpp"
 #include "bb3d/audio/AudioSystem.hpp"
 #include "bb3d/scene/SceneSerializer.hpp"
+#include "bb3d/render/Material.hpp"
 #include <SDL3/SDL.h>
 #include <stdexcept>
 
@@ -119,6 +120,9 @@ void Engine::Shutdown() {
     m_ActiveScene.reset();
     m_ResourceManager.reset();
     m_Renderer.reset();
+    
+    Material::Cleanup(); // Libérer les textures par défaut
+
     m_VulkanContext.reset();
     m_Window.reset();
     m_EventBus.reset();

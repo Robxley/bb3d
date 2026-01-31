@@ -24,6 +24,9 @@ struct fastgltf::ElementTraits<glm::vec3> : fastgltf::ElementTraitsBase<float, f
 template <>
 struct fastgltf::ElementTraits<glm::vec2> : fastgltf::ElementTraitsBase<float, fastgltf::AccessorType::Vec2> {};
 
+template <>
+struct fastgltf::ElementTraits<glm::vec4> : fastgltf::ElementTraitsBase<float, fastgltf::AccessorType::Vec4> {};
+
 /** @brief Récupère les données d'un buffer fastgltf. */
 static const std::byte* getBufferData(const fastgltf::Buffer& buffer) {
     return std::visit([](const auto& arg) -> const std::byte* {
@@ -139,6 +142,18 @@ void Model::loadOBJ(std::string_view path) {
                 };
             }
 
+            if (index.normal_index >= 0) {
+                vertex.normal = {
+                    attrib.normals[3 * index.normal_index + 0],
+                    attrib.normals[3 * index.normal_index + 1],
+                    attrib.normals[3 * index.normal_index + 2]
+                };
+            } else {
+                vertex.normal = {0.0f, 1.0f, 0.0f};
+            }
+
+            vertex.tangent = {1.0f, 0.0f, 0.0f, 1.0f}; // Default tangent for OBJ
+
             if (!attrib.colors.empty()) {
                 vertex.color = {
                     attrib.colors[3 * index.vertex_index + 0],
@@ -221,6 +236,22 @@ void Model::loadGLTF(std::string_view path) {
                 fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, accessor, [&](glm::vec3 pos, size_t i) {
                     vertices[i].position = pos;
                     vertices[i].color = {1.0f, 1.0f, 1.0f};
+                    vertices[i].normal = {0.0f, 1.0f, 0.0f}; // Default
+                    vertices[i].tangent = {1.0f, 0.0f, 0.0f, 1.0f}; // Default
+                });
+            }
+
+            const auto* normAttr = primitive.findAttribute("NORMAL");
+            if (normAttr != primitive.attributes.end()) {
+                fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, gltf.accessors[normAttr->accessorIndex], [&](glm::vec3 norm, size_t i) {
+                    vertices[i].normal = norm;
+                });
+            }
+
+            const auto* tanAttr = primitive.findAttribute("TANGENT");
+            if (tanAttr != primitive.attributes.end()) {
+                fastgltf::iterateAccessorWithIndex<glm::vec4>(gltf, gltf.accessors[tanAttr->accessorIndex], [&](glm::vec4 tan, size_t i) {
+                    vertices[i].tangent = tan;
                 });
             }
 

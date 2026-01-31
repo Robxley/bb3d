@@ -4,6 +4,7 @@
 #include "bb3d/render/Buffer.hpp"
 #include "bb3d/render/Vertex.hpp"
 #include "bb3d/render/Texture.hpp"
+#include "bb3d/render/Material.hpp"
 #include <vector>
 #include <limits>
 #include <glm/glm.hpp>
@@ -84,6 +85,9 @@ public:
     void setTexture(Ref<Texture> texture) { m_texture = texture; }
     Ref<Texture> getTexture() const { return m_texture; }
 
+    void setMaterial(Ref<Material> material) { m_material = material; }
+    Ref<Material> getMaterial() const { return m_material; }
+
     void updateVertices() {
         // Re-création simple du buffer (Optimisation possible via Staging Buffer ou mapping)
         m_vertexBuffer = Buffer::CreateVertexBuffer(m_context, m_vertices.data(), m_vertices.size() * sizeof(Vertex));
@@ -102,6 +106,7 @@ private:
     Scope<Buffer> m_vertexBuffer;
     Scope<Buffer> m_indexBuffer;
     Ref<Texture> m_texture;
+    Ref<Material> m_material;
     uint32_t m_indexCount;
     AABB m_bounds;
 };

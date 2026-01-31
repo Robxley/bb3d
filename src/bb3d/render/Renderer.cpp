@@ -17,13 +17,9 @@ Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& c
     createSyncObjects();
     createGlobalDescriptors();
 
-    // Création texture blanche par défaut
-    uint32_t white = 0xFFFFFFFF;
-    m_whiteTexture = CreateRef<Texture>(context, std::span<const std::byte>((const std::byte*)&white, 4), 1, 1);
-
-    // Chargement shaders par défaut avec vérification
-    const std::string vertPath = "assets/shaders/textured_mesh.vert.spv";
-    const std::string fragPath = "assets/shaders/textured_mesh.frag.spv";
+    // Chargement shaders PBR par défaut avec vérification
+    const std::string vertPath = "assets/shaders/pbr.vert.spv";
+    const std::string fragPath = "assets/shaders/pbr.frag.spv";
 
     if (!std::filesystem::exists(vertPath)) {
         BB_CORE_ERROR("Renderer: Vertex shader not found at {}", vertPath);
@@ -38,7 +34,7 @@ Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& c
     m_defaultFrag = CreateScope<Shader>(context, fragPath);
     
     vk::PushConstantRange pcr(vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4));
-    m_defaultPipeline = CreateScope<GraphicsPipeline>(context, *m_swapChain, *m_defaultVert, *m_defaultFrag, config, std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout, m_textureDescriptorLayout}, std::vector<vk::PushConstantRange>{pcr});
+    m_defaultPipeline = CreateScope<GraphicsPipeline>(context, *m_swapChain, *m_defaultVert, *m_defaultFrag, config, std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout, m_materialLayout}, std::vector<vk::PushConstantRange>{pcr});
 }
 
 Renderer::~Renderer() {
@@ -52,12 +48,11 @@ Renderer::~Renderer() {
             if (m_inFlightFences[i]) dev.destroyFence(m_inFlightFences[i]);
         }
 
-        m_whiteTexture.reset(); // Libérer avant le context
+        m_defaultMaterials.clear();
         
         if (m_descriptorPool) dev.destroyDescriptorPool(m_descriptorPool);
-        if (m_textureDescriptorPool) dev.destroyDescriptorPool(m_textureDescriptorPool);
         if (m_globalDescriptorLayout) dev.destroyDescriptorSetLayout(m_globalDescriptorLayout);
-        if (m_textureDescriptorLayout) dev.destroyDescriptorSetLayout(m_textureDescriptorLayout);
+        if (m_materialLayout) dev.destroyDescriptorSetLayout(m_materialLayout);
         if (m_commandPool) dev.destroyCommandPool(m_commandPool);
     }
 }
@@ -85,7 +80,7 @@ void Renderer::createGlobalDescriptors() {
     // Set 0: Camera UBO
     m_cameraUbo = CreateScope<UniformBuffer>(m_context, sizeof(GlobalUBO));
 
-    vk::DescriptorSetLayoutBinding cameraBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex);
+    vk::DescriptorSetLayoutBinding cameraBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
     m_globalDescriptorLayout = dev.createDescriptorSetLayout({ {}, 1, &cameraBinding });
 
     vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT);
@@ -100,36 +95,36 @@ void Renderer::createGlobalDescriptors() {
         dev.updateDescriptorSets(1, &write, 0, nullptr);
     }
 
-    // Set 1: Texture Sampler
-    vk::DescriptorSetLayoutBinding samplerBinding(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
-    m_textureDescriptorLayout = dev.createDescriptorSetLayout({ {}, 1, &samplerBinding });
+    // Set 1: Material (PBR)
+    std::vector<vk::DescriptorSetLayoutBinding> bindings = {
+        {0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Albedo
+        {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Normal
+        {2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Metallic
+        {3, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Roughness
+        {4, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // AO
+        {5, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Emissive
+    };
+    m_materialLayout = dev.createDescriptorSetLayout({ {}, (uint32_t)bindings.size(), bindings.data() });
 
-    vk::DescriptorPoolSize texPoolSize(vk::DescriptorType::eCombinedImageSampler, 1000); // Max 1000 textures
-    m_textureDescriptorPool = dev.createDescriptorPool({ vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet, 1000, 1, &texPoolSize });
+    // Pool global (assez grand pour UBOs + Materials)
+    std::vector<vk::DescriptorPoolSize> poolSizes = {
+        {vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT * 10},
+        {vk::DescriptorType::eCombinedImageSampler, 1000 * 5} 
+    };
+    m_descriptorPool = dev.createDescriptorPool({ vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet, 1000, (uint32_t)poolSizes.size(), poolSizes.data() });
 }
 
-vk::DescriptorSet Renderer::getTextureDescriptorSet(Ref<Texture> texture) {
-    if (!texture) return VK_NULL_HANDLE;
+Ref<Material> Renderer::getMaterialForTexture(Ref<Texture> texture) {
+    if (!texture) return nullptr;
 
-    if (m_textureSets.contains(texture.get())) {
-        return m_textureSets[texture.get()];
+    if (m_defaultMaterials.contains(texture.get())) {
+        return m_defaultMaterials[texture.get()];
     }
 
-    auto dev = m_context.getDevice();
-    vk::DescriptorSetAllocateInfo allocInfo(m_textureDescriptorPool, 1, &m_textureDescriptorLayout);
-    vk::DescriptorSet set = dev.allocateDescriptorSets(allocInfo)[0];
-
-    vk::DescriptorImageInfo imageInfo(
-        texture->getSampler(),
-        texture->getImageView(),
-        vk::ImageLayout::eShaderReadOnlyOptimal
-    );
-
-    vk::WriteDescriptorSet write(set, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &imageInfo, nullptr);
-    dev.updateDescriptorSets(1, &write, 0, nullptr);
-
-    m_textureSets[texture.get()] = set;
-    return set;
+    auto material = CreateRef<Material>(m_context);
+    material->setAlbedoMap(texture);
+    m_defaultMaterials[texture.get()] = material;
+    return material;
 }
 
 void Renderer::render(Scene& scene) {
@@ -154,6 +149,7 @@ void Renderer::render(Scene& scene) {
     GlobalUBO uboData;
     uboData.view = activeCamera->getViewMatrix();
     uboData.proj = activeCamera->getProjectionMatrix();
+    uboData.camPos = glm::vec3(glm::inverse(uboData.view)[3]); // Position caméra monde
     m_cameraUbo->update(&uboData, sizeof(uboData));
 
     uint32_t imageIndex;
@@ -215,11 +211,19 @@ void Renderer::render(Scene& scene) {
         auto& transform = meshView.get<TransformComponent>(entity);
 
         if (meshComp.mesh) {
-            // Bind Texture Set (1)
-            Ref<Texture> tex = meshComp.mesh->getTexture();
-            if (!tex) tex = m_whiteTexture;
-            vk::DescriptorSet texSet = getTextureDescriptorSet(tex);
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_defaultPipeline->getLayout(), 1, 1, &texSet, 0, nullptr);
+            Ref<Material> mat = meshComp.mesh->getMaterial();
+            if (!mat) {
+                Ref<Texture> tex = meshComp.mesh->getTexture();
+                if (tex) mat = getMaterialForTexture(tex);
+                else {
+                    static Ref<Material> defaultMat = nullptr;
+                    if (!defaultMat) defaultMat = CreateRef<Material>(m_context);
+                    mat = defaultMat;
+                }
+            }
+
+            vk::DescriptorSet matSet = mat->getDescriptorSet(m_materialLayout, m_descriptorPool);
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_defaultPipeline->getLayout(), 1, 1, &matSet, 0, nullptr);
 
             glm::mat4 modelMat = transform.getTransform();
             cb.pushConstants(m_defaultPipeline->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
@@ -237,12 +241,20 @@ void Renderer::render(Scene& scene) {
             glm::mat4 modelMat = transform.getTransform();
             cb.pushConstants(m_defaultPipeline->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
             
-            // Itération manuelle sur les meshes pour lier la texture par-mesh
             for (const auto& mesh : modelComp.model->getMeshes()) {
-                Ref<Texture> tex = mesh->getTexture();
-                if (!tex) tex = m_whiteTexture;
-                vk::DescriptorSet texSet = getTextureDescriptorSet(tex);
-                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_defaultPipeline->getLayout(), 1, 1, &texSet, 0, nullptr);
+                Ref<Material> mat = mesh->getMaterial();
+                if (!mat) {
+                    Ref<Texture> tex = mesh->getTexture();
+                    if (tex) mat = getMaterialForTexture(tex);
+                    else {
+                        static Ref<Material> defaultMat = nullptr;
+                        if (!defaultMat) defaultMat = CreateRef<Material>(m_context);
+                        mat = defaultMat;
+                    }
+                }
+
+                vk::DescriptorSet matSet = mat->getDescriptorSet(m_materialLayout, m_descriptorPool);
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_defaultPipeline->getLayout(), 1, 1, &matSet, 0, nullptr);
                 
                 mesh->draw(cb);
             }
