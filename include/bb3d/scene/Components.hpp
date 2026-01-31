@@ -11,6 +11,8 @@
 #include <string>
 
 #include "bb3d/scene/Camera.hpp"
+#include "bb3d/scene/OrbitCamera.hpp"
+#include "bb3d/scene/FPSCamera.hpp"
 #include <variant>
 #include <functional>
 #include <nlohmann/json.hpp>
@@ -120,10 +122,37 @@ struct CameraComponent {
 
     void serialize(json& j) const {
         j["active"] = active;
+        if (camera) {
+            Camera::Type type = camera->getType();
+            j["type"] = static_cast<int>(type);
+            
+            if (type == Camera::Type::Orbit) {
+                auto* orbit = static_cast<OrbitCamera*>(camera.get());
+                j["target"] = orbit->getTarget();
+                j["distance"] = orbit->getDistance();
+                j["yaw"] = orbit->getYaw();
+                j["pitch"] = orbit->getPitch();
+            }
+        }
     }
 
     void deserialize(const json& j) {
         if (j.contains("active")) j.at("active").get_to(active);
+        
+        if (j.contains("type")) {
+            Camera::Type type = static_cast<Camera::Type>(j.at("type").get<int>());
+            if (type == Camera::Type::Orbit) {
+                auto orbit = CreateRef<OrbitCamera>(45.0f, 16.0f/9.0f, 0.1f, 1000.0f);
+                if (j.contains("target")) orbit->setTarget(j["target"]);
+                if (j.contains("distance")) orbit->setDistance(j["distance"]);
+                if (j.contains("yaw") && j.contains("pitch")) {
+                    orbit->setRotation(j["yaw"], j["pitch"]);
+                }
+                camera = orbit;
+            } else if (type == Camera::Type::FPS) {
+                camera = CreateRef<FPSCamera>(45.0f, 16.0f/9.0f, 0.1f, 1000.0f);
+            }
+        }
     }
 };
 

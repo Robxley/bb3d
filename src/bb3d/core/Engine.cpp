@@ -167,7 +167,9 @@ void Engine::Stop() {
 }
 
 Ref<Scene> Engine::CreateScene() {
-    return CreateRef<Scene>();
+    auto scene = CreateRef<Scene>();
+    scene->setEngineContext(this);
+    return scene;
 }
 
 void Engine::Update(float deltaTime) {

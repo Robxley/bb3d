@@ -14,6 +14,8 @@ public:
     FPSCamera(float fov, float aspect, float near, float far);
     ~FPSCamera() override = default;
 
+    Type getType() const override { return Type::FPS; }
+
     /** @brief Met à jour la matrice de vue. */
     void update(float deltaTime) override;
 

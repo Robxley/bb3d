@@ -10,6 +10,7 @@
 namespace bb3d {
 
 class Entity;
+class Engine; // Forward declaration
 
 struct FogSettings {
     glm::vec3 color = { 0.5f, 0.5f, 0.5f };
@@ -33,11 +34,37 @@ public:
     /** @brief Crée une nouvelle entité dans cette scène. */
     Entity createEntity(const std::string& name = "Entity");
     
+    /** 
+     * @brief Crée une caméra orbitale pré-configurée avec contrôles souris.
+     * @param engine (Optionnel) Engine pour l'input. Utilise le contexte de scène si null.
+     */
+    Entity createOrbitCamera(const std::string& name, float fov, float aspect, const glm::vec3& target, float distance, Engine* engine = nullptr);
+
+    /** 
+     * @brief Crée une caméra FPS pré-configurée avec contrôles ZQSD + Souris.
+     * @param engine (Optionnel) Engine pour l'input. Utilise le contexte de scène si null.
+     */
+    Entity createFPSCamera(const std::string& name, float fov, float aspect, const glm::vec3& position, Engine* engine = nullptr);
+
+    /**
+     * @brief Charge un modèle 3D et crée une entité correspondante.
+     * @param name Nom de l'entité.
+     * @param path Chemin vers le fichier modèle (.obj, .gltf, .glb).
+     * @param position Position initiale dans le monde.
+     * @param normalizeSize (Optionnel) Si non nul, redimensionne le modèle pour qu'il tienne dans cette boîte englobante.
+     * @return L'entité créée (ou invalide si échec).
+     */
+    Entity createModelEntity(const std::string& name, const std::string& path, const glm::vec3& position = {0,0,0}, const glm::vec3& normalizeSize = {0,0,0});
+
     /** @brief Supprime une entité de la scène. */
     void destroyEntity(Entity entity);
 
     /** @brief Accès direct au registre EnTT (pour les systèmes internes). */
     [[nodiscard]] inline entt::registry& getRegistry() { return m_registry; }
+
+    /** @brief Définit le contexte moteur (appelé automatiquement par Engine::CreateScene). */
+    void setEngineContext(Engine* engine) { m_EngineContext = engine; }
+    Engine* getEngineContext() const { return m_EngineContext; }
 
     // --- Scene Environment ---
     void setSkybox(Ref<Texture> skybox) { m_Skybox = skybox; }
@@ -50,6 +77,7 @@ private:
     entt::registry m_registry;
     Ref<Texture> m_Skybox;
     FogSettings m_Fog;
+    Engine* m_EngineContext = nullptr;
     
     friend class Entity;
     friend class SceneSerializer;

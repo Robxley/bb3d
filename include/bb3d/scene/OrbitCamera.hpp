@@ -11,6 +11,8 @@ public:
     OrbitCamera(float fov, float aspect, float near, float far);
     ~OrbitCamera() override = default;
 
+    Type getType() const override { return Type::Orbit; }
+
     /** @brief Calcule la position de la caméra en fonction de l'orbite. */
     void update(float deltaTime) override;
 
@@ -20,6 +22,18 @@ public:
     void rotate(float yawOffset, float pitchOffset);
     void zoom(float delta);
     void setTarget(const glm::vec3& target);
+    
+    void setDistance(float distance) { m_distance = distance; }
+    void setRotation(float yaw, float pitch) { m_yaw = yaw; m_pitch = pitch; }
+    /** @} */
+
+    /** @name Getters (Pour sérialisation)
+     * @{
+     */
+    glm::vec3 getTarget() const { return m_target; }
+    float getDistance() const { return m_distance; }
+    float getYaw() const { return m_yaw; }
+    float getPitch() const { return m_pitch; }
     /** @} */
 
 private:

@@ -27,6 +27,9 @@ public:
     Camera(float fov, float aspect, float near, float far);
     virtual ~Camera() = default;
 
+    enum class Type { None, Custom, Orbit, FPS };
+    virtual Type getType() const { return Type::Custom; }
+
     /** @brief Met à jour la logique de la caméra (ex: interpolation). */
     virtual void update(float deltaTime) = 0;
 
