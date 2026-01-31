@@ -136,8 +136,8 @@ int main() {
 
                 glm::mat4 modelMat = glm::rotate(glm::mat4(1.0f), t*0.5f, {0,1,0}) * glm::translate(glm::mat4(1.0f), -center);
 
-                auto wr = device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX); 
-                device.resetFences(1, &inFlightFences[currentFrame]);
+                (void)device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX); 
+                (void)device.resetFences(1, &inFlightFences[currentFrame]);
 
                 uint32_t idx = swapChain.acquireNextImage(semA[currentFrame]);
                 auto& cb = commandBuffers[currentFrame];
@@ -164,19 +164,30 @@ int main() {
                 currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
             }
             
-            // Cleanup resources explicitly before destroying allocator dependencies
-            model.reset();
-            texture.reset();
-            resources.clearCache();
-
+            // 1. Wait for GPU
             device.waitIdle();
+
+            // 2. Destroy Synchronization primitives
             for(int i=0; i<MAX_FRAMES_IN_FLIGHT; ++i) { 
                 device.destroySemaphore(semA[i]); 
                 device.destroySemaphore(semR[i]); 
                 device.destroyFence(inFlightFences[i]);
             }
-            device.destroyCommandPool(cp); device.destroyDescriptorPool(dp); 
-            device.destroyDescriptorSetLayout(dsl0); device.destroyDescriptorSetLayout(dsl1);
+
+            // 3. Destroy Command Pool (frees Command Buffers referencing resources)
+            device.destroyCommandPool(cp); 
+            
+            // 4. Destroy Descriptors
+            device.destroyDescriptorPool(dp); 
+            device.destroyDescriptorSetLayout(dsl0); 
+            device.destroyDescriptorSetLayout(dsl1);
+
+            // 5. NOW safe to release VMA resources (Model, Texture)
+            model.reset();
+            texture.reset();
+            resources.clearCache();
+
+            // 6. Shutdown Systems
             jobSystem.shutdown();
         }
     } catch (const std::exception& e) { BB_CORE_ERROR("Fail: {}", e.what()); return -1; }

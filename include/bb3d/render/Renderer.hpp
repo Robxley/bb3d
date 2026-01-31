@@ -58,6 +58,8 @@ private:
     std::vector<vk::Fence> m_inFlightFences;
 
     // Global UBO
+#pragma warning(push)
+#pragma warning(disable: 4324)
     struct GlobalUBO {
         glm::mat4 view;
         glm::mat4 proj;
@@ -65,6 +67,7 @@ private:
         alignas(16) glm::vec3 lightDir;
         alignas(16) glm::vec3 lightColor;
     };
+#pragma warning(pop)
     std::vector<Scope<UniformBuffer>> m_cameraUbos;
     vk::DescriptorSetLayout m_globalDescriptorLayout;
     std::vector<vk::DescriptorSet> m_globalDescriptorSets;

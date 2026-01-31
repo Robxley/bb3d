@@ -41,7 +41,9 @@ static const std::byte* getBufferData(const fastgltf::Buffer& buffer) {
         else if constexpr (std::is_same_v<T, fastgltf::sources::Array>) {
             return reinterpret_cast<const std::byte*>(arg.bytes.data());
         }
-        return (const std::byte*)nullptr;
+        else {
+            return nullptr;
+        }
     }, buffer.data);
 }
 

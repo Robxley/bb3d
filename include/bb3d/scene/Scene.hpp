@@ -56,6 +56,21 @@ public:
      */
     Entity createModelEntity(const std::string& name, const std::string& path, const glm::vec3& position = {0,0,0}, const glm::vec3& normalizeSize = {0,0,0});
 
+    /** 
+     * @brief Crée une lumière directionnelle (ex: Soleil).
+     * @param rotation Rotation (Euler X,Y,Z en degrés). X=-90 regarde vers le bas.
+     */
+    Entity createDirectionalLight(const std::string& name, const glm::vec3& color, float intensity, const glm::vec3& rotation = {-45.0f, 0.0f, 0.0f});
+
+    /** @brief Crée une lumière ponctuelle (Omni). */
+    Entity createPointLight(const std::string& name, const glm::vec3& color, float intensity, float range, const glm::vec3& position);
+
+    /** 
+     * @brief Crée une SkySphere (environnement panoramique) à partir d'une texture.
+     * @return L'entité créée (ou invalide si échec de chargement).
+     */
+    Entity createSkySphere(const std::string& name, const std::string& texturePath);
+
     /** @brief Supprime une entité de la scène. */
     void destroyEntity(Entity entity);
 

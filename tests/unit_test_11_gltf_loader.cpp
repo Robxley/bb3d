@@ -136,12 +136,12 @@ int main() {
             GlobalUBO uboData{ camera.getViewMatrix(), camera.getProjectionMatrix() };
             ubo.update(&uboData, sizeof(uboData));
 
-            glm::mat4 modelMat = glm::rotate(glm::mat4(1.0f), t*0.5f, {0,1,0}) * glm::translate(glm::mat4(1.0f), -center);
+                glm::mat4 modelMat = glm::rotate(glm::mat4(1.0f), t*0.5f, {0,1,0}) * glm::scale(glm::mat4(1.0f), {0.05f, 0.05f, 0.05f});
 
-            auto wr = device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX); 
-            device.resetFences(1, &inFlightFences[currentFrame]);
+                (void)device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+                (void)device.resetFences(1, &inFlightFences[currentFrame]);
 
-            uint32_t idx = swapChain.acquireNextImage(semA[currentFrame]);
+                uint32_t idx = swapChain.acquireNextImage(semA[currentFrame]);
             auto& cb = commandBuffers[currentFrame];
             cb.reset({}); cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
             transitionImageLayout(cb, swapChain.getImage(idx), swapChain.getImageFormat(), vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);

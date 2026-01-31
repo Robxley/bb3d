@@ -140,7 +140,8 @@ int main() {
                 }
                 activeCam->update(dt);
 
-                auto waitRes = dev.waitForFences(1, &fen[frameIdx], VK_TRUE, UINT64_MAX); dev.resetFences(1, &fen[frameIdx]);
+                (void)dev.waitForFences(1, &fen[frameIdx], VK_TRUE, UINT64_MAX); 
+                (void)dev.resetFences(1, &fen[frameIdx]);
                 uint32_t imgIdx;
                 try { imgIdx = swapChain.acquireNextImage(semA[frameIdx]); } catch (...) { continue; }
 

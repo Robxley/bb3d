@@ -56,7 +56,7 @@ Entity Scene::createFPSCamera(const std::string& name, float fov, float aspect, 
             if (!fps) return;
 
             auto& input = eng->input();
-            
+
             // Rotation (Clic droit pour capturer)
             if (input.isMouseButtonPressed(Mouse::Right)) {
                 glm::vec2 delta = input.getMouseDelta();
@@ -98,6 +98,57 @@ Entity Scene::createModelEntity(const std::string& name, const std::string& path
     } catch (const std::exception& e) {
         BB_CORE_ERROR("Scene: Failed to load model '{0}': {1}", path, e.what());
         // En cas d'échec, on détruit l'entité vide créée
+        destroyEntity(entity);
+        return {};
+    }
+
+    return entity;
+}
+
+Entity Scene::createDirectionalLight(const std::string& name, const glm::vec3& color, float intensity, const glm::vec3& rotation) {
+    auto entity = createEntity(name);
+    entity.add<LightComponent>();
+    auto& light = entity.get<LightComponent>();
+    light.type = LightType::Directional;
+    light.color = color;
+    light.intensity = intensity;
+    
+    // Conversion Euler (Degrés) -> Radians pour le Transform
+    entity.get<TransformComponent>().rotation = glm::radians(rotation);
+    
+    return entity;
+}
+
+Entity Scene::createPointLight(const std::string& name, const glm::vec3& color, float intensity, float range, const glm::vec3& position) {
+    auto entity = createEntity(name);
+    entity.at(position);
+    
+    entity.add<LightComponent>();
+    auto& light = entity.get<LightComponent>();
+    light.type = LightType::Point;
+    light.color = color;
+    light.intensity = intensity;
+    light.range = range;
+    
+    return entity;
+}
+
+Entity Scene::createSkySphere(const std::string& name, const std::string& texturePath) {
+    if (!m_EngineContext) {
+        BB_CORE_ERROR("Scene: Cannot load skysphere '{0}', Engine context is missing!", name);
+        return {}; 
+    }
+
+    auto entity = createEntity(name);
+    
+    try {
+        // True pour flipY souvent nécessaire pour les sky textures équirectangulaires
+        auto texture = m_EngineContext->assets().load<Texture>(texturePath, true); 
+        entity.add<SkySphereComponent>();
+        auto& comp = entity.get<SkySphereComponent>();
+        comp.texture = texture;
+    } catch (const std::exception& e) {
+        BB_CORE_ERROR("Scene: Failed to load skysphere texture '{0}': {1}", texturePath, e.what());
         destroyEntity(entity);
         return {};
     }

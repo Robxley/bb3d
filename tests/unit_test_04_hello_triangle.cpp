@@ -86,8 +86,9 @@ int main() {
         while (!window.ShouldClose()) {
             window.PollEvents();
 
-            auto waitResult = device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
-            device.resetFences(1, &inFlightFences[currentFrame]);
+            // Attendre que la frame pr├®c├®dente soit finie
+            (void)device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+            (void)device.resetFences(1, &inFlightFences[currentFrame]);
 
             uint32_t imageIndex;
             try {

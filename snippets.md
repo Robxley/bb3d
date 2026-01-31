@@ -54,10 +54,11 @@ auto giantAnt = scene->createModelEntity("Ant", "assets/models/ant.glb", {0,2,-1
 
 ### Ajouter une Lumière
 ```cpp
-auto light = scene->createEntity("Sun");
-light.add<bb3d::LightComponent>(bb3d::LightType::Directional, glm::vec3(1.0f, 0.9f, 0.8f), 5.0f);
-// Orienter la lumière (rotation X = Pitch)
-light.get<bb3d::TransformComponent>().rotation = {glm::radians(-45.0f), 0, 0};
+// Lumière Directionnelle (Soleil)
+scene->createDirectionalLight("Sun", {1.0f, 0.9f, 0.8f}, 5.0f, {-45.0f, 0, 0});
+
+// Lumière Ponctuelle (Lampe)
+scene->createPointLight("Lamp", {1,0,0}, 10.0f, 20.0f, {0,5,0});
 ```
 
 ### Scripting Rapide (Native Script)
@@ -72,10 +73,8 @@ entity.add<bb3d::NativeScriptComponent>([](bb3d::Entity ent, float dt) {
 
 ### SkySphere (Panorama 360°)
 ```cpp
-// Chargement manuel de la texture
-auto skyTex = engine->assets().load<bb3d::Texture>("assets/textures/sky.jpg");
-// Création de l'entité environnement
-scene->createEntity("Sky").add<bb3d::SkySphereComponent>(skyTex);
+// Création automatique (charge la texture et configure le composant)
+scene->createSkySphere("Sky", "assets/textures/sky.jpg");
 ```
 
 ---
