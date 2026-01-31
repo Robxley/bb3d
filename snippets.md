@@ -24,105 +24,104 @@ int main() {
 }
 ```
 
-## 🏗️ 2. Gestion de la Scène et des Entités
+## 🏗️ 2. Gestion de la Scène et des Entités (High-Level API)
 
-Le moteur utilise un système **ECS (Entity Component System)**.
+L'API de la scène propose des méthodes utilitaires pour créer rapidement des objets complexes.
 
-```cpp
-// Récupérer la scène active ou en créer une nouvelle
-auto scene = engine->CreateScene();
-engine->SetActiveScene(scene);
-
-// Créer une entité
-auto player = scene->createEntity("Player");
-
-// Positionner une entité (API fluide)
-player.at({0.0f, 1.0f, -5.0f});
-
-// Ajouter un composant
-player.add<bb3d::TagComponent>("Hero");
-```
-
-## 📦 3. Chargement des Assets (Ressources)
-
-Le `ResourceManager` gère le cache et évite les doublons mémoire.
+### Création d'une Caméra (Orbitale / FPS)
+Ces méthodes créent l'entité, la caméra et le script de contrôle automatiquement.
 
 ```cpp
-auto& assets = engine->assets();
+// Caméra Orbitale (Style Editeur/RTS) : Clic Gauche pour tourner, Molette pour zoomer
+auto orbitCam = scene->createOrbitCamera("MainCam", 45.0f, 16.0f/9.0f, {0,0,0}, 10.0f);
 
-// Modèles (OBJ ou GLTF)
-auto model = assets.load<bb3d::Model>("assets/models/car.glb");
-
-// Textures
-auto texture = assets.load<bb3d::Texture>("assets/textures/diffuse.png");
-
-// Utilisation dans un composant
-entity.add<bb3d::ModelComponent>(model);
+// Caméra FPS (First Person) : ZQSD pour bouger, Clic Droit pour tourner
+auto fpsCam = scene->createFPSCamera("PlayerCam", 60.0f, 16.0f/9.0f, {0,2,0});
 ```
 
-## 🎥 4. Caméras (Standard & Scriptées)
-
-### Caméra Orbitale (Style Blender/Editeur)
-```cpp
-auto cameraEntity = scene->createEntity("OrbitCam");
-auto orbit = bb3d::CreateRef<bb3d::OrbitCamera>(45.0f, 16.0f/9.0f, 0.1f, 1000.0f);
-orbit->setTarget({0, 0, 0});
-orbit->setDistance(10.0f);
-
-cameraEntity.add<bb3d::CameraComponent>(orbit);
-
-// Script pour le contrôle à la souris
-cameraEntity.add<bb3d::NativeScriptComponent>([eng = engine.get()](bb3d::Entity entity, float dt) {
-    auto& cam = entity.get<bb3d::CameraComponent>();
-    auto* orbit = dynamic_cast<bb3d::OrbitCamera*>(cam.camera.get());
-    auto& input = eng->input();
-
-    if (input.isMouseButtonPressed(bb3d::Mouse::Left)) {
-        glm::vec2 delta = input.getMouseDelta();
-        orbit->rotate(delta.x * 5.0f, -delta.y * 5.0f);
-    }
-    orbit->zoom(input.getMouseScroll().y);
-});
-```
-
-### Caméra FPS
-```cpp
-auto fpsCam = bb3d::CreateRef<bb3d::FPSCamera>(60.0f, 16.0f/9.0f, 0.1f, 1000.0f);
-entity.add<bb3d::CameraComponent>(fpsCam);
-```
-
-## 🌍 5. Environnement (Skybox & SkySphere)
-
-### Skybox (Cubemap - 6 faces)
-```cpp
-// Requiert un asset au format cubemap (.ktx2 ou chargement spécifique)
-// scene->setSkybox(myCubemapTexture);
-```
-
-### SkySphere (Texture 360° Panorama)
-```cpp
-auto skyTex = assets.load<bb3d::Texture>("assets/textures/sky.jpg");
-scene->createEntity("Sky").add<bb3d::SkySphereComponent>(skyTex);
-```
-
-## 💡 6. Comportements Personnalisés (Native Scripts)
-
-C'est le moyen le plus simple d'ajouter de la logique à une entité sans créer de classe complexe.
+### Chargement de Modèles 3D
+Charge un modèle, crée l'entité et le redimensionne optionnellement.
 
 ```cpp
-entity.add<bb3d::NativeScriptComponent>([](bb3d::Entity ent, float dt) {
-    // Récupérer le transform
-    auto& transform = ent.get<bb3d::TransformComponent>();
-    
-    // Faire tourner l'objet
-    transform.rotation.y += dt * glm::radians(45.0f);
-});
+// Chargement simple
+auto car = scene->createModelEntity("Car", "assets/models/car.glb", {0,0,0});
+
+// Chargement avec normalisation de taille (utile si l'échelle du modèle est inconnue)
+auto giantAnt = scene->createModelEntity("Ant", "assets/models/ant.glb", {0,2,-10}, {20.0f, 20.0f, 20.0f});
 ```
 
-## ☀️ 7. Éclairage
+## 📦 3. Composants et Logique
 
+### Ajouter une Lumière
 ```cpp
 auto light = scene->createEntity("Sun");
 light.add<bb3d::LightComponent>(bb3d::LightType::Directional, glm::vec3(1.0f, 0.9f, 0.8f), 5.0f);
+// Orienter la lumière (rotation X = Pitch)
 light.get<bb3d::TransformComponent>().rotation = {glm::radians(-45.0f), 0, 0};
+```
+
+### Scripting Rapide (Native Script)
+```cpp
+entity.add<bb3d::NativeScriptComponent>([](bb3d::Entity ent, float dt) {
+    auto& transform = ent.get<bb3d::TransformComponent>();
+    transform.rotation.y += dt; // Rotation continue
+});
+```
+
+## 🌍 4. Environnement
+
+### SkySphere (Panorama 360°)
+```cpp
+// Chargement manuel de la texture
+auto skyTex = engine->assets().load<bb3d::Texture>("assets/textures/sky.jpg");
+// Création de l'entité environnement
+scene->createEntity("Sky").add<bb3d::SkySphereComponent>(skyTex);
+```
+
+---
+
+## 🛠️ 5. Advanced Snippets (Low-Level / Custom)
+
+Cette section montre comment assembler manuellement des entités complexes si les méthodes automatiques ne suffisent pas (ex: Caméra Custom).
+
+### Caméra Custom avec Script Manuel
+Si vous voulez un comportement de caméra spécifique non couvert par Orbit/FPS.
+
+```cpp
+// 1. Création de l'entité et de la caméra (classe dérivée de Camera ou OrbitCamera)
+auto cameraEntity = scene->createEntity("CustomCam");
+auto myCam = bb3d::CreateRef<bb3d::OrbitCamera>(45.0f, 16.0f/9.0f, 0.1f, 1000.0f);
+cameraEntity.add<bb3d::CameraComponent>(myCam);
+
+// 2. Ajout du script de contrôle manuel
+cameraEntity.add<bb3d::NativeScriptComponent>([eng = engine.get()](bb3d::Entity entity, float dt) {
+    auto& camComp = entity.get<bb3d::CameraComponent>();
+    auto* cam = dynamic_cast<bb3d::OrbitCamera*>(camComp.camera.get());
+    if (!cam) return;
+
+    auto& input = eng->input();
+    
+    // Exemple : Zoom avec les touches PageUp/PageDown au lieu de la molette
+    if (input.isKeyPressed(bb3d::Key::PageUp))   cam->zoom(-10.0f * dt);
+    if (input.isKeyPressed(bb3d::Key::PageDown)) cam->zoom( 10.0f * dt);
+});
+```
+
+### Chargement Manuel de Modèle (Try/Catch)
+Si vous avez besoin de gérer les erreurs de chargement spécifiquement.
+
+```cpp
+try {
+    auto& assets = engine->assets();
+    auto model = assets.load<bb3d::Model>("assets/models/complex_object.obj");
+    
+    // Manipulation du modèle avant création de l'entité
+    model->normalize({1.0f, 1.0f, 1.0f});
+
+    auto entity = scene->createEntity("ManualEntity");
+    entity.at({0, 5, 0});
+    entity.add<bb3d::ModelComponent>(model);
+} catch (const std::exception& e) {
+    BB_CORE_ERROR("Erreur lors du chargement manuel : {}", e.what());
+}
 ```
