@@ -76,4 +76,18 @@ void Window::HandleEvent(SDL_Event& event)
     }
 }
 
+int Window::GetWidth() const
+{
+    int w;
+    SDL_GetWindowSize(m_Window, &w, nullptr);
+    return w;
+}
+
+int Window::GetHeight() const
+{
+    int h;
+    SDL_GetWindowSize(m_Window, nullptr, &h);
+    return h;
+}
+
 } // namespace bb3d

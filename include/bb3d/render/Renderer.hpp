@@ -12,6 +12,8 @@
 #include <vector>
 #include <unordered_map>
 
+#include "bb3d/scene/Frustum.hpp"
+
 namespace bb3d {
 
 class Window; // Forward declaration
@@ -38,7 +40,10 @@ private:
 
     VulkanContext& m_context;
     Window& m_window;
+    EngineConfig m_config;
     Scope<SwapChain> m_swapChain;
+    
+    Frustum m_frustum;
     
     // Pipelines
     std::unordered_map<MaterialType, Scope<GraphicsPipeline>> m_pipelines;

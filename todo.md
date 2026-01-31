@@ -14,9 +14,10 @@ Ce document suit l'évolution du moteur biobazard3d. Les tâches terminées sont
 - [x] 🧵 **JobSystem** : Thread Pool multi-coeur pour les tâches asynchrones.
 - [x] 📐 **Maths & Camera** : Intégration GLM, Caméras FPS et Orbitale interactives.
 - [x] 🧹 **Harmonisation Assets** : Standardisation des noms de fichiers et structures de dossiers pour les modèles.
+- [x] 🪟 **Window Resizing** : Gestion robuste du redimensionnement et de la minimisation (Swapchain recreation).
 
 ## ⚡ Optimisations (Priorité Haute)
-- [ ] 🕵️ **Frustum Culling (CPU side)** : Ne pas envoyer au GPU les objets hors du champ de vision de la caméra (utilisation des AABB).
+- [x] 🕵️ **Frustum Culling (CPU side)** : Ne pas envoyer au GPU les objets hors du champ de vision de la caméra (utilisation des AABB).
 - [ ] 🔗 **Bindless Textures (Descriptor Indexing)** : Utiliser un tableau global de textures pour éliminer les changements de Descriptor Sets.
 - [ ] 🛡️ **Z-Prepass** : Passe de profondeur initiale pour réduire l'overdraw et économiser le fragment shader PBR.
 - [ ] 🏎️ **Optimisation du JobSystem** : Affiner la répartition pour le culling et les mises à jour de transforms.

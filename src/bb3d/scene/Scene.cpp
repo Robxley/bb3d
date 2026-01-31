@@ -28,6 +28,8 @@ Entity Scene::createOrbitCamera(const std::string& name, float fov, float aspect
     if (eng) {
         entity.add<NativeScriptComponent>([eng](Entity e, float /*dt*/) {
             auto& camComp = e.get<CameraComponent>();
+            if (!camComp.active) return;
+
             auto* orbit = dynamic_cast<OrbitCamera*>(camComp.camera.get());
             if (!orbit) return;
 
@@ -52,6 +54,8 @@ Entity Scene::createFPSCamera(const std::string& name, float fov, float aspect, 
     if (eng) {
         entity.add<NativeScriptComponent>([eng](Entity e, float dt) {
             auto& camComp = e.get<CameraComponent>();
+            if (!camComp.active) return;
+
             auto* fps = dynamic_cast<FPSCamera*>(camComp.camera.get());
             if (!fps) return;
 

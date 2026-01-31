@@ -20,8 +20,34 @@ int main() {
                 auto scene = engine->CreateScene();
                 engine->SetActiveScene(scene);
         
-                // 1. Caméra
-                auto cameraEntity = scene->createOrbitCamera("MainCamera", 45.0f, 1600.0f/900.0f, {0, 2, 0}, 30.0f);
+                // 1. Caméras
+                auto orbitCamEnt = scene->createOrbitCamera("OrbitCamera", 45.0f, 1600.0f/900.0f, {0, 2, 0}, 30.0f);
+                auto fpsCamEnt = scene->createFPSCamera("FPSCamera", 60.0f, 1600.0f/900.0f, {0, 5, 20});
+                
+                // On commence en Orbit
+                fpsCamEnt.get<CameraComponent>().active = false;
+
+                // Script de switch
+                scene->createEntity("CameraManager").add<NativeScriptComponent>([orbitCamEnt, fpsCamEnt, eng = engine.get()](Entity /*ent*/, float /*dt*/) mutable {
+                    static bool cPressedLastFrame = false;
+                    auto& input = eng->input();
+                    bool cIsPressed = input.isKeyPressed(Key::C);
+
+                    if (cIsPressed && !cPressedLastFrame) {
+                        auto& orbitComp = orbitCamEnt.get<CameraComponent>();
+                        auto& fpsComp = fpsCamEnt.get<CameraComponent>();
+                        
+                        orbitComp.active = !orbitComp.active;
+                        fpsComp.active = !orbitComp.active;
+
+                        if (orbitComp.active) {
+                            BB_CORE_INFO("Switching to Orbit Camera (Left Click: Rotate, Scroll: Zoom)");
+                        } else {
+                            BB_CORE_INFO("Switching to FPS Camera (ZQSD: Move, Right Click: Rotate)");
+                        }
+                    }
+                    cPressedLastFrame = cIsPressed;
+                });
         
                 // 2. Environnement
                 scene->createSkySphere("SkyEnvironment", "assets/textures/skybox_sphere_wood_diffuse.jpeg");

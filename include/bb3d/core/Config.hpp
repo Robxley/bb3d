@@ -38,14 +38,16 @@ namespace bb3d {
         float anisotropy = 16.0f;
         int shadowMapResolution = 2048;
         bool enableValidationLayers = true;
+        bool enableFrustumCulling = true;
 
         GraphicsConfig& setVsync(bool v) { vsync = v; return *this; }
         GraphicsConfig& setFpsMax(int fps) { fpsMax = fps; return *this; }
         GraphicsConfig& setBuffering(std::string_view b) { buffering = b; return *this; }
         GraphicsConfig& setMsaaSamples(int s) { msaaSamples = s; return *this; }
         GraphicsConfig& setValidationLayers(bool e) { enableValidationLayers = e; return *this; }
+        GraphicsConfig& setFrustumCulling(bool e) { enableFrustumCulling = e; return *this; }
 
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers, enableFrustumCulling)
     };
 
     /**
@@ -131,6 +133,8 @@ namespace bb3d {
         EngineConfig& enablePhysics(PhysicsBackend b) { modules.setPhysics(b != PhysicsBackend::None, b); return *this; }
         EngineConfig& enableAudio(bool e) { modules.setAudio(e); return *this; }
         EngineConfig& enableJobSystem(bool e) { modules.setJobSystem(e); return *this; }
+        EngineConfig& frustumCulling(bool e) { graphics.setFrustumCulling(e); return *this; }
+        EngineConfig& resizable(bool r) { window.setResizable(r); return *this; }
 
         /// @name Layout Locations par défaut pour les Shaders
         /// @{

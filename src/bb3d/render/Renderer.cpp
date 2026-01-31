@@ -24,7 +24,7 @@ struct RenderCommand {
 };
 
 Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& config)
-    : m_context(context), m_window(window) {
+    : m_context(context), m_window(window), m_config(config) {
     m_swapChain = CreateScope<SwapChain>(context, config.window.width, config.window.height);
     createSyncObjects();
     createGlobalDescriptors();
@@ -159,6 +159,8 @@ Ref<Material> Renderer::getMaterialForTexture(Ref<Texture> texture) {
 }
 
 void Renderer::render(Scene& scene) {
+    if (m_window.GetWidth() == 0 || m_window.GetHeight() == 0) return;
+
     auto dev = m_context.getDevice();
     (void)dev.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
     Camera* activeCamera = nullptr;
@@ -171,6 +173,11 @@ void Renderer::render(Scene& scene) {
     uboData.proj = activeCamera->getProjectionMatrix(); 
     uboData.camPos = glm::vec4(glm::vec3(glm::inverse(uboData.view)[3]), 0.0f);
     int numLights = 0;
+
+    // Mise à jour du Frustum pour le culling
+    if (m_config.graphics.enableFrustumCulling) {
+        m_frustum.update(uboData.proj * uboData.view);
+    }
 
     auto lightView = scene.getRegistry().view<LightComponent>();
     for (auto entity : lightView) {
@@ -204,7 +211,13 @@ void Renderer::render(Scene& scene) {
     m_cameraUbos[m_currentFrame]->update(&uboData, sizeof(uboData));
 
     uint32_t imageIndex;
-    try { imageIndex = m_swapChain->acquireNextImage(m_imageAvailableSemaphores[m_currentFrame]); } catch (...) { return; }
+    try { 
+        imageIndex = m_swapChain->acquireNextImage(m_imageAvailableSemaphores[m_currentFrame]); 
+    } catch (const std::exception& e) {
+        BB_CORE_WARN("Renderer: Swapchain out of date during acquire, recreating...");
+        onResize(m_window.GetWidth(), m_window.GetHeight());
+        return; 
+    }
     (void)dev.resetFences(1, &m_inFlightFences[m_currentFrame]);
 
     auto& cb = m_commandBuffers[m_currentFrame];
@@ -230,22 +243,38 @@ void Renderer::render(Scene& scene) {
     for (auto entity : meshView) {
         auto& meshComp = meshView.get<MeshComponent>(entity);
         if (!meshComp.mesh) continue;
+
+        glm::mat4 transform = meshView.get<TransformComponent>(entity).getTransform();
+
+        // --- Frustum Culling ---
+        if (m_config.graphics.enableFrustumCulling) {
+            AABB worldAABB = meshComp.mesh->getBounds().transform(transform);
+            if (!m_frustum.intersects(worldAABB)) continue;
+        }
+
         Ref<Material> mat = meshComp.mesh->getMaterial();
         if (!mat) { Ref<Texture> tex = meshComp.mesh->getTexture(); mat = tex ? getMaterialForTexture(tex) : nullptr; }
         if (!mat) mat = m_fallbackMaterial;
-        commands.push_back({ mat->getType(), mat.get(), meshComp.mesh.get(), meshView.get<TransformComponent>(entity).getTransform() });
+        commands.push_back({ mat->getType(), mat.get(), meshComp.mesh.get(), transform });
     }
 
     auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
     for (auto entity : modelView) {
         auto& modelComp = modelView.get<ModelComponent>(entity);
         if (!modelComp.model) continue;
-        glm::mat4 t = modelView.get<TransformComponent>(entity).getTransform();
+        glm::mat4 transform = modelView.get<TransformComponent>(entity).getTransform();
+
+        // --- Frustum Culling ---
+        if (m_config.graphics.enableFrustumCulling) {
+            AABB worldAABB = modelComp.model->getBounds().transform(transform);
+            if (!m_frustum.intersects(worldAABB)) continue;
+        }
+
         for (const auto& mesh : modelComp.model->getMeshes()) {
             Ref<Material> mat = mesh->getMaterial();
             if (!mat) { Ref<Texture> tex = mesh->getTexture(); mat = tex ? getMaterialForTexture(tex) : nullptr; }
             if (!mat) mat = m_fallbackMaterial;
-            commands.push_back({ mat->getType(), mat.get(), mesh.get(), t });
+            commands.push_back({ mat->getType(), mat.get(), mesh.get(), transform });
         }
     }
 
@@ -307,7 +336,13 @@ void Renderer::render(Scene& scene) {
 
     vk::PipelineStageFlags waitStages = vk::PipelineStageFlagBits::eColorAttachmentOutput;
     m_context.getGraphicsQueue().submit(vk::SubmitInfo(1, &m_imageAvailableSemaphores[m_currentFrame], &waitStages, 1, &cb, 1, &m_renderFinishedSemaphores[m_currentFrame]), m_inFlightFences[m_currentFrame]);
-    try { m_swapChain->present(m_renderFinishedSemaphores[m_currentFrame], imageIndex); } catch (...) {}
+    
+    try { 
+        m_swapChain->present(m_renderFinishedSemaphores[m_currentFrame], imageIndex); 
+    } catch (...) {
+        BB_CORE_WARN("Renderer: Swapchain out of date during present, recreating...");
+        onResize(m_window.GetWidth(), m_window.GetHeight());
+    }
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
@@ -335,6 +370,9 @@ void Renderer::renderSkybox(vk::CommandBuffer cb, Scene& scene) {
     }
 }
 
-void Renderer::onResize(int width, int height) { m_swapChain->recreate(width, height); }
+void Renderer::onResize(int width, int height) { 
+    if (width == 0 || height == 0) return;
+    m_swapChain->recreate(width, height); 
+}
 
 } // namespace bb3d

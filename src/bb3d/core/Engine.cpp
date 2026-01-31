@@ -72,6 +72,14 @@ void Engine::Init() {
     m_Window = CreateScope<Window>(m_Config);
     m_Window->SetEventCallback([this](SDL_Event& e) {
         if (m_InputManager) m_InputManager->onEvent(e);
+        
+        if (e.type == SDL_EVENT_WINDOW_RESIZED || e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
+            int w = e.window.data1;
+            int h = e.window.data2;
+            if (w > 0 && h > 0 && m_Renderer) {
+                m_Renderer->onResize(w, h);
+            }
+        }
     });
 
     // 5. Vulkan Context

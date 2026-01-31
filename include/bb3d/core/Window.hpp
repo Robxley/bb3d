@@ -55,6 +55,9 @@ public:
     /** @brief Définit le callback pour les événements OS. */
     void SetEventCallback(const EventCallbackFn& callback) { m_EventCallback = callback; }
 
+    int GetWidth() const;
+    int GetHeight() const;
+
 private:
     /** @brief Gestion interne des événements SDL. */
     void HandleEvent(SDL_Event& event);
