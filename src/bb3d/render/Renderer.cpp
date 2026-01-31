@@ -151,24 +151,37 @@ void Renderer::render(Scene& scene) {
     GlobalUBO uboData; 
     uboData.view = activeCamera->getViewMatrix(); 
     uboData.proj = activeCamera->getProjectionMatrix(); 
-    uboData.camPos = glm::vec3(glm::inverse(uboData.view)[3]);
-    
-    // Find Sun light
-    uboData.lightDir = glm::normalize(glm::vec3(1.0f, -1.0f, -1.0f));
-    uboData.lightColor = glm::vec3(1.0f, 1.0f, 1.0f) * 2.0f;
-    
+    uboData.camPos = glm::vec4(glm::vec3(glm::inverse(uboData.view)[3]), 0.0f);
+    int numLights = 0;
+
     auto lightView = scene.getRegistry().view<LightComponent>();
     for (auto entity : lightView) {
+        if (numLights >= 10) break;
+
         auto& light = lightView.get<LightComponent>(entity);
+        ShaderLight& sl = uboData.lights[numLights];
+        
+        sl.color = glm::vec4(light.color, light.intensity);
+        sl.params = glm::vec4(light.range, 0.0f, 0.0f, 0.0f);
+
         if (light.type == LightType::Directional) {
-            uboData.lightColor = light.color * light.intensity;
-            // For now, directional light dir is fixed or could come from transform
+            sl.position.w = 0.0f; // Type Directional
             if (scene.getRegistry().all_of<TransformComponent>(entity)) {
-                uboData.lightDir = scene.getRegistry().get<TransformComponent>(entity).getForward();
+                sl.direction = glm::vec4(scene.getRegistry().get<TransformComponent>(entity).getForward(), 0.0f);
+            } else {
+                sl.direction = glm::vec4(0.0f, -1.0f, 0.0f, 0.0f);
             }
-            break;
+        } else if (light.type == LightType::Point) {
+            sl.position.w = 1.0f; // Type Point
+            if (scene.getRegistry().all_of<TransformComponent>(entity)) {
+                sl.position = glm::vec4(scene.getRegistry().get<TransformComponent>(entity).translation, 1.0f);
+            }
         }
+        
+        numLights++;
     }
+    
+    uboData.globalParams = glm::vec4((float)numLights, 0.0f, 0.0f, 0.0f);
 
     m_cameraUbos[m_currentFrame]->update(&uboData, sizeof(uboData));
 

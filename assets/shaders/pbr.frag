@@ -18,17 +18,22 @@ layout(set = 1, binding = 0) uniform MaterialUBO {
 
 layout(set = 1, binding = 1) uniform sampler2D albedoMap;
 layout(set = 1, binding = 2) uniform sampler2D normalMap;
-layout(set = 1, binding = 3) uniform sampler2D metallicMap;
-layout(set = 1, binding = 4) uniform sampler2D roughnessMap;
-layout(set = 1, binding = 5) uniform sampler2D aoMap;
-layout(set = 1, binding = 6) uniform sampler2D emissiveMap;
+layout(set = 1, binding = 3) uniform sampler2D ormMap; // R=Occlusion, G=Roughness, B=Metallic
+layout(set = 1, binding = 4) uniform sampler2D emissiveMap;
+
+struct Light {
+    vec4 position;  // xyz = pos, w = type (0=Dir, 1=Point)
+    vec4 color;     // rgb = color, a = intensity
+    vec4 direction; // xyz = dir
+    vec4 params;    // x = range
+};
 
 layout(set = 0, binding = 0) uniform GlobalUBO {
     mat4 view;
     mat4 proj;
-    vec3 camPos;
-    vec3 lightDir;
-    vec3 lightColor;
+    vec4 camPos;
+    vec4 globalParams; // .x = numLights
+    Light lights[10];
 } ubo;
 
 const float PI = 3.14159265359;
@@ -64,28 +69,8 @@ vec3 FresnelSchlick(float cosTheta, vec3 F0) {
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
-void main() {
-    vec3 albedo = texture(albedoMap, fragUV).rgb * mat.baseColorFactor.rgb * fragColor;
-    float metallic = texture(metallicMap, fragUV).r * mat.metallicFactor;
-    float roughness = texture(roughnessMap, fragUV).r * mat.roughnessFactor;
-    float ao = texture(aoMap, fragUV).r * mat.occlusionStrength;
-    vec3 emissive = texture(emissiveMap, fragUV).rgb;
-
-    vec3 normalSample = texture(normalMap, fragUV).rgb;
-    // Transform normal vector to range [-1,1]
-    vec3 n = normalSample * 2.0 - 1.0;
-    n.xy *= mat.normalScale;
-    vec3 N = normalize(TBN * n); 
-    vec3 V = normalize(ubo.camPos - fragPos);
-
-    vec3 F0 = vec3(0.04);
-    F0 = mix(F0, albedo, metallic);
-
-    // Directional Light
-    vec3 L = normalize(-ubo.lightDir);
+vec3 calculatePBR(vec3 L, vec3 V, vec3 N, vec3 radiance, vec3 albedo, float metallic, float roughness, vec3 F0) {
     vec3 H = normalize(V + L);
-    vec3 radiance = ubo.lightColor;
-
     float NDF = DistributionGGX(N, H, roughness);
     float G = GeometrySmith(N, V, L, roughness);
     vec3 F = FresnelSchlick(max(dot(H, V), 0.0), F0);
@@ -99,11 +84,55 @@ void main() {
     vec3 specular = numerator / denominator;
 
     float NdotL = max(dot(N, L), 0.0);
-    vec3 Lo = (kD * albedo / PI + specular) * radiance * NdotL;
+    return (kD * albedo / PI + specular) * radiance * NdotL;
+}
 
-    vec3 ambient = vec3(0.5) * albedo * ao; // Very bright ambient for testing
+void main() {
+    vec3 albedo = texture(albedoMap, fragUV).rgb * mat.baseColorFactor.rgb * fragColor;
+    
+    vec3 orm = texture(ormMap, fragUV).rgb;
+    float ao = orm.r * mat.occlusionStrength;
+    float roughness = orm.g * mat.roughnessFactor;
+    float metallic = orm.b * mat.metallicFactor;
+    
+    vec3 emissive = texture(emissiveMap, fragUV).rgb;
+
+    vec3 normalSample = texture(normalMap, fragUV).rgb;
+    vec3 n = normalSample * 2.0 - 1.0;
+    n.xy *= mat.normalScale;
+    vec3 N = normalize(TBN * n);
+    vec3 V = normalize(ubo.camPos.xyz - fragPos);
+
+    vec3 F0 = vec3(0.04);
+    F0 = mix(F0, albedo, metallic);
+
+    vec3 Lo = vec3(0.0);
+    int numLights = int(ubo.globalParams.x);
+    for(int i = 0; i < numLights; ++i) {
+        vec3 L;
+        vec3 radiance;
+        
+        if (ubo.lights[i].position.w < 0.5) { // Directional
+            L = normalize(-ubo.lights[i].direction.xyz);
+            radiance = ubo.lights[i].color.rgb * ubo.lights[i].color.a;
+        } else { // Point
+            vec3 lightDir = ubo.lights[i].position.xyz - fragPos;
+            float distance = length(lightDir);
+            L = normalize(lightDir);
+            float attenuation = 1.0 / (distance * distance);
+            radiance = ubo.lights[i].color.rgb * ubo.lights[i].color.a * attenuation;
+            
+            if (distance > ubo.lights[i].params.x) radiance *= 0.0;
+        }
+        
+        Lo += calculatePBR(L, V, N, radiance, albedo, metallic, roughness, F0);
+    }
+
+    vec3 ambient = vec3(0.03) * albedo * ao; 
     vec3 color = ambient + Lo + emissive;
 
     color = color / (color + vec3(1.0));
+    color = pow(color, vec3(1.0/2.2));
+
     outColor = vec4(color, 1.0);
 }

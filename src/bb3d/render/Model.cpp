@@ -235,16 +235,46 @@ void Model::loadGLTF(std::string_view path) {
             
             if (primitive.materialIndex.has_value()) {
                 const auto& material = gltf.materials[primitive.materialIndex.value()];
-                if (material.pbrData.baseColorTexture.has_value()) {
-                    size_t textureInfoIndex = material.pbrData.baseColorTexture.value().textureIndex;
-                    if (textureInfoIndex < gltf.textures.size()) {
-                        auto& texInfo = gltf.textures[textureInfoIndex];
-                        if (texInfo.imageIndex.has_value()) {
-                            size_t imageIndex = texInfo.imageIndex.value();
-                            if (imageIndex < m_textures.size()) newMesh->setTexture(m_textures[imageIndex]);
+                auto pbrMat = CreateRef<PBRMaterial>(m_context);
+                PBRParameters params;
+                params.baseColorFactor = glm::vec4(material.pbrData.baseColorFactor[0], material.pbrData.baseColorFactor[1], material.pbrData.baseColorFactor[2], material.pbrData.baseColorFactor[3]);
+                params.metallicFactor = material.pbrData.metallicFactor;
+                params.roughnessFactor = material.pbrData.roughnessFactor;
+                
+                auto getTextureFromIndex = [&](std::optional<size_t> texIdx) -> Ref<Texture> {
+                    if (texIdx.has_value()) {
+                        if (texIdx.value() < gltf.textures.size() && gltf.textures[texIdx.value()].imageIndex.has_value()) {
+                            size_t imgIdx = gltf.textures[texIdx.value()].imageIndex.value();
+                            if (imgIdx < m_textures.size()) return m_textures[imgIdx];
                         }
                     }
+                    return nullptr;
+                };
+
+                if (material.pbrData.baseColorTexture.has_value()) {
+                    auto albedo = getTextureFromIndex(material.pbrData.baseColorTexture->textureIndex);
+                    if (albedo) pbrMat->setAlbedoMap(albedo);
                 }
+
+                if (material.normalTexture.has_value()) {
+                    auto normal = getTextureFromIndex(material.normalTexture->textureIndex);
+                    if (normal) {
+                        pbrMat->setNormalMap(normal);
+                        params.normalScale = (float)material.normalTexture->scale;
+                    }
+                }
+
+                if (material.pbrData.metallicRoughnessTexture.has_value()) {
+                    auto orm = getTextureFromIndex(material.pbrData.metallicRoughnessTexture->textureIndex);
+                    if (orm) pbrMat->setORMMap(orm);
+                }
+                
+                if (material.occlusionTexture.has_value()) {
+                    params.occlusionStrength = (float)material.occlusionTexture->strength;
+                }
+
+                pbrMat->setParameters(params);
+                newMesh->setMaterial(pbrMat);
             }
 
             m_bounds.extend(newMesh->getBounds());

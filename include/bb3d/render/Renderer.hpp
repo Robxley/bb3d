@@ -60,12 +60,19 @@ private:
     // Global UBO
 #pragma warning(push)
 #pragma warning(disable: 4324)
+    struct ShaderLight {
+        glm::vec4 position;  // xyz = pos, w = type (0=Dir, 1=Point)
+        glm::vec4 color;     // rgb = color, a = intensity
+        glm::vec4 direction; // xyz = dir, w = unused
+        glm::vec4 params;    // x = range, y = spotAngle, zw = unused
+    };
+
     struct GlobalUBO {
         glm::mat4 view;
         glm::mat4 proj;
-        alignas(16) glm::vec3 camPos;
-        alignas(16) glm::vec3 lightDir;
-        alignas(16) glm::vec3 lightColor;
+        glm::vec4 camPos;      // .xyz = pos, .w = padding
+        glm::vec4 globalParams; // .x = numLights (cast to int), .yzw = padding
+        ShaderLight lights[10];
     };
 #pragma warning(pop)
     std::vector<Scope<UniformBuffer>> m_cameraUbos;

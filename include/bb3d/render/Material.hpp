@@ -51,9 +51,7 @@ public:
     MaterialType getType() const override { return MaterialType::PBR; }
     void setAlbedoMap(Ref<Texture> texture) { if (m_albedoMap != texture) { m_albedoMap = texture; m_dirty = true; } }
     void setNormalMap(Ref<Texture> texture) { if (m_normalMap != texture) { m_normalMap = texture; m_dirty = true; } }
-    void setMetallicMap(Ref<Texture> texture) { if (m_metallicMap != texture) { m_metallicMap = texture; m_dirty = true; } }
-    void setRoughnessMap(Ref<Texture> texture) { if (m_roughnessMap != texture) { m_roughnessMap = texture; m_dirty = true; } }
-    void setAOMap(Ref<Texture> texture) { if (m_aoMap != texture) { m_aoMap = texture; m_dirty = true; } }
+    void setORMMap(Ref<Texture> texture) { if (m_ormMap != texture) { m_ormMap = texture; m_dirty = true; } }
     void setEmissiveMap(Ref<Texture> texture) { if (m_emissiveMap != texture) { m_emissiveMap = texture; m_dirty = true; } }
     void setParameters(const PBRParameters& params) { m_parameters = params; m_dirty = true; }
     
@@ -62,7 +60,7 @@ public:
 
 private:
     void updateDescriptorSet();
-    Ref<Texture> m_albedoMap, m_normalMap, m_metallicMap, m_roughnessMap, m_aoMap, m_emissiveMap;
+    Ref<Texture> m_albedoMap, m_normalMap, m_ormMap, m_emissiveMap;
     PBRParameters m_parameters;
     Scope<UniformBuffer> m_paramBuffer;
     vk::DescriptorSet m_set = nullptr;

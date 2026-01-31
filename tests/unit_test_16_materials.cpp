@@ -63,8 +63,7 @@ int main() {
     auto matPBR = bb3d::CreateRef<bb3d::PBRMaterial>(engine->graphics());
     matPBR->setAlbedoMap(albedoTex);
     matPBR->setNormalMap(normalTex);
-    matPBR->setRoughnessMap(roughTex);
-    matPBR->setAOMap(aoTex);
+    if (roughTex) matPBR->setORMMap(roughTex); // Roughness is in Green channel of ORM
 
     auto meshPBR = bb3d::Ref<bb3d::Mesh>(bb3d::MeshGenerator::createSphere(engine->graphics(), 1.0f, 64, {1,1,1}).release());
     meshPBR->setMaterial(matPBR);
@@ -96,6 +95,16 @@ int main() {
         .add<bb3d::NativeScriptComponent>(rotationScript);
 
     BB_CORE_INFO("Scene Materials Ready: Left=Unlit, Center=PBR, Right=Toon");
+
+    // --- 4. Lights ---
+    // Sun Light
+    scene->createDirectionalLight("Sun", {1.0f, 1.0f, 0.9f}, 3.0f, {-45.0f, -45.0f, 0.0f});
+
+    // Red Point Light (Intensity boosted for PBR 1/d^2 attenuation)
+    scene->createPointLight("RedLight", {1.0f, 0.1f, 0.1f}, 100.0f, 20.0f, {-2.5f, 2.0f, 1.0f});
+
+    // Blue Point Light
+    scene->createPointLight("BlueLight", {0.1f, 0.1f, 1.0f}, 100.0f, 20.0f, {2.5f, -2.0f, 1.0f});
 
     engine->Run();
 

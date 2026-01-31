@@ -24,20 +24,18 @@ void Material::Cleanup() { s_defaultWhite = nullptr; s_defaultBlack = nullptr; s
 PBRMaterial::PBRMaterial(VulkanContext& context) : Material(context) {
     InitDefaults(context);
     m_albedoMap = s_defaultWhite; m_normalMap = s_defaultNormal;
-    m_metallicMap = s_defaultBlack; m_roughnessMap = s_defaultBlack;
-    m_aoMap = s_defaultWhite; m_emissiveMap = s_defaultBlack;
+    m_ormMap = s_defaultWhite; // Occlusion (R)=1, Roughness (G)=1, Metallic (B)=1
+    m_emissiveMap = s_defaultBlack;
     m_paramBuffer = CreateScope<UniformBuffer>(context, sizeof(PBRParameters));
 }
 PBRMaterial::~PBRMaterial() { m_paramBuffer.reset(); }
 vk::DescriptorSetLayout PBRMaterial::CreateLayout(vk::Device device) {
     std::vector<vk::DescriptorSetLayoutBinding> b = {
         {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment},
-        {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
-        {2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
-        {3, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
-        {4, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
-        {5, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
-        {6, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}
+        {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Albedo
+        {2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // Normal
+        {3, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}, // ORM
+        {4, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}  // Emissive
     };
     return device.createDescriptorSetLayout({ {}, (uint32_t)b.size(), b.data() });
 }
@@ -52,14 +50,12 @@ void PBRMaterial::updateDescriptorSet() {
     std::vector<vk::DescriptorImageInfo> iInfos = {
         {m_albedoMap->getSampler(), m_albedoMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
         {m_normalMap->getSampler(), m_normalMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
-        {m_metallicMap->getSampler(), m_metallicMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
-        {m_roughnessMap->getSampler(), m_roughnessMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
-        {m_aoMap->getSampler(), m_aoMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
+        {m_ormMap->getSampler(), m_ormMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
         {m_emissiveMap->getSampler(), m_emissiveMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal}
     };
     std::vector<vk::WriteDescriptorSet> writes;
     writes.push_back({ m_set, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo });
-    for(int i=0; i<6; ++i) writes.push_back({ m_set, (uint32_t)i+1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfos[i] });
+    for(int i=0; i<4; ++i) writes.push_back({ m_set, (uint32_t)i+1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfos[i] });
     m_context.getDevice().updateDescriptorSets(writes, {});
 }
 
