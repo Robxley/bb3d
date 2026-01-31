@@ -44,13 +44,13 @@ int main() {
 
     try {
         if (std::filesystem::exists(baseDir + "Bricks092_1K-JPG_Color.jpg"))
-            albedoTex = assets.load<bb3d::Texture>(baseDir + "Bricks092_1K-JPG_Color.jpg");
+            albedoTex = assets.load<bb3d::Texture>(baseDir + "Bricks092_1K-JPG_Color.jpg", true); // Color
         if (std::filesystem::exists(baseDir + "Bricks092_1K-JPG_NormalGL.jpg"))
-            normalTex = assets.load<bb3d::Texture>(baseDir + "Bricks092_1K-JPG_NormalGL.jpg");
+            normalTex = assets.load<bb3d::Texture>(baseDir + "Bricks092_1K-JPG_NormalGL.jpg", false); // Data
         if (std::filesystem::exists(baseDir + "Bricks092_1K-JPG_Roughness.jpg"))
-            roughTex = assets.load<bb3d::Texture>(baseDir + "Bricks092_1K-JPG_Roughness.jpg");
+            roughTex = assets.load<bb3d::Texture>(baseDir + "Bricks092_1K-JPG_Roughness.jpg", false); // Data
         if (std::filesystem::exists(baseDir + "Bricks092_1K-JPG_AmbientOcclusion.jpg"))
-            aoTex = assets.load<bb3d::Texture>(baseDir + "Bricks092_1K-JPG_AmbientOcclusion.jpg");
+            aoTex = assets.load<bb3d::Texture>(baseDir + "Bricks092_1K-JPG_AmbientOcclusion.jpg", false); // Data
     } catch (...) { BB_CORE_WARN("Textures non trouvées"); }
 
     // Script de rotation partagé

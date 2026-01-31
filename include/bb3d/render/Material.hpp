@@ -2,12 +2,13 @@
 
 #include "bb3d/core/Base.hpp"
 #include "bb3d/render/Texture.hpp"
+#include "bb3d/render/UniformBuffer.hpp"
 #include "bb3d/render/VulkanContext.hpp"
 #include <glm/glm.hpp>
 
 namespace bb3d {
 
-enum class MaterialType { PBR, Unlit, Toon };
+enum class MaterialType { PBR, Unlit, Toon, Skybox, SkySphere };
 
 struct PBRParameters {
     glm::vec4 baseColorFactor = {1.0f, 1.0f, 1.0f, 1.0f};
@@ -26,48 +27,34 @@ public:
     virtual vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) = 0;
     virtual vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) = 0;
 
-    static void Cleanup(); // Nettoyage des ressources statiques
+    static void Cleanup(); 
 
 protected:
     VulkanContext& m_context;
-    
-    // Textures par défaut partagées
     static Ref<Texture> s_defaultWhite;
     static Ref<Texture> s_defaultBlack;
     static Ref<Texture> s_defaultNormal;
-
     static void InitDefaults(VulkanContext& context);
 };
 
 class PBRMaterial : public Material {
 public:
     PBRMaterial(VulkanContext& context);
-    ~PBRMaterial() = default;
-
     MaterialType getType() const override { return MaterialType::PBR; }
-
-    void setAlbedoMap(Ref<Texture> texture) { m_albedoMap = texture; m_dirty = true; }
-    void setNormalMap(Ref<Texture> texture) { m_normalMap = texture; m_dirty = true; }
-    void setMetallicMap(Ref<Texture> texture) { m_metallicMap = texture; m_dirty = true; }
-    void setRoughnessMap(Ref<Texture> texture) { m_roughnessMap = texture; m_dirty = true; }
-    void setAOMap(Ref<Texture> texture) { m_aoMap = texture; m_dirty = true; }
-    void setEmissiveMap(Ref<Texture> texture) { m_emissiveMap = texture; m_dirty = true; }
-    void setParameters(const PBRParameters& params) { m_parameters = params; }
-
+    void setAlbedoMap(Ref<Texture> texture) { if (m_albedoMap != texture) { m_albedoMap = texture; m_dirty = true; } }
+    void setNormalMap(Ref<Texture> texture) { if (m_normalMap != texture) { m_normalMap = texture; m_dirty = true; } }
+    void setMetallicMap(Ref<Texture> texture) { if (m_metallicMap != texture) { m_metallicMap = texture; m_dirty = true; } }
+    void setRoughnessMap(Ref<Texture> texture) { if (m_roughnessMap != texture) { m_roughnessMap = texture; m_dirty = true; } }
+    void setAOMap(Ref<Texture> texture) { if (m_aoMap != texture) { m_aoMap = texture; m_dirty = true; } }
+    void setEmissiveMap(Ref<Texture> texture) { if (m_emissiveMap != texture) { m_emissiveMap = texture; m_dirty = true; } }
+    void setParameters(const PBRParameters& params) { m_parameters = params; m_dirty = true; }
     vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) override;
     vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) override;
-
 private:
     void updateDescriptorSet();
-
-    Ref<Texture> m_albedoMap;
-    Ref<Texture> m_normalMap;
-    Ref<Texture> m_metallicMap;
-    Ref<Texture> m_roughnessMap;
-    Ref<Texture> m_aoMap;
-    Ref<Texture> m_emissiveMap;
+    Ref<Texture> m_albedoMap, m_normalMap, m_metallicMap, m_roughnessMap, m_aoMap, m_emissiveMap;
     PBRParameters m_parameters;
-
+    Scope<UniformBuffer> m_paramBuffer;
     vk::DescriptorSetLayout m_layout = nullptr;
     vk::DescriptorSet m_set = nullptr;
     bool m_dirty = true;
@@ -77,13 +64,10 @@ class UnlitMaterial : public Material {
 public:
     UnlitMaterial(VulkanContext& context);
     MaterialType getType() const override { return MaterialType::Unlit; }
-
-    void setBaseMap(Ref<Texture> texture) { m_baseMap = texture; m_dirty = true; }
-    void setColor(const glm::vec3& color) { m_color = color; }
-
+    void setBaseMap(Ref<Texture> texture) { if (m_baseMap != texture) { m_baseMap = texture; m_dirty = true; } }
+    void setColor(const glm::vec3& color) { m_color = color; m_dirty = true; }
     vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) override;
     vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) override;
-
 private:
     void updateDescriptorSet();
     Ref<Texture> m_baseMap;
@@ -97,15 +81,42 @@ class ToonMaterial : public Material {
 public:
     ToonMaterial(VulkanContext& context);
     MaterialType getType() const override { return MaterialType::Toon; }
-
-    void setBaseMap(Ref<Texture> texture) { m_baseMap = texture; m_dirty = true; }
-
+    void setBaseMap(Ref<Texture> texture) { if (m_baseMap != texture) { m_baseMap = texture; m_dirty = true; } }
     vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) override;
     vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) override;
-
 private:
     void updateDescriptorSet();
     Ref<Texture> m_baseMap;
+    vk::DescriptorSetLayout m_layout = nullptr;
+    vk::DescriptorSet m_set = nullptr;
+    bool m_dirty = true;
+};
+
+class SkyboxMaterial : public Material {
+public:
+    SkyboxMaterial(VulkanContext& context);
+    MaterialType getType() const override { return MaterialType::Skybox; }
+    void setCubemap(Ref<Texture> texture) { if (m_cubemap != texture) { m_cubemap = texture; m_dirty = true; } }
+    vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) override;
+    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) override;
+private:
+    void updateDescriptorSet();
+    Ref<Texture> m_cubemap;
+    vk::DescriptorSetLayout m_layout = nullptr;
+    vk::DescriptorSet m_set = nullptr;
+    bool m_dirty = true;
+};
+
+class SkySphereMaterial : public Material {
+public:
+    SkySphereMaterial(VulkanContext& context);
+    MaterialType getType() const override { return MaterialType::SkySphere; }
+    void setTexture(Ref<Texture> texture) { if (m_texture != texture) { m_texture = texture; m_dirty = true; } }
+    vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) override;
+    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) override;
+private:
+    void updateDescriptorSet();
+    Ref<Texture> m_texture;
     vk::DescriptorSetLayout m_layout = nullptr;
     vk::DescriptorSet m_set = nullptr;
     bool m_dirty = true;

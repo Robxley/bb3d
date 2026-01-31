@@ -10,11 +10,13 @@ GraphicsPipeline::GraphicsPipeline(VulkanContext& context, SwapChain& swapChain,
                                    const EngineConfig& config,
                                    const std::vector<vk::DescriptorSetLayout>& descriptorSetLayouts,
                                    const std::vector<vk::PushConstantRange>& pushConstantRanges,
-                                   bool useVertexInput)
+                                   bool useVertexInput,
+                                   bool depthWrite,
+                                   vk::CompareOp depthCompareOp)
     : m_context(context), m_swapChain(swapChain) {
     
     createPipelineLayout(descriptorSetLayouts, pushConstantRanges);
-    createPipeline(vertShader, fragShader, config, useVertexInput);
+    createPipeline(vertShader, fragShader, config, useVertexInput, depthWrite, depthCompareOp);
 }
 
 GraphicsPipeline::~GraphicsPipeline() {
@@ -35,7 +37,7 @@ void GraphicsPipeline::createPipelineLayout(const std::vector<vk::DescriptorSetL
     m_pipelineLayout = m_context.getDevice().createPipelineLayout(pipelineLayoutInfo);
 }
 
-void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, bool useVertexInput) {
+void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, bool useVertexInput, bool depthWrite, vk::CompareOp depthCompareOp) {
     // 1. Shader Stages
     std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages = {
         vk::PipelineShaderStageCreateInfo({}, vk::ShaderStageFlagBits::eVertex, vertShader.getModule(), "main"),
@@ -79,14 +81,10 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
     vk::PipelineMultisampleStateCreateInfo multisampling({}, vk::SampleCountFlagBits::e1, VK_FALSE);
 
     // 7. Depth Stencil
-    vk::CompareOp depthOp = vk::CompareOp::eLess;
-    if (config.depthStencil.depthCompareOp == "LessOrEqual") depthOp = vk::CompareOp::eLessOrEqual;
-    // ... handle other ops if needed
-
     vk::PipelineDepthStencilStateCreateInfo depthStencil({}, 
         config.depthStencil.depthTest ? VK_TRUE : VK_FALSE,
-        config.depthStencil.depthWrite ? VK_TRUE : VK_FALSE,
-        depthOp, VK_FALSE, config.depthStencil.stencilTest ? VK_TRUE : VK_FALSE);
+        depthWrite ? VK_TRUE : VK_FALSE,
+        depthCompareOp, VK_FALSE, config.depthStencil.stencilTest ? VK_TRUE : VK_FALSE);
 
     // 8. Color Blending
     vk::PipelineColorBlendAttachmentState colorBlendAttachment(VK_FALSE);

@@ -1,0 +1,16 @@
+{
+  "general": {
+    "previewFeatures": true
+  },
+  "checkpointing": {
+    "enabled": true
+  },
+  "mcpServers": {
+    "BlenderMCP": {
+      "command": "uvx",
+      "args": [
+        "blender-mcp"
+      ]
+    }
+  }
+}

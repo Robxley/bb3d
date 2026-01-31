@@ -135,6 +135,10 @@ set(SHADERS
     "${SHADER_DIR}/unlit.frag"
     "${SHADER_DIR}/toon.vert"
     "${SHADER_DIR}/toon.frag"
+    "${SHADER_DIR}/skybox.vert"
+    "${SHADER_DIR}/skybox.frag"
+    "${SHADER_DIR}/skysphere.vert"
+    "${SHADER_DIR}/skysphere.frag"
 )
 
 set(SPV_SHADERS "")
@@ -314,6 +318,13 @@ add_executable(unit_test_16_materials
 target_link_libraries(unit_test_16_materials PRIVATE biobazard3d)
 add_dependencies(unit_test_16_materials DeployAssets)
 
+# --- Unit Test 17: Skybox ---
+add_executable(unit_test_17_skybox
+    tests/unit_test_17_skybox.cpp
+)
+target_link_libraries(unit_test_17_skybox PRIVATE biobazard3d)
+add_dependencies(unit_test_17_skybox DeployAssets)
+
 # --- CTest Registration ---
 enable_testing()
 
@@ -334,12 +345,13 @@ add_test(NAME Camera COMMAND unit_test_13_camera)
 add_test(NAME InteractiveCameras COMMAND unit_test_14_interactive_cameras)
 add_test(NAME HelloWorld COMMAND unit_test_15_hello_world)
 add_test(NAME Materials COMMAND unit_test_16_materials)
+add_test(NAME Skybox COMMAND unit_test_17_skybox)
 
 # Set working directory for tests to find assets
 set_tests_properties(
     Infrastructure Window VulkanInit SwapChain HelloTriangle VertexBuffer 
     RotatingCube TextureCube CoreSystems ResourceManager ObjLoader GltfLoader 
-    ECS Camera InteractiveCameras HelloWorld Materials
+    ECS Camera InteractiveCameras HelloWorld Materials Skybox
     PROPERTIES WORKING_DIRECTORY $<TARGET_FILE_DIR:unit_test_00_infrastructure>
 )
 

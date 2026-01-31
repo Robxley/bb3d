@@ -7,6 +7,7 @@
 #include "bb3d/render/UniformBuffer.hpp"
 #include "bb3d/scene/Scene.hpp"
 #include "bb3d/render/Material.hpp"
+#include "bb3d/render/Mesh.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 #include <unordered_map>
@@ -72,8 +73,13 @@ private:
     // Cache pour compatibilité avec les Mesh sans Material explicite
     std::unordered_map<Texture*, Ref<Material>> m_defaultMaterials;
 
+    Scope<Mesh> m_skyboxCube;
+    Ref<SkyboxMaterial> m_internalSkyboxMat;
+    Ref<SkySphereMaterial> m_internalSkySphereMat;
+
     void createPipelines(const EngineConfig& config);
     vk::DescriptorSetLayout getLayoutForType(MaterialType type);
+    void renderSkybox(vk::CommandBuffer cb, Scene& scene);
 };
 
 } // namespace bb3d

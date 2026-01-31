@@ -46,7 +46,8 @@ public:
     /**
      * @brief Récupère une ressource du cache ou la charge si nécessaire.
      */
-    Ref<T> getOrLoad(std::string_view path) {
+    template<typename... Args>
+    Ref<T> getOrLoad(std::string_view path, Args&&... args) {
         {
             std::shared_lock<std::shared_mutex> readLock(m_mutex);
             auto it = m_resources.find(path);
@@ -61,10 +62,10 @@ public:
         
         Ref<T> resource = nullptr;
         try {
-            if constexpr (std::is_constructible_v<T, VulkanContext&, ResourceManager&, std::string>) {
-                resource = CreateRef<T>(m_context, *m_manager, std::string(path));
-            } else {
-                resource = CreateRef<T>(m_context, std::string(path));
+            if constexpr (std::is_constructible_v<T, VulkanContext&, ResourceManager&, std::string, Args...>) {
+                resource = CreateRef<T>(m_context, *m_manager, std::string(path), std::forward<Args>(args)...);
+            } else if constexpr (std::is_constructible_v<T, VulkanContext&, std::string, Args...>) {
+                resource = CreateRef<T>(m_context, std::string(path), std::forward<Args>(args)...);
             }
         } catch (const std::exception& e) {
             BB_CORE_ERROR("ResourceCache: Failed to load '{0}': {1}", path, e.what());
@@ -99,9 +100,9 @@ public:
      * @brief Charge une ressource de manière synchrone.
      * @tparam T Type de la ressource.
      */
-    template<typename T>
-    Ref<T> load(std::string_view path) {
-        return getCache<T>().getOrLoad(path);
+    template<typename T, typename... Args>
+    Ref<T> load(std::string_view path, Args&&... args) {
+        return getCache<T>().getOrLoad(path, std::forward<Args>(args)...);
     }
 
     /**
@@ -109,11 +110,17 @@ public:
      * @tparam T Type de la ressource.
      * @param callback Fonction appelée une fois le chargement terminé.
      */
-    template<typename T>
-    void loadAsync(std::string_view path, std::function<void(Ref<T>)> callback) {
+    template<typename T, typename... Args>
+    void loadAsync(std::string_view path, std::function<void(Ref<T>)> callback, Args&&... args) {
         std::string sPath(path);
-        m_jobSystem.execute([this, sPath, callback](std::stop_token) {
-            auto resource = load<T>(sPath);
+        // On doit capturer les arguments par valeur pour l'async
+        auto tupleArgs = std::make_tuple(std::forward<Args>(args)...);
+        m_jobSystem.execute([this, sPath, callback, tupleArgs](std::stop_token) {
+            // Note: Simplifié, le forwarding de tuple vers variadic load est complexe en C++20 sans apply
+            // On va juste supporter le cas sans args pour loadAsync pour l'instant ou utiliser std::apply
+            auto resource = std::apply([&](auto&&... unpackedArgs) {
+                return load<T>(sPath, std::forward<decltype(unpackedArgs)>(unpackedArgs)...);
+            }, tupleArgs);
             if (callback) callback(resource);
         });
     }

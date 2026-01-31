@@ -255,6 +255,20 @@ struct ParticleSystemComponent {
     }
 };
 
+/** @brief Composant Skybox (Cubemap). */
+struct SkyboxComponent {
+    Ref<Texture> cubemap;
+    void serialize(json&) const {}
+    void deserialize(const json&) {}
+};
+
+/** @brief Composant SkySphere (Texture 2D équirectangulaire). */
+struct SkySphereComponent {
+    Ref<Texture> texture;
+    void serialize(json&) const {}
+    void deserialize(const json&) {}
+};
+
 /** @brief Composant pour attacher un comportement (script C++) à une entité. */
 struct NativeScriptComponent {
     std::function<void(Entity, float)> onUpdate;
