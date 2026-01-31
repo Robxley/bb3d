@@ -34,11 +34,11 @@ int main() {
         
                 // 4. Modèles d'Avions
                 std::vector<std::string> planePaths = {
-                    "assets/models/planes/plane01/Plane01.obj",
-                    "assets/models/planes/plane02/Plane02.obj",
-                    "assets/models/planes/plane03/Plane_03.obj",
-                    "assets/models/planes/plane05/Plane05.obj",
-                    "assets/models/planes/plane06/Plane_06.obj"
+                    "assets/models/planes/Plane01/Plane01.obj",
+                    "assets/models/planes/Plane02/Plane02.obj",
+                    "assets/models/planes/Plane03/Plane03.obj",
+                    "assets/models/planes/Plane05/Plane05.obj",
+                    "assets/models/planes/Plane06/Plane06.obj"
                 };
         
                 // Script de rotation partagé
