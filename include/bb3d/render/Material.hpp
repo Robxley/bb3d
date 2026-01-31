@@ -24,8 +24,7 @@ public:
     virtual ~Material() = default;
 
     virtual MaterialType getType() const = 0;
-    virtual vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) = 0;
-    virtual vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) = 0;
+    virtual vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) = 0;
 
     static void Cleanup(); 
 
@@ -48,14 +47,15 @@ public:
     void setAOMap(Ref<Texture> texture) { if (m_aoMap != texture) { m_aoMap = texture; m_dirty = true; } }
     void setEmissiveMap(Ref<Texture> texture) { if (m_emissiveMap != texture) { m_emissiveMap = texture; m_dirty = true; } }
     void setParameters(const PBRParameters& params) { m_parameters = params; m_dirty = true; }
-    vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) override;
-    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) override;
+    
+    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
+    static vk::DescriptorSetLayout CreateLayout(vk::Device device);
+
 private:
     void updateDescriptorSet();
     Ref<Texture> m_albedoMap, m_normalMap, m_metallicMap, m_roughnessMap, m_aoMap, m_emissiveMap;
     PBRParameters m_parameters;
     Scope<UniformBuffer> m_paramBuffer;
-    vk::DescriptorSetLayout m_layout = nullptr;
     vk::DescriptorSet m_set = nullptr;
     bool m_dirty = true;
 };
@@ -66,13 +66,12 @@ public:
     MaterialType getType() const override { return MaterialType::Unlit; }
     void setBaseMap(Ref<Texture> texture) { if (m_baseMap != texture) { m_baseMap = texture; m_dirty = true; } }
     void setColor(const glm::vec3& color) { m_color = color; m_dirty = true; }
-    vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) override;
-    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) override;
+    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
+    static vk::DescriptorSetLayout CreateLayout(vk::Device device);
 private:
     void updateDescriptorSet();
     Ref<Texture> m_baseMap;
     glm::vec3 m_color = {1.0f, 1.0f, 1.0f};
-    vk::DescriptorSetLayout m_layout = nullptr;
     vk::DescriptorSet m_set = nullptr;
     bool m_dirty = true;
 };
@@ -82,12 +81,11 @@ public:
     ToonMaterial(VulkanContext& context);
     MaterialType getType() const override { return MaterialType::Toon; }
     void setBaseMap(Ref<Texture> texture) { if (m_baseMap != texture) { m_baseMap = texture; m_dirty = true; } }
-    vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) override;
-    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) override;
+    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
+    static vk::DescriptorSetLayout CreateLayout(vk::Device device);
 private:
     void updateDescriptorSet();
     Ref<Texture> m_baseMap;
-    vk::DescriptorSetLayout m_layout = nullptr;
     vk::DescriptorSet m_set = nullptr;
     bool m_dirty = true;
 };
@@ -97,12 +95,11 @@ public:
     SkyboxMaterial(VulkanContext& context);
     MaterialType getType() const override { return MaterialType::Skybox; }
     void setCubemap(Ref<Texture> texture) { if (m_cubemap != texture) { m_cubemap = texture; m_dirty = true; } }
-    vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) override;
-    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) override;
+    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
+    static vk::DescriptorSetLayout CreateLayout(vk::Device device);
 private:
     void updateDescriptorSet();
     Ref<Texture> m_cubemap;
-    vk::DescriptorSetLayout m_layout = nullptr;
     vk::DescriptorSet m_set = nullptr;
     bool m_dirty = true;
 };
@@ -112,12 +109,11 @@ public:
     SkySphereMaterial(VulkanContext& context);
     MaterialType getType() const override { return MaterialType::SkySphere; }
     void setTexture(Ref<Texture> texture) { if (m_texture != texture) { m_texture = texture; m_dirty = true; } }
-    vk::DescriptorSetLayout getDescriptorSetLayout(vk::Device device) override;
-    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool) override;
+    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
+    static vk::DescriptorSetLayout CreateLayout(vk::Device device);
 private:
     void updateDescriptorSet();
     Ref<Texture> m_texture;
-    vk::DescriptorSetLayout m_layout = nullptr;
     vk::DescriptorSet m_set = nullptr;
     bool m_dirty = true;
 };

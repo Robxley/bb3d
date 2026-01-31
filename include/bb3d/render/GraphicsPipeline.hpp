@@ -15,7 +15,8 @@ public:
                      const std::vector<vk::PushConstantRange>& pushConstantRanges = {},
                      bool useVertexInput = true,
                      bool depthWrite = true,
-                     vk::CompareOp depthCompareOp = vk::CompareOp::eLess);
+                     vk::CompareOp depthCompareOp = vk::CompareOp::eLess,
+                     const std::vector<uint32_t>& enabledAttributes = {});
     ~GraphicsPipeline();
 
     GraphicsPipeline(const GraphicsPipeline&) = delete;
@@ -29,7 +30,9 @@ public:
 private:
     void createPipelineLayout(const std::vector<vk::DescriptorSetLayout>& descriptorSetLayouts, 
                                const std::vector<vk::PushConstantRange>& pushConstantRanges);
-    void createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, bool useVertexInput, bool depthWrite, vk::CompareOp depthCompareOp);
+    void createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, 
+                        bool useVertexInput, bool depthWrite, vk::CompareOp depthCompareOp, 
+                        const std::vector<uint32_t>& enabledAttributes);
 
     VulkanContext& m_context;
     SwapChain& m_swapChain;

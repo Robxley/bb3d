@@ -28,8 +28,7 @@ PBRMaterial::PBRMaterial(VulkanContext& context) : Material(context) {
     m_aoMap = s_defaultWhite; m_emissiveMap = s_defaultBlack;
     m_paramBuffer = CreateScope<UniformBuffer>(context, sizeof(PBRParameters));
 }
-vk::DescriptorSetLayout PBRMaterial::getDescriptorSetLayout(vk::Device device) {
-    if (m_layout) return m_layout;
+vk::DescriptorSetLayout PBRMaterial::CreateLayout(vk::Device device) {
     std::vector<vk::DescriptorSetLayoutBinding> b = {
         {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment},
         {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
@@ -39,11 +38,10 @@ vk::DescriptorSetLayout PBRMaterial::getDescriptorSetLayout(vk::Device device) {
         {5, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
         {6, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}
     };
-    m_layout = device.createDescriptorSetLayout({ {}, (uint32_t)b.size(), b.data() });
-    return m_layout;
+    return device.createDescriptorSetLayout({ {}, (uint32_t)b.size(), b.data() });
 }
-vk::DescriptorSet PBRMaterial::getDescriptorSet(vk::DescriptorPool pool) {
-    if (!m_set) { auto l = getDescriptorSetLayout(m_context.getDevice()); m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &l })[0]; m_dirty = true; }
+vk::DescriptorSet PBRMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
+    if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
     if (m_dirty) { updateDescriptorSet(); m_dirty = false; }
     return m_set;
 }
@@ -66,14 +64,12 @@ void PBRMaterial::updateDescriptorSet() {
 
 // --- UnlitMaterial ---
 UnlitMaterial::UnlitMaterial(VulkanContext& context) : Material(context) { InitDefaults(context); m_baseMap = s_defaultWhite; }
-vk::DescriptorSetLayout UnlitMaterial::getDescriptorSetLayout(vk::Device device) {
-    if (m_layout) return m_layout;
+vk::DescriptorSetLayout UnlitMaterial::CreateLayout(vk::Device device) {
     vk::DescriptorSetLayoutBinding b(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
-    m_layout = device.createDescriptorSetLayout({ {}, 1, &b });
-    return m_layout;
+    return device.createDescriptorSetLayout({ {}, 1, &b });
 }
-vk::DescriptorSet UnlitMaterial::getDescriptorSet(vk::DescriptorPool pool) {
-    if (!m_set) { auto l = getDescriptorSetLayout(m_context.getDevice()); m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &l })[0]; m_dirty = true; }
+vk::DescriptorSet UnlitMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
+    if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
     if (m_dirty) { updateDescriptorSet(); m_dirty = false; }
     return m_set;
 }
@@ -85,14 +81,12 @@ void UnlitMaterial::updateDescriptorSet() {
 
 // --- ToonMaterial ---
 ToonMaterial::ToonMaterial(VulkanContext& context) : Material(context) { InitDefaults(context); m_baseMap = s_defaultWhite; }
-vk::DescriptorSetLayout ToonMaterial::getDescriptorSetLayout(vk::Device device) {
-    if (m_layout) return m_layout;
+vk::DescriptorSetLayout ToonMaterial::CreateLayout(vk::Device device) {
     vk::DescriptorSetLayoutBinding b(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
-    m_layout = device.createDescriptorSetLayout({ {}, 1, &b });
-    return m_layout;
+    return device.createDescriptorSetLayout({ {}, 1, &b });
 }
-vk::DescriptorSet ToonMaterial::getDescriptorSet(vk::DescriptorPool pool) {
-    if (!m_set) { auto l = getDescriptorSetLayout(m_context.getDevice()); m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &l })[0]; m_dirty = true; }
+vk::DescriptorSet ToonMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
+    if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
     if (m_dirty) { updateDescriptorSet(); m_dirty = false; }
     return m_set;
 }
@@ -104,14 +98,12 @@ void ToonMaterial::updateDescriptorSet() {
 
 // --- SkyboxMaterial ---
 SkyboxMaterial::SkyboxMaterial(VulkanContext& context) : Material(context) { InitDefaults(context); }
-vk::DescriptorSetLayout SkyboxMaterial::getDescriptorSetLayout(vk::Device device) {
-    if (m_layout) return m_layout;
+vk::DescriptorSetLayout SkyboxMaterial::CreateLayout(vk::Device device) {
     vk::DescriptorSetLayoutBinding b(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
-    m_layout = device.createDescriptorSetLayout({ {}, 1, &b });
-    return m_layout;
+    return device.createDescriptorSetLayout({ {}, 1, &b });
 }
-vk::DescriptorSet SkyboxMaterial::getDescriptorSet(vk::DescriptorPool pool) {
-    if (!m_set) { auto l = getDescriptorSetLayout(m_context.getDevice()); m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &l })[0]; m_dirty = true; }
+vk::DescriptorSet SkyboxMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
+    if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
     if (m_dirty) { updateDescriptorSet(); m_dirty = false; }
     return m_set;
 }
@@ -124,14 +116,12 @@ void SkyboxMaterial::updateDescriptorSet() {
 
 // --- SkySphereMaterial ---
 SkySphereMaterial::SkySphereMaterial(VulkanContext& context) : Material(context) { InitDefaults(context); m_texture = s_defaultWhite; }
-vk::DescriptorSetLayout SkySphereMaterial::getDescriptorSetLayout(vk::Device device) {
-    if (m_layout) return m_layout;
+vk::DescriptorSetLayout SkySphereMaterial::CreateLayout(vk::Device device) {
     vk::DescriptorSetLayoutBinding b(0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment);
-    m_layout = device.createDescriptorSetLayout({ {}, 1, &b });
-    return m_layout;
+    return device.createDescriptorSetLayout({ {}, 1, &b });
 }
-vk::DescriptorSet SkySphereMaterial::getDescriptorSet(vk::DescriptorPool pool) {
-    if (!m_set) { auto l = getDescriptorSetLayout(m_context.getDevice()); m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &l })[0]; m_dirty = true; }
+vk::DescriptorSet SkySphereMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
+    if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
     if (m_dirty) { updateDescriptorSet(); m_dirty = false; }
     return m_set;
 }

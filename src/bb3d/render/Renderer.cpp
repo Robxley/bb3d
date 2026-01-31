@@ -16,8 +16,6 @@ Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& c
     createGlobalDescriptors();
     createPipelines(config);
     m_skyboxCube = MeshGenerator::createCube(m_context, 1.0f);
-    
-    // Matériaux internes pour l'environnement (pour éviter les fuites statiques)
     m_internalSkyboxMat = CreateRef<SkyboxMaterial>(m_context);
     m_internalSkySphereMat = CreateRef<SkySphereMaterial>(m_context);
 }
@@ -31,17 +29,23 @@ Renderer::~Renderer() {
             if (m_renderFinishedSemaphores[i]) dev.destroySemaphore(m_renderFinishedSemaphores[i]);
             if (m_inFlightFences[i]) dev.destroyFence(m_inFlightFences[i]);
         }
-        
         m_internalSkyboxMat.reset();
         m_internalSkySphereMat.reset();
         m_skyboxCube.reset();
         m_defaultMaterials.clear();
         m_pipelines.clear();
         m_shaders.clear();
-        
         if (m_descriptorPool) dev.destroyDescriptorPool(m_descriptorPool);
-        if (m_globalDescriptorLayout) dev.destroyDescriptorSetLayout(m_globalDescriptorLayout);
-        for (auto& [type, layout] : m_layouts) { if(layout) dev.destroyDescriptorSetLayout(layout); }
+        if (m_globalDescriptorLayout) {
+            BB_CORE_TRACE("Renderer: Destroying global layout {:p}", (void*)static_cast<VkDescriptorSetLayout>(m_globalDescriptorLayout));
+            dev.destroyDescriptorSetLayout(m_globalDescriptorLayout);
+        }
+        for (auto& [type, layout] : m_layouts) { 
+            if(layout) {
+                BB_CORE_TRACE("Renderer: Destroying material layout {:p}", (void*)static_cast<VkDescriptorSetLayout>(layout));
+                dev.destroyDescriptorSetLayout(layout); 
+            }
+        }
         if (m_commandPool) dev.destroyCommandPool(m_commandPool);
     }
 }
@@ -65,9 +69,10 @@ void Renderer::createGlobalDescriptors() {
     m_cameraUbo = CreateScope<UniformBuffer>(m_context, sizeof(GlobalUBO));
     vk::DescriptorSetLayoutBinding cameraBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
     m_globalDescriptorLayout = dev.createDescriptorSetLayout({ {}, 1, &cameraBinding });
+    BB_CORE_TRACE("Renderer: Created global layout {:p}", (void*)static_cast<VkDescriptorSetLayout>(m_globalDescriptorLayout));
 
     std::vector<vk::DescriptorPoolSize> pSizes;
-    pSizes.push_back({vk::DescriptorType::eUniformBuffer, 500}); // Plus large pour les matériaux
+    pSizes.push_back({vk::DescriptorType::eUniformBuffer, 500});
     pSizes.push_back({vk::DescriptorType::eCombinedImageSampler, 1000});
     m_descriptorPool = dev.createDescriptorPool({ vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet, 1000, (uint32_t)pSizes.size(), pSizes.data() });
 
@@ -83,11 +88,15 @@ void Renderer::createGlobalDescriptors() {
 
 void Renderer::createPipelines(const EngineConfig& config) {
     auto dev = m_context.getDevice();
-    m_layouts[MaterialType::PBR] = PBRMaterial(m_context).getDescriptorSetLayout(dev);
-    m_layouts[MaterialType::Unlit] = UnlitMaterial(m_context).getDescriptorSetLayout(dev);
-    m_layouts[MaterialType::Toon] = ToonMaterial(m_context).getDescriptorSetLayout(dev);
-    m_layouts[MaterialType::Skybox] = SkyboxMaterial(m_context).getDescriptorSetLayout(dev);
-    m_layouts[MaterialType::SkySphere] = SkySphereMaterial(m_context).getDescriptorSetLayout(dev);
+    m_layouts[MaterialType::PBR] = PBRMaterial::CreateLayout(dev);
+    m_layouts[MaterialType::Unlit] = UnlitMaterial::CreateLayout(dev);
+    m_layouts[MaterialType::Toon] = ToonMaterial::CreateLayout(dev);
+    m_layouts[MaterialType::Skybox] = SkyboxMaterial::CreateLayout(dev);
+    m_layouts[MaterialType::SkySphere] = SkySphereMaterial::CreateLayout(dev);
+
+    for(auto& [type, layout] : m_layouts) {
+        BB_CORE_TRACE("Renderer: Created material layout {:p}", (void*)static_cast<VkDescriptorSetLayout>(layout));
+    }
 
     m_shaders["pbr.vert"] = CreateScope<Shader>(m_context, "assets/shaders/pbr.vert.spv");
     m_shaders["pbr.frag"] = CreateScope<Shader>(m_context, "assets/shaders/pbr.frag.spv");
@@ -102,18 +111,20 @@ void Renderer::createPipelines(const EngineConfig& config) {
 
     vk::PushConstantRange pcr(vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4));
     
-    auto createP = [&](MaterialType t, const std::string& v, const std::string& f, const EngineConfig& cfg, bool dWrite, vk::CompareOp op, bool useP) {
-        std::vector<vk::DescriptorSetLayout> ls = { m_globalDescriptorLayout, m_layouts[t] };
+    auto createP = [&](MaterialType t, const std::string& v, const std::string& f, const EngineConfig& cfg, bool dWrite, vk::CompareOp op, bool useP, const std::vector<uint32_t>& attr = {}) {
+        std::vector<vk::DescriptorSetLayout> ls; ls.push_back(m_globalDescriptorLayout); ls.push_back(m_layouts[t]);
         std::vector<vk::PushConstantRange> ps; if(useP) ps.push_back(pcr);
-        return CreateScope<GraphicsPipeline>(m_context, *m_swapChain, *m_shaders[v], *m_shaders[f], cfg, ls, ps, true, dWrite, op);
+        return CreateScope<GraphicsPipeline>(m_context, *m_swapChain, *m_shaders[v], *m_shaders[f], cfg, ls, ps, true, dWrite, op, attr);
     };
 
     m_pipelines[MaterialType::PBR] = createP(MaterialType::PBR, "pbr.vert", "pbr.frag", config, true, vk::CompareOp::eLess, true);
     EngineConfig envCfg = config; envCfg.rasterizer.setCullMode("None");
     m_pipelines[MaterialType::Unlit] = createP(MaterialType::Unlit, "unlit.vert", "unlit.frag", envCfg, true, vk::CompareOp::eLess, true);
     m_pipelines[MaterialType::Toon] = createP(MaterialType::Toon, "toon.vert", "toon.frag", config, true, vk::CompareOp::eLess, true);
-    m_pipelines[MaterialType::Skybox] = createP(MaterialType::Skybox, "skybox.vert", "skybox.frag", envCfg, false, vk::CompareOp::eAlways, false);
-    m_pipelines[MaterialType::SkySphere] = createP(MaterialType::SkySphere, "skysphere.vert", "skysphere.frag", envCfg, false, vk::CompareOp::eAlways, false);
+    
+    std::vector<uint32_t> envAttr; envAttr.push_back(0); envAttr.push_back(1); envAttr.push_back(2); envAttr.push_back(3); envAttr.push_back(4);
+    m_pipelines[MaterialType::Skybox] = createP(MaterialType::Skybox, "skybox.vert", "skybox.frag", envCfg, false, vk::CompareOp::eAlways, false, envAttr);
+    m_pipelines[MaterialType::SkySphere] = createP(MaterialType::SkySphere, "skysphere.vert", "skysphere.frag", envCfg, false, vk::CompareOp::eAlways, false, envAttr);
 }
 
 Ref<Material> Renderer::getMaterialForTexture(Ref<Texture> texture) {
@@ -144,10 +155,9 @@ void Renderer::render(Scene& scene) {
 
     vk::Image colorImage = m_swapChain->getImage(imageIndex);
     vk::Image depthImage = m_swapChain->getDepthImage();
-    std::vector<vk::ImageMemoryBarrier> barriers = {
-        { {}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, colorImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } },
-        { {}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, depthImage, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 } }
-    };
+    std::vector<vk::ImageMemoryBarrier> barriers;
+    barriers.push_back({ {}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, colorImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } });
+    barriers.push_back({ {}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, depthImage, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 } });
     cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput | vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, barriers);
 
     vk::RenderingAttachmentInfo colorAttr(m_swapChain->getImageViews()[imageIndex], vk::ImageLayout::eColorAttachmentOptimal, vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearValue(vk::ClearColorValue(std::array<float, 4>{0.1f, 0.1f, 0.1f, 1.0f})));
@@ -166,12 +176,13 @@ void Renderer::render(Scene& scene) {
         Ref<Material> mat = meshComp.mesh->getMaterial();
         if (!mat) { Ref<Texture> tex = meshComp.mesh->getTexture(); mat = tex ? getMaterialForTexture(tex) : nullptr; }
         if (!mat) { static Ref<Material> def = nullptr; if(!def) def = CreateRef<PBRMaterial>(m_context); mat = def; }
-        m_pipelines[mat->getType()]->bind(cb);
-        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[mat->getType()]->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
-        vk::DescriptorSet matSet = mat->getDescriptorSet(m_descriptorPool);
-        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[mat->getType()]->getLayout(), 1, 1, &matSet, 0, nullptr);
+        auto type = mat->getType();
+        m_pipelines[type]->bind(cb);
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+        vk::DescriptorSet matSet = mat->getDescriptorSet(m_descriptorPool, m_layouts[type]);
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 1, 1, &matSet, 0, nullptr);
         glm::mat4 modelMat = transform.getTransform();
-        cb.pushConstants(m_pipelines[mat->getType()]->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
+        cb.pushConstants(m_pipelines[type]->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
         meshComp.mesh->draw(cb);
     }
 
@@ -185,11 +196,12 @@ void Renderer::render(Scene& scene) {
                 Ref<Material> mat = mesh->getMaterial();
                 if (!mat) { Ref<Texture> tex = mesh->getTexture(); mat = tex ? getMaterialForTexture(tex) : nullptr; }
                 if (!mat) { static Ref<Material> def = nullptr; if(!def) def = CreateRef<PBRMaterial>(m_context); mat = def; }
-                m_pipelines[mat->getType()]->bind(cb);
-                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[mat->getType()]->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
-                vk::DescriptorSet matSet = mat->getDescriptorSet(m_descriptorPool);
-                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[mat->getType()]->getLayout(), 1, 1, &matSet, 0, nullptr);
-                cb.pushConstants(m_pipelines[mat->getType()]->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
+                auto type = mat->getType();
+                m_pipelines[type]->bind(cb);
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+                vk::DescriptorSet matSet = mat->getDescriptorSet(m_descriptorPool, m_layouts[type]);
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 1, 1, &matSet, 0, nullptr);
+                cb.pushConstants(m_pipelines[type]->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
                 mesh->draw(cb);
             }
         }
@@ -208,22 +220,24 @@ void Renderer::render(Scene& scene) {
 void Renderer::renderSkybox(vk::CommandBuffer cb, Scene& scene) {
     Ref<Texture> skyboxTex = scene.getSkybox();
     if (skyboxTex && skyboxTex->isCubemap()) {
-        auto& pipeline = m_pipelines[MaterialType::Skybox]; pipeline->bind(cb);
-        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+        auto type = MaterialType::Skybox;
+        m_pipelines[type]->bind(cb);
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
         m_internalSkyboxMat->setCubemap(skyboxTex);
-        vk::DescriptorSet matSet = m_internalSkyboxMat->getDescriptorSet(m_descriptorPool);
-        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 1, 1, &matSet, 0, nullptr);
+        vk::DescriptorSet matSet = m_internalSkyboxMat->getDescriptorSet(m_descriptorPool, m_layouts[type]);
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 1, 1, &matSet, 0, nullptr);
         m_skyboxCube->draw(cb);
     }
     auto skySphereView = scene.getRegistry().view<SkySphereComponent>();
     for (auto entity : skySphereView) {
         auto& comp = skySphereView.get<SkySphereComponent>(entity);
         if (comp.texture) {
-            auto& pipeline = m_pipelines[MaterialType::SkySphere]; pipeline->bind(cb);
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+            auto type = MaterialType::SkySphere;
+            m_pipelines[type]->bind(cb);
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
             m_internalSkySphereMat->setTexture(comp.texture);
-            vk::DescriptorSet matSet = m_internalSkySphereMat->getDescriptorSet(m_descriptorPool);
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 1, 1, &matSet, 0, nullptr);
+            vk::DescriptorSet matSet = m_internalSkySphereMat->getDescriptorSet(m_descriptorPool, m_layouts[type]);
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[type]->getLayout(), 1, 1, &matSet, 0, nullptr);
             m_skyboxCube->draw(cb);
         }
     }
