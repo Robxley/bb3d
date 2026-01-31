@@ -78,21 +78,40 @@ void Renderer::createSyncObjects() {
 void Renderer::createGlobalDescriptors() {
     auto dev = m_context.getDevice();
     m_cameraUbos.resize(MAX_FRAMES_IN_FLIGHT);
-    for(uint32_t i=0; i<MAX_FRAMES_IN_FLIGHT; ++i) m_cameraUbos[i] = CreateScope<UniformBuffer>(m_context, sizeof(GlobalUBO));
+    m_instanceBuffers.resize(MAX_FRAMES_IN_FLIGHT);
+    
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        m_cameraUbos[i] = CreateScope<UniformBuffer>(m_context, sizeof(GlobalUBO));
+        // On crée un buffer de stockage (StorageBuffer) pour les matrices, pré-mappé pour la performance
+        m_instanceBuffers[i] = CreateScope<Buffer>(m_context, sizeof(glm::mat4) * MAX_INSTANCES, 
+            vk::BufferUsageFlagBits::eStorageBuffer, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    }
 
-    vk::DescriptorSetLayoutBinding binding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment);
-    m_globalDescriptorLayout = dev.createDescriptorSetLayout({ {}, 1, &binding });
+    std::vector<vk::DescriptorSetLayoutBinding> bindings = {
+        {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment},
+        {1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex} // SSBO pour les instances
+    };
+    m_globalDescriptorLayout = dev.createDescriptorSetLayout({ {}, (uint32_t)bindings.size(), bindings.data() });
 
-    std::vector<vk::DescriptorPoolSize> pSizes = { {vk::DescriptorType::eUniformBuffer, 500}, {vk::DescriptorType::eCombinedImageSampler, 1000} };
+    std::vector<vk::DescriptorPoolSize> pSizes = { 
+        {vk::DescriptorType::eUniformBuffer, 500}, 
+        {vk::DescriptorType::eCombinedImageSampler, 1000},
+        {vk::DescriptorType::eStorageBuffer, 100} 
+    };
     m_descriptorPool = dev.createDescriptorPool({ vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet, 1000, (uint32_t)pSizes.size(), pSizes.data() });
 
     std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_globalDescriptorLayout);
     m_globalDescriptorSets = dev.allocateDescriptorSets({ m_descriptorPool, MAX_FRAMES_IN_FLIGHT, layouts.data() });
 
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        vk::DescriptorBufferInfo bufferInfo(m_cameraUbos[i]->getHandle(), 0, sizeof(GlobalUBO));
-        vk::WriteDescriptorSet write(m_globalDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bufferInfo);
-        dev.updateDescriptorSets(1, &write, 0, nullptr);
+        vk::DescriptorBufferInfo camInfo(m_cameraUbos[i]->getHandle(), 0, sizeof(GlobalUBO));
+        vk::DescriptorBufferInfo instInfo(m_instanceBuffers[i]->getHandle(), 0, sizeof(glm::mat4) * MAX_INSTANCES);
+        
+        std::vector<vk::WriteDescriptorSet> writes = {
+            {m_globalDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &camInfo},
+            {m_globalDescriptorSets[i], 1, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &instInfo}
+        };
+        dev.updateDescriptorSets(writes, {});
     }
 }
 
@@ -115,20 +134,19 @@ void Renderer::createPipelines(const EngineConfig& config) {
     m_shaders["skysphere.vert"] = CreateScope<Shader>(m_context, "assets/shaders/skysphere.vert.spv");
     m_shaders["skysphere.frag"] = CreateScope<Shader>(m_context, "assets/shaders/skysphere.frag.spv");
 
-    vk::PushConstantRange pcr(vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4));
-    auto createP = [&](MaterialType t, const std::string& v, const std::string& f, const EngineConfig& cfg, bool dWrite, vk::CompareOp op, bool useP, const std::vector<uint32_t>& attr = {}) {
+    auto createP = [&](MaterialType t, const std::string& v, const std::string& f, const EngineConfig& cfg, bool dWrite, vk::CompareOp op, const std::vector<uint32_t>& attr = {}) {
         std::vector<vk::DescriptorSetLayout> ls = { m_globalDescriptorLayout, m_layouts[t] };
-        std::vector<vk::PushConstantRange> ps; if(useP) ps.push_back(pcr);
-        return CreateScope<GraphicsPipeline>(m_context, *m_swapChain, *m_shaders[v], *m_shaders[f], cfg, ls, ps, true, dWrite, op, attr);
+        // Plus de PushConstantRange ici
+        return CreateScope<GraphicsPipeline>(m_context, *m_swapChain, *m_shaders[v], *m_shaders[f], cfg, ls, std::vector<vk::PushConstantRange>{}, true, dWrite, op, attr);
     };
 
-    m_pipelines[MaterialType::PBR] = createP(MaterialType::PBR, "pbr.vert", "pbr.frag", config, true, vk::CompareOp::eLess, true);
+    m_pipelines[MaterialType::PBR] = createP(MaterialType::PBR, "pbr.vert", "pbr.frag", config, true, vk::CompareOp::eLess);
     EngineConfig envCfg = config; envCfg.rasterizer.setCullMode("None");
-    m_pipelines[MaterialType::Unlit] = createP(MaterialType::Unlit, "unlit.vert", "unlit.frag", envCfg, true, vk::CompareOp::eLess, true);
-    m_pipelines[MaterialType::Toon] = createP(MaterialType::Toon, "toon.vert", "toon.frag", config, true, vk::CompareOp::eLess, true);
+    m_pipelines[MaterialType::Unlit] = createP(MaterialType::Unlit, "unlit.vert", "unlit.frag", envCfg, true, vk::CompareOp::eLess);
+    m_pipelines[MaterialType::Toon] = createP(MaterialType::Toon, "toon.vert", "toon.frag", config, true, vk::CompareOp::eLess);
     std::vector<uint32_t> envAttr = { 0, 1, 2, 3, 4 };
-    m_pipelines[MaterialType::Skybox] = createP(MaterialType::Skybox, "skybox.vert", "skybox.frag", envCfg, false, vk::CompareOp::eAlways, false, envAttr);
-    m_pipelines[MaterialType::SkySphere] = createP(MaterialType::SkySphere, "skysphere.vert", "skysphere.frag", envCfg, false, vk::CompareOp::eAlways, false, envAttr);
+    m_pipelines[MaterialType::Skybox] = createP(MaterialType::Skybox, "skybox.vert", "skybox.frag", envCfg, false, vk::CompareOp::eAlways, envAttr);
+    m_pipelines[MaterialType::SkySphere] = createP(MaterialType::SkySphere, "skysphere.vert", "skysphere.frag", envCfg, false, vk::CompareOp::eAlways, envAttr);
 }
 
 Ref<Material> Renderer::getMaterialForTexture(Ref<Texture> texture) {
@@ -233,22 +251,55 @@ void Renderer::render(Scene& scene) {
 
     std::sort(commands.begin(), commands.end());
 
+    // 1. Remplir le SSBO d'instances et grouper par lots (Batching)
+    std::vector<glm::mat4> instanceMatrices;
+    instanceMatrices.reserve(commands.size());
+    for(const auto& cmd : commands) instanceMatrices.push_back(cmd.transform);
+    
+    // Copie vers le GPU via l'API Buffer
+    if (!instanceMatrices.empty()) {
+        m_instanceBuffers[m_currentFrame]->upload(instanceMatrices.data(), instanceMatrices.size() * sizeof(glm::mat4));
+    }
+
     MaterialType currentType = static_cast<MaterialType>(-1);
     Material* currentMaterial = nullptr;
-    for (const auto& cmd : commands) {
-        if (cmd.type != currentType) {
-            m_pipelines[cmd.type]->bind(cb);
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[cmd.type]->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
-            currentType = cmd.type; currentMaterial = nullptr;
+    Mesh* currentMesh = nullptr;
+    uint32_t instanceStart = 0;
+    uint32_t instanceCount = 0;
+
+    auto flushBatch = [&]() {
+        if (instanceCount == 0 || !currentMesh) return;
+        currentMesh->draw(cb, instanceCount, instanceStart);
+        instanceStart += instanceCount;
+        instanceCount = 0;
+    };
+
+    for (size_t i = 0; i < commands.size(); ++i) {
+        const auto& cmd = commands[i];
+        bool stateChange = (cmd.type != currentType || cmd.material != currentMaterial || cmd.mesh != currentMesh);
+
+        if (stateChange) {
+            flushBatch(); // Dessiner le lot précédent avant de changer d'état
+
+            if (cmd.type != currentType) {
+                m_pipelines[cmd.type]->bind(cb);
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[cmd.type]->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+                currentType = cmd.type; currentMaterial = nullptr; currentMesh = nullptr;
+            }
+
+            if (cmd.material != currentMaterial) {
+                vk::DescriptorSet matSet = cmd.material->getDescriptorSet(m_descriptorPool, m_layouts[cmd.type]);
+                cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[cmd.type]->getLayout(), 1, 1, &matSet, 0, nullptr);
+                currentMaterial = cmd.material;
+                currentMesh = nullptr;
+            }
+            
+            currentMesh = cmd.mesh;
         }
-        if (cmd.material != currentMaterial) {
-            vk::DescriptorSet matSet = cmd.material->getDescriptorSet(m_descriptorPool, m_layouts[cmd.type]);
-            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelines[cmd.type]->getLayout(), 1, 1, &matSet, 0, nullptr);
-            currentMaterial = cmd.material;
-        }
-        cb.pushConstants(m_pipelines[cmd.type]->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &cmd.transform);
-        cmd.mesh->draw(cb);
+        
+        instanceCount++;
     }
+    flushBatch(); // Dernier lot
 
     cb.endRendering();
     cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe, {}, nullptr, nullptr, vk::ImageMemoryBarrier(vk::AccessFlagBits::eColorAttachmentWrite, {}, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, colorImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 }));

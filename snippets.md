@@ -53,13 +53,36 @@ auto giantAnt = scene->createModelEntity("Ant", "assets/models/ant.glb", {0,2,-1
 ## 📦 3. Composants et Logique
 
 ### Ajouter une Lumière
+Les intensités utilisent des valeurs physiques. Pour les lumières ponctuelles, prévoyez des valeurs élevées (ex: 100.0) dues à l'atténuation en `1/d^2`.
+
 ```cpp
 // Lumière Directionnelle (Soleil)
-scene->createDirectionalLight("Sun", {1.0f, 0.9f, 0.8f}, 5.0f, {-45.0f, 0, 0});
+scene->createDirectionalLight("Sun", {1.0f, 0.9f, 0.8f}, 3.0f, {-45.0f, -45.0f, 0});
 
 // Lumière Ponctuelle (Lampe)
-scene->createPointLight("Lamp", {1,0,0}, 10.0f, 20.0f, {0,5,0});
+// Intensité 100.0, Portée 20.0m
+scene->createPointLight("Lamp", {1,0,0}, 100.0f, 20.0f, {0,5,0});
 ```
+
+### Matériau PBR Optimisé (ORM)
+Le moteur utilise le packing **ORM** (Occlusion, Roughness, Metallic) pour minimiser les accès mémoire GPU.
+
+```cpp
+auto mat = bb3d::CreateRef<bb3d::PBRMaterial>(engine->graphics());
+mat->setAlbedoMap(albedoTex);
+mat->setNormalMap(normalTex);
+mat->setORMMap(ormTex); // R=Occlusion, G=Roughness, B=Metallic
+
+// Configuration fine des facteurs
+bb3d::PBRParameters params;
+params.metallicFactor = 1.0f;
+params.roughnessFactor = 0.5f;
+mat->setParameters(params);
+
+entity.add<bb3d::MeshComponent>(mesh, mat);
+```
+
+> **Note :** Le moteur utilise automatiquement l'**Instancing GPU** pour dessiner les entités partageant le même Mesh et Material en un seul appel (Draw Call).
 
 ### Scripting Rapide (Native Script)
 ```cpp

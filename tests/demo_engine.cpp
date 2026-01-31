@@ -41,15 +41,29 @@ int main() {
                     "assets/models/planes/plane06/Plane_06.obj"
                 };
         
-                for (const auto& path : planePaths) {
-                    auto e = scene->createModelEntity("Plane", path, {(float)(rand()%40 - 20), 5.0f, (float)(rand()%40 - 20)}, {10.0f, 10.0f, 10.0f});
-                    if (e) {
-                        e.add<NativeScriptComponent>([](Entity ent, float dt) {
-                            auto& t = ent.get<TransformComponent>();
-                            glm::quat rotationStep = glm::angleAxis((float)(dt * 1.5f), glm::vec3(0.0f, 1.0f, 0.0f));
-                            t.rotation = rotationStep * t.rotation;
-                        });
+                // Script de rotation partagé
+                auto rotScript = [](Entity ent, float dt) {
+                    auto& t = ent.get<TransformComponent>();
+                    t.rotation.y += dt * 0.5f;
+                };
+
+                // Création de 50 instances du premier modèle pour valider l'instancing
+                auto firstModel = engine->assets().load<Model>(planePaths[0]);
+                if (firstModel) {
+                    firstModel->normalize({5.0f, 5.0f, 5.0f});
+                    for (int i = 0; i < 50; ++i) {
+                        float x = (float)(i % 10) * 8.0f - 20.0f;
+                        float z = (float)(i / 10) * 8.0f + 10.0f;
+                        auto e = scene->createEntity("InstancedPlane");
+                        e.at({x, 5.0f, z}).add<ModelComponent>(firstModel);
+                        e.add<NativeScriptComponent>(rotScript);
                     }
+                }
+
+                // Autres avions uniques
+                for (size_t i = 1; i < planePaths.size(); ++i) {
+                    auto e = scene->createModelEntity("UniquePlane", planePaths[i], {(float)(i * 10 - 20), 10.0f, -10.0f}, {8.0f, 8.0f, 8.0f});
+                    if (e) e.add<NativeScriptComponent>(rotScript);
                 }
         
                 // --- 5. Fourmi Géante (glTF) ---
@@ -62,7 +76,12 @@ int main() {
                 }
         
                 // --- 6. Lumières ---
-                scene->createDirectionalLight("Sun", {1, 1, 0.9f}, 10.0f, {-45.0f, 45.0f, 0.0f});
+                scene->createDirectionalLight("Sun", {1, 1, 0.9f}, 3.0f, {-45.0f, 45.0f, 0.0f});
+                
+                // Lumières colorées dynamiques
+                scene->createPointLight("RedLight", {1.0f, 0.2f, 0.2f}, 150.0f, 30.0f, {-15.0f, 8.0f, 0.0f});
+                scene->createPointLight("GreenLight", {0.2f, 1.0f, 0.2f}, 150.0f, 30.0f, {0.0f, 8.0f, 15.0f});
+                scene->createPointLight("BlueLight", {0.2f, 0.2f, 1.0f}, 150.0f, 30.0f, {15.0f, 8.0f, 0.0f});
         
                 BB_CORE_INFO("Demo Engine Ready!");
                 engine->Run();

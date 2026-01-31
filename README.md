@@ -38,7 +38,7 @@ Le projet utilise les technologies et bibliothèques suivantes, toutes gérées 
 
 | Technologie | Version | Description | Statut |
 |-------------|---------|-------------|--------|
-| **Jolt Physics** | - | Moteur de physique 3D | ⏳ Prévu |
+| **Jolt Physics** | - | Moteur de physique 3D | ⏳ Intégration en cours |
 | **miniaudio** | - | Bibliothèque audio légère | ⏳ Prévu |
 | **ImGui** | - | Interface utilisateur immédiate | ⏳ Prévu |
 
@@ -263,12 +263,14 @@ bb3d/
 
 ### Moteur de rendu Vulkan avancé
 
-- **Pipeline graphique moderne** : Vulkan 1.3 avec Dynamic Rendering pour des performances optimales
+- **Pipeline graphique moderne** : Vulkan 1.3 avec Dynamic Rendering et **GPU Instancing** (SSBO) pour des performances optimales
+- **Batching Automatique** : Réduction drastique des Draw Calls par regroupement des objets identiques
 - **Système de matériaux complet** :
-  - **PBR (Physically Based Rendering)** : Matériaux réalistes avec albedo, metallic, roughness, normal et occlusion maps
-  - **Unlit** : Matériaux non affectés par la lumière pour les éléments d'interface
-  - **Toon** : Matériaux style cartoon pour un rendu stylisé
-  - **Skybox/SkySphere** : Support pour les environnements 360°
+  - **PBR (Physically Based Rendering)** : Workflow optimisé via **ORM Packing** (R: Occlusion, G: Roughness, B: Metallic) réduisant les accès mémoire
+  - **Unlit** : Matériaux simples pour les objets non éclairés
+  - **Toon** : Rendu stylisé avec **Outlines (contours)** et quantification des couleurs réactive aux lumières
+- **Éclairage dynamique** : Support de **10 lumières simultanées** (Directionnelles et Ponctuelles avec atténuation physique)
+- **Post-Process intégré** : Correction Gamma (2.2) et Tone Mapping (Reinhard)
 - **Gestion des shaders** : Compilation automatique GLSL → SPIR-V via `glslc`
 - **Textures avancées** : Support des cubemaps, textures 2D, et gestion des mipmaps
 - **Système de caméra flexible** : Caméras FPS et orbitale avec contrôle intuitif
@@ -343,25 +345,24 @@ auto normalTex = engine->assets().load<bb3d::Texture>("assets/PBR/Bricks092_1K-J
 auto roughTex = engine->assets().load<bb3d::Texture>("assets/PBR/Bricks092_1K-JPG_Roughness.jpg");
 
 // Création d'un matériau PBR
-auto pbrMat = bb3d::CreateRef<bb3d::PBRMaterial>(engine->graphics());
-pbrMat->setAlbedoMap(albedoTex);
-pbrMat->setNormalMap(normalTex);
-pbrMat->setRoughnessMap(roughTex);
+auto matPBR = bb3d::CreateRef<bb3d::PBRMaterial>(engine->graphics());
+matPBR->setAlbedoMap(albedoTex);
+matPBR->setNormalMap(normalTex);
+matPBR->setORMMap(ormTex); // Occlusion (R), Roughness (G), Metallic (B)
 
 // Création d'une sphère avec le matériau PBR
-auto sphereEntity = scene->createEntity("PBR Sphere");
 auto sphereMesh = bb3d::MeshGenerator::createSphere(engine->graphics(), 1.0f, 64, 64);
-sphereEntity.add<bb3d::MeshComponent>(sphereMesh);
-sphereEntity.add<bb3d::MaterialComponent>(pbrMat);
-sphereEntity.get<bb3d::TransformComponent>().translation = {-2.0f, 0.0f, 0.0f};
 
-// Ajout d'une lumière directionnelle
-auto lightEntity = scene->createEntity("Directional Light");
-auto& lightComp = lightEntity.add<bb3d::LightComponent>();
-lightComp.type = bb3d::LightType::Directional;
-lightComp.color = {1.0f, 1.0f, 1.0f};
-lightComp.intensity = 2.0f;
-lightComp.castShadows = true;
+// Instanciation de 100 sphères (utilisera l'instancing GPU automatiquement)
+for(int i = 0; i < 100; i++) {
+    scene->createEntity("Sphere")
+        .at({(float)(i % 10), 0, (float)(i / 10)})
+        .add<bb3d::MeshComponent>(sphereMesh, matPBR);
+}
+
+// Ajout de lumières dynamiques
+scene->createDirectionalLight("Sun", {1.0f, 1.0f, 0.9f}, 3.0f);
+scene->createPointLight("PointRed", {1.0f, 0.0f, 0.0f}, 100.0f, 20.0f, {5.0f, 2.0f, 0.0f});
 ```
 
 ## 📦 Modélisation 3D & Vertex (Modulaire)

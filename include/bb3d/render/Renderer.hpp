@@ -76,6 +76,11 @@ private:
     };
 #pragma warning(pop)
     std::vector<Scope<UniformBuffer>> m_cameraUbos;
+    
+    // Instancing SSBOs (un par frame en vol)
+    static constexpr uint32_t MAX_INSTANCES = 10000;
+    std::vector<Scope<Buffer>> m_instanceBuffers;
+
     vk::DescriptorSetLayout m_globalDescriptorLayout;
     std::vector<vk::DescriptorSet> m_globalDescriptorSets;
 

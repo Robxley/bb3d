@@ -74,13 +74,13 @@ public:
     /** @brief Récupère l'AABB locale du maillage. */
     [[nodiscard]] inline const AABB& getBounds() const { return m_bounds; }
 
-    /** @brief Enregistre les commandes de rendu pour ce maillage. */
-    inline void draw(vk::CommandBuffer commandBuffer) const {
+    /** @brief Enregistre les commandes de rendu pour ce maillage (avec support instancing). */
+    inline void draw(vk::CommandBuffer commandBuffer, uint32_t instanceCount = 1, uint32_t firstInstance = 0) const {
         vk::Buffer vbs[] = {m_vertexBuffer->getHandle()};
         vk::DeviceSize offsets[] = {0};
         commandBuffer.bindVertexBuffers(0, 1, vbs, offsets);
         commandBuffer.bindIndexBuffer(m_indexBuffer->getHandle(), 0, vk::IndexType::eUint32);
-        commandBuffer.drawIndexed(m_indexCount, 1, 0, 0, 0);
+        commandBuffer.drawIndexed(m_indexCount, instanceCount, 0, 0, firstInstance);
     }
 
     std::vector<Vertex>& getVertices() { return m_vertices; }
