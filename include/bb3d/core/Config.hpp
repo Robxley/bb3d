@@ -39,6 +39,7 @@ namespace bb3d {
         int shadowMapResolution = 2048;
         bool enableValidationLayers = true;
         bool enableFrustumCulling = true;
+        bool enableMipmapping = true;
 
         GraphicsConfig& setVsync(bool v) { vsync = v; return *this; }
         GraphicsConfig& setFpsMax(int fps) { fpsMax = fps; return *this; }
@@ -46,8 +47,9 @@ namespace bb3d {
         GraphicsConfig& setMsaaSamples(int s) { msaaSamples = s; return *this; }
         GraphicsConfig& setValidationLayers(bool e) { enableValidationLayers = e; return *this; }
         GraphicsConfig& setFrustumCulling(bool e) { enableFrustumCulling = e; return *this; }
+        GraphicsConfig& setMipmapping(bool e) { enableMipmapping = e; return *this; }
 
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers, enableFrustumCulling)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers, enableFrustumCulling, enableMipmapping)
     };
 
     /**
@@ -134,6 +136,7 @@ namespace bb3d {
         EngineConfig& enableAudio(bool e) { modules.setAudio(e); return *this; }
         EngineConfig& enableJobSystem(bool e) { modules.setJobSystem(e); return *this; }
         EngineConfig& frustumCulling(bool e) { graphics.setFrustumCulling(e); return *this; }
+        EngineConfig& mipmapping(bool e) { graphics.setMipmapping(e); return *this; }
         EngineConfig& resizable(bool r) { window.setResizable(r); return *this; }
 
         /// @name Layout Locations par défaut pour les Shaders

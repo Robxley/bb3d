@@ -88,6 +88,8 @@ public:
     void SetActiveScene(Ref<Scene> scene) { m_ActiveScene = scene; }
     Ref<Scene> GetActiveScene() const { return m_ActiveScene; }
 
+    const EngineConfig& GetConfig() const { return m_Config; }
+
     void exportScene(const std::string& filepath);
     void importScene(const std::string& filepath);
 

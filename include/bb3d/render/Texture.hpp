@@ -32,11 +32,13 @@ private:
     void createImage(uint32_t width, uint32_t height, uint32_t layers = 1);
     void createImageView(uint32_t layers = 1);
     void createSampler();
+    void generateMipmaps(uint32_t layers = 1);
     void transitionLayout(vk::ImageLayout oldLayout, vk::ImageLayout newLayout, uint32_t layers = 1);
     void copyBufferToImage(vk::Buffer buffer, uint32_t layers = 1);
 
     VulkanContext& m_context;
     int m_width = 0, m_height = 0, m_channels = 0;
+    uint32_t m_mipLevels = 1;
     vk::Format m_format = vk::Format::eR8G8B8A8Srgb;
     bool m_isCubemap = false;
     

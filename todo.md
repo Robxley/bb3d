@@ -20,8 +20,8 @@ Ce document suit l'évolution du moteur biobazard3d. Les tâches terminées sont
 - [x] 🕵️ **Frustum Culling (CPU side)** : Ne pas envoyer au GPU les objets hors du champ de vision de la caméra (utilisation des AABB).
 - [ ] 🔗 **Bindless Textures (Descriptor Indexing)** : Utiliser un tableau global de textures pour éliminer les changements de Descriptor Sets.
 - [ ] 🛡️ **Z-Prepass** : Passe de profondeur initiale pour réduire l'overdraw et économiser le fragment shader PBR.
-- [ ] 🏎️ **Optimisation du JobSystem** : Affiner la répartition pour le culling et les mises à jour de transforms.
-- [ ] 🗺️ **Mipmapping & Compression (BC7)** : Réduire la bande passante mémoire et améliorer la qualité visuelle au loin.
+- [x] 🏎️ **Optimisation du JobSystem** : Affiner la répartition pour le culling et les mises à jour de transforms.
+- [x] 🗺️ **Mipmapping & Compression (BC7)** : Réduire la bande passante mémoire et améliorer la qualité visuelle au loin.
 - [ ] 📉 **LOD (Level of Detail)** : Système de switch de modèles basé sur la distance pour réduire le nombre de triangles.
 - [ ] 💾 **Pipeline Cache** : Sauvegarder l'état des pipelines sur disque pour un démarrage instantané.
 - [ ] ⚡ **GPU-Driven Rendering** : Utiliser `DrawIndirect` pour laisser le GPU gérer totalement la liste d'affichage.
