@@ -3,6 +3,7 @@
 #include "bb3d/core/Base.hpp"
 #include "bb3d/core/Config.hpp" // For FogType
 #include "bb3d/render/Texture.hpp"
+#include "bb3d/scene/EntityView.hpp"
 #include <entt/entt.hpp>
 #include <string>
 #include <glm/glm.hpp>
@@ -11,6 +12,11 @@ namespace bb3d {
 
 class Entity;
 class Engine; // Forward declaration
+struct FPSControllerComponent;
+struct OrbitControllerComponent;
+struct ModelComponent;
+struct LightComponent;
+struct SkySphereComponent;
 
 struct FogSettings {
     glm::vec3 color = { 0.5f, 0.5f, 0.5f };
@@ -38,13 +44,13 @@ public:
      * @brief Crée une caméra orbitale pré-configurée avec contrôles souris.
      * @param engine (Optionnel) Engine pour l'input. Utilise le contexte de scène si null.
      */
-    Entity createOrbitCamera(const std::string& name, float fov, float aspect, const glm::vec3& target, float distance, Engine* engine = nullptr);
+    View<OrbitControllerComponent> createOrbitCamera(const std::string& name, float fov, float aspect, const glm::vec3& target, float distance, Engine* engine = nullptr);
 
     /** 
      * @brief Crée une caméra FPS pré-configurée avec contrôles ZQSD + Souris.
      * @param engine (Optionnel) Engine pour l'input. Utilise le contexte de scène si null.
      */
-    Entity createFPSCamera(const std::string& name, float fov, float aspect, const glm::vec3& position, Engine* engine = nullptr);
+    View<FPSControllerComponent> createFPSCamera(const std::string& name, float fov, float aspect, const glm::vec3& position, Engine* engine = nullptr);
 
     /**
      * @brief Charge un modèle 3D et crée une entité correspondante.
@@ -54,22 +60,22 @@ public:
      * @param normalizeSize (Optionnel) Si non nul, redimensionne le modèle pour qu'il tienne dans cette boîte englobante.
      * @return L'entité créée (ou invalide si échec).
      */
-    Entity createModelEntity(const std::string& name, const std::string& path, const glm::vec3& position = {0,0,0}, const glm::vec3& normalizeSize = {0,0,0});
+    View<ModelComponent> createModelEntity(const std::string& name, const std::string& path, const glm::vec3& position = {0,0,0}, const glm::vec3& normalizeSize = {0,0,0});
 
     /** 
      * @brief Crée une lumière directionnelle (ex: Soleil).
      * @param rotation Rotation (Euler X,Y,Z en degrés). X=-90 regarde vers le bas.
      */
-    Entity createDirectionalLight(const std::string& name, const glm::vec3& color, float intensity, const glm::vec3& rotation = {-45.0f, 0.0f, 0.0f});
+    View<LightComponent> createDirectionalLight(const std::string& name, const glm::vec3& color, float intensity, const glm::vec3& rotation = {-45.0f, 0.0f, 0.0f});
 
     /** @brief Crée une lumière ponctuelle (Omni). */
-    Entity createPointLight(const std::string& name, const glm::vec3& color, float intensity, float range, const glm::vec3& position);
+    View<LightComponent> createPointLight(const std::string& name, const glm::vec3& color, float intensity, float range, const glm::vec3& position);
 
     /** 
      * @brief Crée une SkySphere (environnement panoramique) à partir d'une texture.
      * @return L'entité créée (ou invalide si échec de chargement).
      */
-    Entity createSkySphere(const std::string& name, const std::string& texturePath);
+    View<SkySphereComponent> createSkySphere(const std::string& name, const std::string& texturePath);
 
     /** @brief Supprime une entité de la scène. */
     void destroyEntity(Entity entity);

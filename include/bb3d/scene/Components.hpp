@@ -114,7 +114,7 @@ struct ModelComponent {
     }
 };
 
-/** @brief Composant Caméra. */
+/** @brief Composant Caméra (Données optiques). */
 struct CameraComponent {
     Ref<Camera> camera;
     bool active = true;
@@ -125,36 +125,73 @@ struct CameraComponent {
     void serialize(json& j) const {
         j["active"] = active;
         if (camera) {
-            Camera::Type type = camera->getType();
-            j["type"] = static_cast<int>(type);
-            
-            if (type == Camera::Type::Orbit) {
-                auto* orbit = static_cast<OrbitCamera*>(camera.get());
-                j["target"] = orbit->getTarget();
-                j["distance"] = orbit->getDistance();
-                j["yaw"] = orbit->getYaw();
-                j["pitch"] = orbit->getPitch();
-            }
+            // On sauvegarde juste les propriétés optiques de base si besoin
+            // Pour l'instant, on suppose que le type de contrôleur gère la "logique"
+            // et que la CameraComponent est juste le "rendu".
         }
     }
 
     void deserialize(const json& j) {
         if (j.contains("active")) j.at("active").get_to(active);
-        
-        if (j.contains("type")) {
-            Camera::Type type = static_cast<Camera::Type>(j.at("type").get<int>());
-            if (type == Camera::Type::Orbit) {
-                auto orbit = CreateRef<OrbitCamera>(45.0f, 16.0f/9.0f, 0.1f, 1000.0f);
-                if (j.contains("target")) orbit->setTarget(j["target"]);
-                if (j.contains("distance")) orbit->setDistance(j["distance"]);
-                if (j.contains("yaw") && j.contains("pitch")) {
-                    orbit->setRotation(j["yaw"], j["pitch"]);
-                }
-                camera = orbit;
-            } else if (type == Camera::Type::FPS) {
-                camera = CreateRef<FPSCamera>(45.0f, 16.0f/9.0f, 0.1f, 1000.0f);
-            }
-        }
+        // Note: La création de la caméra (Perspective/Ortho) doit être gérée lors de l'ajout du composant
+        // ou via un système de sérialisation plus complet de la classe Camera elle-même.
+    }
+};
+
+/** @brief Contrôleur pour caméra FPS (Clavier/Souris). */
+struct FPSControllerComponent {
+    glm::vec3 movementSpeed = {10.0f, 10.0f, 10.0f};
+    glm::vec2 rotationSpeed = {0.1f, 0.1f};
+    
+    // État interne (Yaw/Pitch)
+    float yaw = -90.0f;
+    float pitch = 0.0f;
+
+    void serialize(json& j) const {
+        j["movementSpeed"] = movementSpeed;
+        j["rotationSpeed"] = rotationSpeed;
+        j["yaw"] = yaw;
+        j["pitch"] = pitch;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("movementSpeed")) j.at("movementSpeed").get_to(movementSpeed);
+        if (j.contains("rotationSpeed")) j.at("rotationSpeed").get_to(rotationSpeed);
+        if (j.contains("yaw")) j.at("yaw").get_to(yaw);
+        if (j.contains("pitch")) j.at("pitch").get_to(pitch);
+    }
+};
+
+/** @brief Contrôleur pour caméra Orbitale. */
+struct OrbitControllerComponent {
+    glm::vec3 target = {0.0f, 0.0f, 0.0f};
+    float distance = 10.0f;
+    float minDistance = 1.0f;
+    float maxDistance = 100.0f;
+    
+    glm::vec2 rotationSpeed = {0.2f, 0.2f};
+    float zoomSpeed = 2.0f;
+
+    // État interne
+    float yaw = 0.0f;
+    float pitch = 0.0f;
+
+    void serialize(json& j) const {
+        j["target"] = target;
+        j["distance"] = distance;
+        j["rotationSpeed"] = rotationSpeed;
+        j["zoomSpeed"] = zoomSpeed;
+        j["yaw"] = yaw;
+        j["pitch"] = pitch;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("target")) j.at("target").get_to(target);
+        if (j.contains("distance")) j.at("distance").get_to(distance);
+        if (j.contains("rotationSpeed")) j.at("rotationSpeed").get_to(rotationSpeed);
+        if (j.contains("zoomSpeed")) j.at("zoomSpeed").get_to(zoomSpeed);
+        if (j.contains("yaw")) j.at("yaw").get_to(yaw);
+        if (j.contains("pitch")) j.at("pitch").get_to(pitch);
     }
 };
 

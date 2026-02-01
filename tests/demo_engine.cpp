@@ -22,9 +22,16 @@ int main() {
         
                 // 1. Caméras
                 auto orbitCamEnt = scene->createOrbitCamera("OrbitCamera", 45.0f, 1600.0f/900.0f, {0, 2, 0}, 30.0f);
+                // Configuration directe via le View<T> (OrbitControllerComponent)
+                orbitCamEnt->rotationSpeed = {0.2f, 0.2f};
+                orbitCamEnt->zoomSpeed = 2.0f;
+
                 auto fpsCamEnt = scene->createFPSCamera("FPSCamera", 60.0f, 1600.0f/900.0f, {0, 5, 20});
+                // Configuration directe via le View<T> (FPSControllerComponent)
+                fpsCamEnt->movementSpeed = {8.0f, 5.0f, 15.0f}; // Rapide Z, Moyen X, Lent Y
+                fpsCamEnt->rotationSpeed = {0.15f, 0.15f};
                 
-                // On commence en Orbit
+                // On commence en Orbit (On accède au CameraComponent via l'entité de base)
                 fpsCamEnt.get<CameraComponent>().active = false;
 
                 // Script de switch
