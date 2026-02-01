@@ -1,7 +1,6 @@
 #include "bb3d/core/Engine.hpp"
 #include "bb3d/scene/Entity.hpp"
 #include "bb3d/scene/Components.hpp"
-#include "bb3d/scene/OrbitCamera.hpp"
 #include "bb3d/render/MeshGenerator.hpp"
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>

@@ -236,6 +236,7 @@ namespace bb3d {
         JPH::BodyCreationSettings settings(shape, toJPH(tf.translation), toJPH(glm::quat(tf.rotation)), motion, layer);
         settings.mFriction = rb.friction;
         settings.mRestitution = rb.restitution;
+        settings.mLinearVelocity = toJPH(rb.initialLinearVelocity);
         settings.mMassPropertiesOverride.mMass = rb.mass;
         settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
 

@@ -359,6 +359,12 @@ add_executable(unit_test_18_physics_basic
 target_link_libraries(unit_test_18_physics_basic PRIVATE biobazard3d)
 add_dependencies(unit_test_18_physics_basic DeployAssets)
 
+add_executable(unit_test_19_physics_stacks
+    tests/unit_test_19_physics_stacks.cpp
+)
+target_link_libraries(unit_test_19_physics_stacks PRIVATE biobazard3d)
+add_dependencies(unit_test_19_physics_stacks DeployAssets)
+
 # --- Demo Engine ---
 add_executable(demo_engine
     tests/demo_engine.cpp
@@ -388,13 +394,14 @@ add_test(NAME HelloWorld COMMAND unit_test_15_hello_world)
 add_test(NAME Materials COMMAND unit_test_16_materials)
 add_test(NAME Skybox COMMAND unit_test_17_skybox)
 add_test(NAME PhysicsBasic COMMAND unit_test_18_physics_basic)
+add_test(NAME PhysicsStacks COMMAND unit_test_19_physics_stacks)
 add_test(NAME Demo COMMAND demo_engine)
 
 # Set working directory for tests to find assets
 set_tests_properties(
     Infrastructure Window VulkanInit SwapChain HelloTriangle VertexBuffer 
     RotatingCube TextureCube CoreSystems ResourceManager ObjLoader GltfLoader 
-    ECS Camera InteractiveCameras HelloWorld Materials Skybox PhysicsBasic Demo
+    ECS Camera InteractiveCameras HelloWorld Materials Skybox PhysicsBasic PhysicsStacks Demo
     PROPERTIES WORKING_DIRECTORY $<TARGET_FILE_DIR:unit_test_00_infrastructure>
 )
 

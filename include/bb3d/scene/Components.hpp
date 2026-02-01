@@ -11,8 +11,6 @@
 #include <string>
 
 #include "bb3d/scene/Camera.hpp"
-#include "bb3d/scene/OrbitCamera.hpp"
-#include "bb3d/scene/FPSCamera.hpp"
 #include <variant>
 #include <functional>
 #include <nlohmann/json.hpp>
@@ -226,6 +224,7 @@ struct RigidBodyComponent {
     float mass = 1.0f;
     float friction = 0.5f;
     float restitution = 0.5f;
+    glm::vec3 initialLinearVelocity = {0.0f, 0.0f, 0.0f};
 
     // Runtime Jolt data
     uint32_t bodyID = 0xFFFFFFFF; // JPH::BodyID::mID
@@ -235,6 +234,7 @@ struct RigidBodyComponent {
         j["mass"] = mass;
         j["friction"] = friction;
         j["restitution"] = restitution;
+        j["initialLinearVelocity"] = initialLinearVelocity;
     }
 
     void deserialize(const json& j) {
@@ -242,6 +242,7 @@ struct RigidBodyComponent {
         if (j.contains("mass")) j.at("mass").get_to(mass);
         if (j.contains("friction")) j.at("friction").get_to(friction);
         if (j.contains("restitution")) j.at("restitution").get_to(restitution);
+        if (j.contains("initialLinearVelocity")) j.at("initialLinearVelocity").get_to(initialLinearVelocity);
     }
 };
 

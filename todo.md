@@ -15,6 +15,8 @@ Ce document suit l'évolution du moteur biobazard3d. Les tâches terminées sont
 - [x] 📐 **Maths & Camera** : Intégration GLM, Caméras FPS et Orbitale interactives.
 - [x] 🧹 **Harmonisation Assets** : Standardisation des noms de fichiers et structures de dossiers pour les modèles.
 - [x] 🪟 **Window Resizing** : Gestion robuste du redimensionnement et de la minimisation (Swapchain recreation).
+- [x] 🧩 **ECS & View Architecture** : Refonte vers un ECS pur (Composants de contrôle séparés) et introduction de `View<T>` pour un accès typé sans overhead.
+- [x] 🌍 **Intégration Jolt Physics** : Simulation réelle (RigidBodies, Colliders, Raycasting, Character Controller).
 
 ## ⚡ Optimisations (Priorité Haute)
 - [x] 🕵️ **Frustum Culling (CPU side)** : Ne pas envoyer au GPU les objets hors du champ de vision de la caméra (utilisation des AABB).
@@ -27,7 +29,6 @@ Ce document suit l'évolution du moteur biobazard3d. Les tâches terminées sont
 - [ ] ⚡ **GPU-Driven Rendering** : Utiliser `DrawIndirect` pour laisser le GPU gérer totalement la liste d'affichage.
 
 ## 🚀 Features (Gameplay & Rendu)
-- [ ] 🌍 **Intégration Jolt Physics** : Remplacer le stub par une simulation réelle (RigidBodies, Colliders, Raycasting).
 - [ ] 🔊 **Système Audio (miniaudio)** : Support des sons 3D spatialisés et gestion sources/listeners.
 - [ ] 🌑 **Shadow Mapping** : Implémenter les ombres portées (Cascaded Shadow Maps).
 - [ ] 🪞 **Image Based Lighting (IBL)** : Utiliser la Skybox pour des reflets et un éclairage ambiant réaliste.
@@ -44,7 +45,7 @@ Ce document suit l'évolution du moteur biobazard3d. Les tâches terminées sont
 ## 🧪 Tests & Qualité
 - [ ] 📈 **Stress Test Instancing** : Tester la limite avec 10 000+ objets animés.
 - [ ] 🧼 **Nettoyage Validation Layers** : Corriger les derniers warnings de layout/interface.
-- [ ] 🧱 **Tests Physiques** : Scène de test avec chute et empilement de corps rigides.
+- [x] 🧱 **Tests Physiques** : Validation de la chute et des collisions (unit_test_18).
 
 ## ⚙️ Refactoring
 - [ ] 🧩 **Modularisation du Renderer** : Découpler la Swapchain et les Pipelines du Renderer global.

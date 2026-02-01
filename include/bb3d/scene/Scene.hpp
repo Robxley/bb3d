@@ -105,3 +105,5 @@ private:
 };
 
 } // namespace bb3d
+
+#include "bb3d/scene/Entity.inl"

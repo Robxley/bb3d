@@ -193,6 +193,7 @@ Pour les futures versions, l'outillage sera séparé du Runtime.
 ### **5\. Performance (Jeu Vidéo)**
 
 * **Zero-Overhead :** Interdire tout overhead de fonction inutile sur les appels aux APIs de base (Vulkan, SDL3, Jolt). Les wrappers doivent être `inline` ou résolus à la compilation pour garantir une performance identique à l'appel natif.
+* **Typage Statique :** Minimiser l'utilisation des `dynamic_cast` et des fonctions virtuelles dans le "Hot Path". Privilégier les résolutions à la compilation (templates, spécialisations) et l'architecture par composants (ECS) pour une meilleure performance.
 * **Hot Path Safety :** Pas d'allocations dans update() ou render().  
 * **Data-Oriented Design :** Contiguïté mémoire pour les composants (Transform, RigidBody).  
 * **Instancing :** Rendu instancié automatique pour les particules et objets répétés.  

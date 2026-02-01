@@ -46,4 +46,37 @@ public:
     Entity toEntity() const { return *this; }
 };
 
+// --- Specializations for complex access patterns ---
+
+struct FPSControllerComponent;
+struct OrbitControllerComponent;
+struct ModelComponent;
+struct LightComponent;
+struct SkySphereComponent;
+
+template<>
+inline FPSControllerComponent* ComponentAccessor<FPSControllerComponent>::get(Entity& e) {
+    return &e.get<FPSControllerComponent>();
+}
+
+template<>
+inline OrbitControllerComponent* ComponentAccessor<OrbitControllerComponent>::get(Entity& e) {
+    return &e.get<OrbitControllerComponent>();
+}
+
+template<>
+inline ModelComponent* ComponentAccessor<ModelComponent>::get(Entity& e) {
+    return &e.get<ModelComponent>();
+}
+
+template<>
+inline LightComponent* ComponentAccessor<LightComponent>::get(Entity& e) {
+    return &e.get<LightComponent>();
+}
+
+template<>
+inline SkySphereComponent* ComponentAccessor<SkySphereComponent>::get(Entity& e) {
+    return &e.get<SkySphereComponent>();
+}
+
 } // namespace bb3d

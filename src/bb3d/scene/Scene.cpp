@@ -7,43 +7,6 @@
 
 namespace bb3d {
 
-// --- Spécialisations des accesseurs View<T> ---
-// Ces spécialisations doivent être définies ici ou dans un cpp, pas dans le .hpp générique
-// pour éviter les dépendances cycliques avec Components.hpp
-
-// FPSControllerComponent est stocké directement
-template<>
-FPSControllerComponent* ComponentAccessor<FPSControllerComponent>::get(Entity& e) {
-    return &e.get<FPSControllerComponent>();
-}
-
-// OrbitControllerComponent est stocké directement
-template<>
-OrbitControllerComponent* ComponentAccessor<OrbitControllerComponent>::get(Entity& e) {
-    return &e.get<OrbitControllerComponent>();
-}
-
-// ModelComponent
-template<>
-ModelComponent* ComponentAccessor<ModelComponent>::get(Entity& e) {
-    return &e.get<ModelComponent>();
-}
-
-// LightComponent
-template<>
-LightComponent* ComponentAccessor<LightComponent>::get(Entity& e) {
-    return &e.get<LightComponent>();
-}
-
-// SkySphereComponent
-template<>
-SkySphereComponent* ComponentAccessor<SkySphereComponent>::get(Entity& e) {
-    return &e.get<SkySphereComponent>();
-}
-
-
-Scene::Scene() = default;
-Scene::~Scene() = default;
 
 Entity Scene::createEntity(const std::string& name) {
     Entity entity(m_registry.create(), *this);
