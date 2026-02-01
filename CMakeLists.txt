@@ -84,7 +84,24 @@ FetchContent_Declare(
   GIT_TAG        v3.13.2
 )
 
-FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm stb fastgltf tinyobjloader entt)
+# Jolt Physics
+set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
+set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
+set(TARGET_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(TARGET_SAMPLES OFF CACHE BOOL "" FORCE)
+set(TARGET_HELLO_WORLD OFF CACHE BOOL "" FORCE)
+set(TARGET_PERFORMANCE_TEST OFF CACHE BOOL "" FORCE)
+set(USE_AVX2 ON CACHE BOOL "" FORCE) 
+set(FLOATING_POINT_EXCEPTIONS_ENABLED OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+  Jolt
+  GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
+  GIT_TAG        master
+  SOURCE_SUBDIR  Build
+)
+
+FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm stb fastgltf tinyobjloader entt Jolt)
 
 # Find Vulkan SDK
 find_package(Vulkan REQUIRED)
@@ -168,6 +185,7 @@ add_library(biobazard3d ${ENGINE_SOURCES})
 target_include_directories(biobazard3d PUBLIC 
     include
     ${stb_SOURCE_DIR}
+    ${Jolt_SOURCE_DIR}
 )
 
 # Note: nlohmann_json is header-only, spdlog needs linking
@@ -181,6 +199,7 @@ target_link_libraries(biobazard3d PUBLIC
     fastgltf::fastgltf
     tinyobjloader
     EnTT::EnTT
+    Jolt
 )
 
 # Apply strict warnings only to our target, not dependencies
@@ -334,6 +353,12 @@ add_executable(unit_test_17_skybox
 target_link_libraries(unit_test_17_skybox PRIVATE biobazard3d)
 add_dependencies(unit_test_17_skybox DeployAssets)
 
+add_executable(unit_test_18_physics_basic
+    tests/unit_test_18_physics_basic.cpp
+)
+target_link_libraries(unit_test_18_physics_basic PRIVATE biobazard3d)
+add_dependencies(unit_test_18_physics_basic DeployAssets)
+
 # --- Demo Engine ---
 add_executable(demo_engine
     tests/demo_engine.cpp
@@ -362,13 +387,14 @@ add_test(NAME InteractiveCameras COMMAND unit_test_14_interactive_cameras)
 add_test(NAME HelloWorld COMMAND unit_test_15_hello_world)
 add_test(NAME Materials COMMAND unit_test_16_materials)
 add_test(NAME Skybox COMMAND unit_test_17_skybox)
+add_test(NAME PhysicsBasic COMMAND unit_test_18_physics_basic)
 add_test(NAME Demo COMMAND demo_engine)
 
 # Set working directory for tests to find assets
 set_tests_properties(
     Infrastructure Window VulkanInit SwapChain HelloTriangle VertexBuffer 
     RotatingCube TextureCube CoreSystems ResourceManager ObjLoader GltfLoader 
-    ECS Camera InteractiveCameras HelloWorld Materials Skybox Demo
+    ECS Camera InteractiveCameras HelloWorld Materials Skybox PhysicsBasic Demo
     PROPERTIES WORKING_DIRECTORY $<TARGET_FILE_DIR:unit_test_00_infrastructure>
 )
 

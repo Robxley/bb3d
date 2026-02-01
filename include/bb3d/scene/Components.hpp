@@ -17,6 +17,8 @@
 #include <functional>
 #include <nlohmann/json.hpp>
 
+namespace JPH { class BodyID; }
+
 namespace bb3d {
 
 class Entity; // Forward declaration
@@ -188,6 +190,9 @@ struct RigidBodyComponent {
     float friction = 0.5f;
     float restitution = 0.5f;
 
+    // Runtime Jolt data
+    uint32_t bodyID = 0xFFFFFFFF; // JPH::BodyID::mID
+
     void serialize(json& j) const {
         j["type"] = static_cast<int>(type);
         j["mass"] = mass;
@@ -222,6 +227,31 @@ struct CapsuleColliderComponent {
     void deserialize(const json& j) { 
         if (j.contains("radius")) j.at("radius").get_to(radius);
         if (j.contains("height")) j.at("height").get_to(height);
+    }
+};
+
+struct MeshColliderComponent {
+    Ref<Mesh> mesh;
+    bool convex = false;
+    void serialize(json&) const {}
+    void deserialize(const json&) {}
+};
+
+struct CharacterControllerComponent {
+    float stepHeight = 0.3f;
+    float maxSlopeAngle = 45.0f; // Degrees
+    
+    // State
+    glm::vec3 velocity = {0, 0, 0};
+    bool isGrounded = false;
+
+    void serialize(json& j) const {
+        j["stepHeight"] = stepHeight;
+        j["maxSlopeAngle"] = maxSlopeAngle;
+    }
+    void deserialize(const json& j) {
+        if (j.contains("stepHeight")) j.at("stepHeight").get_to(stepHeight);
+        if (j.contains("maxSlopeAngle")) j.at("maxSlopeAngle").get_to(maxSlopeAngle);
     }
 };
 

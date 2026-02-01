@@ -187,8 +187,8 @@ void Engine::Update(float deltaTime) {
         m_EventBus->dispatchQueued();
     }
 
-    if (m_PhysicsWorld) {
-        m_PhysicsWorld->update(deltaTime);
+    if (m_PhysicsWorld && m_ActiveScene) {
+        m_PhysicsWorld->update(deltaTime, *m_ActiveScene);
     }
 
     if (m_AudioSystem) {

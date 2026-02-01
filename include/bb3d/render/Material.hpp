@@ -49,10 +49,10 @@ public:
     PBRMaterial(VulkanContext& context);
     ~PBRMaterial() override;
     MaterialType getType() const override { return MaterialType::PBR; }
-    void setAlbedoMap(Ref<Texture> texture) { if (m_albedoMap != texture) { m_albedoMap = texture; m_dirty = true; } }
-    void setNormalMap(Ref<Texture> texture) { if (m_normalMap != texture) { m_normalMap = texture; m_dirty = true; } }
-    void setORMMap(Ref<Texture> texture) { if (m_ormMap != texture) { m_ormMap = texture; m_dirty = true; } }
-    void setEmissiveMap(Ref<Texture> texture) { if (m_emissiveMap != texture) { m_emissiveMap = texture; m_dirty = true; } }
+    void setAlbedoMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultWhite; if (m_albedoMap != t) { m_albedoMap = t; m_dirty = true; } }
+    void setNormalMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultNormal; if (m_normalMap != t) { m_normalMap = t; m_dirty = true; } }
+    void setORMMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultWhite; if (m_ormMap != t) { m_ormMap = t; m_dirty = true; } }
+    void setEmissiveMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultBlack; if (m_emissiveMap != t) { m_emissiveMap = t; m_dirty = true; } }
     void setParameters(const PBRParameters& params) { m_parameters = params; m_dirty = true; }
     
     vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;

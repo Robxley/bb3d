@@ -49,6 +49,9 @@ public:
         return m_scene->m_registry.all_of<T>(m_entityHandle);
     }
 
+    /** @brief Récupère le handle interne EnTT. */
+    entt::entity getHandle() const { return m_entityHandle; }
+
     /** @brief Supprime un composant de l'entité. */
     template<typename T>
     Entity& remove() {
