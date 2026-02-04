@@ -5,6 +5,7 @@
 
 namespace bb3d {
 
+// Constructeur via SwapChain (pour backward compatibility et usage direct)
 GraphicsPipeline::GraphicsPipeline(VulkanContext& context, SwapChain& swapChain, 
                                    const Shader& vertShader, const Shader& fragShader,
                                    const EngineConfig& config,
@@ -14,11 +15,31 @@ GraphicsPipeline::GraphicsPipeline(VulkanContext& context, SwapChain& swapChain,
                                    bool depthWrite,
                                    vk::CompareOp depthCompareOp,
                                    const std::vector<uint32_t>& enabledAttributes)
-    : m_context(context), m_swapChain(swapChain) {
+    : m_context(context) {
     
+    m_colorFormat = swapChain.getImageFormat();
+    m_depthFormat = swapChain.getDepthFormat();
+
     createPipelineLayout(descriptorSetLayouts, pushConstantRanges);
     createPipeline(vertShader, fragShader, config, useVertexInput, depthWrite, depthCompareOp, enabledAttributes);
 }
+
+// Constructeur via Formats Explicites (pour RenderTarget / Offscreen)
+GraphicsPipeline::GraphicsPipeline(VulkanContext& context, vk::Format colorFormat, vk::Format depthFormat, 
+                                   const Shader& vertShader, const Shader& fragShader,
+                                   const EngineConfig& config,
+                                   const std::vector<vk::DescriptorSetLayout>& descriptorSetLayouts,
+                                   const std::vector<vk::PushConstantRange>& pushConstantRanges,
+                                   bool useVertexInput,
+                                   bool depthWrite,
+                                   vk::CompareOp depthCompareOp,
+                                   const std::vector<uint32_t>& enabledAttributes)
+    : m_context(context), m_colorFormat(colorFormat), m_depthFormat(depthFormat) {
+
+    createPipelineLayout(descriptorSetLayouts, pushConstantRanges);
+    createPipeline(vertShader, fragShader, config, useVertexInput, depthWrite, depthCompareOp, enabledAttributes);
+}
+
 
 GraphicsPipeline::~GraphicsPipeline() {
     auto device = m_context.getDevice();
@@ -90,9 +111,8 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
     colorBlendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
     vk::PipelineColorBlendStateCreateInfo colorBlending({}, VK_FALSE, vk::LogicOp::eCopy, 1, &colorBlendAttachment);
 
-    vk::Format colorFormat = m_swapChain.getImageFormat();
-    vk::Format depthFormat = m_swapChain.getDepthFormat();
-    vk::PipelineRenderingCreateInfo renderingInfo(0, 1, &colorFormat, depthFormat);
+    // Utilisation des formats stockés
+    vk::PipelineRenderingCreateInfo renderingInfo(0, 1, &m_colorFormat, m_depthFormat);
 
     vk::GraphicsPipelineCreateInfo pipelineInfo({}, static_cast<uint32_t>(shaderStages.size()), shaderStages.data(), &vertexInputInfo, &inputAssembly, nullptr, &viewportState, &rasterizer, &multisampling, &depthStencil, &colorBlending, &dynamicState, m_pipelineLayout);
     pipelineInfo.pNext = &renderingInfo;

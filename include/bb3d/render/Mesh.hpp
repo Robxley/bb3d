@@ -85,6 +85,7 @@ public:
 
     std::vector<Vertex>& getVertices() { return m_vertices; }
     const std::vector<uint32_t>& getIndices() const { return m_indices; }
+    [[nodiscard]] inline uint32_t getIndexCount() const { return m_indexCount; }
     
     void setTexture(Ref<Texture> texture) { m_texture = texture; }
     Ref<Texture> getTexture() const { return m_texture; }

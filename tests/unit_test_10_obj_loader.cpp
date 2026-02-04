@@ -10,7 +10,7 @@
 #include "bb3d/render/Texture.hpp"
 #include "bb3d/resource/ResourceManager.hpp"
 #include "bb3d/core/JobSystem.hpp"
-#include "bb3d/scene/FPSCamera.hpp"
+#include "bb3d/scene/Components.hpp"
 #include "bb3d/scene/Camera.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>

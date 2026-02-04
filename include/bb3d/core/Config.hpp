@@ -40,6 +40,8 @@ namespace bb3d {
         bool enableValidationLayers = true;
         bool enableFrustumCulling = true;
         bool enableMipmapping = true;
+        bool enableOffscreenRendering = false; // Rendu dans une texture intermédiaire
+        float renderScale = 1.0f;              // Échelle de la résolution interne (0.5 = 50%, 1.0 = Natif)
 
         GraphicsConfig& setVsync(bool v) { vsync = v; return *this; }
         GraphicsConfig& setFpsMax(int fps) { fpsMax = fps; return *this; }
@@ -48,8 +50,10 @@ namespace bb3d {
         GraphicsConfig& setValidationLayers(bool e) { enableValidationLayers = e; return *this; }
         GraphicsConfig& setFrustumCulling(bool e) { enableFrustumCulling = e; return *this; }
         GraphicsConfig& setMipmapping(bool e) { enableMipmapping = e; return *this; }
+        GraphicsConfig& setOffscreenRendering(bool e) { enableOffscreenRendering = e; return *this; }
+        GraphicsConfig& setRenderScale(float s) { renderScale = s; return *this; }
 
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers, enableFrustumCulling, enableMipmapping)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers, enableFrustumCulling, enableMipmapping, enableOffscreenRendering, renderScale)
     };
 
     /**
@@ -138,6 +142,9 @@ namespace bb3d {
         EngineConfig& frustumCulling(bool e) { graphics.setFrustumCulling(e); return *this; }
         EngineConfig& mipmapping(bool e) { graphics.setMipmapping(e); return *this; }
         EngineConfig& resizable(bool r) { window.setResizable(r); return *this; }
+        EngineConfig& enableOffscreenRendering(bool e) { graphics.setOffscreenRendering(e); return *this; }
+        EngineConfig& renderScale(float s) { graphics.setRenderScale(s); return *this; }
+        EngineConfig& frontFace(std::string_view f) { rasterizer.frontFace = f; return *this; } // "CW" ou "CCW"
 
         /// @name Layout Locations par défaut pour les Shaders
         /// @{

@@ -14,6 +14,7 @@
 #include <variant>
 #include <functional>
 #include <nlohmann/json.hpp>
+#include <atomic>
 
 namespace JPH { class BodyID; }
 
@@ -27,12 +28,39 @@ using json = nlohmann::json;
 enum class BodyType { Static, Dynamic, Kinematic, Character };
 enum class LightType { Directional, Point, Spot };
 
-/** @brief Composant pour identifier une entité par un nom. */
+/** @brief Identifiant unique déterministe et thread-safe. */
+struct IDComponent {
+    uint64_t id;
+
+    // Compteur global atomique pour garantir l'unicité et le thread-safety
+    static inline std::atomic<uint64_t> s_NextID{1}; 
+
+    IDComponent() : id(s_NextID++) {}
+    IDComponent(uint64_t _id) : id(_id) {
+        // Si on force un ID (ex: chargement), on s'assure que le compteur est à jour pour éviter les collisions futures
+        uint64_t next = s_NextID.load();
+        while (_id >= next && !s_NextID.compare_exchange_weak(next, _id + 1));
+    }
+
+    void serialize(json& j) const { j["id"] = id; }
+    void deserialize(const json& j) { 
+        if(j.contains("id")) {
+            uint64_t loadedID = j.at("id").get<uint64_t>();
+            id = loadedID;
+            // Mise à jour du compteur global si nécessaire
+            uint64_t next = s_NextID.load();
+            while (loadedID >= next && !s_NextID.compare_exchange_weak(next, loadedID + 1));
+        }
+    }
+};
+
+/** @brief Composant pour identifier une entité par un nom (Debug/Editor only). */
 struct TagComponent {
     std::string tag;
 
     TagComponent() = default;
-    TagComponent(const std::string& t) : tag(t) {}
+    // Optimisation : Passage par valeur + std::move pour éviter une copie inutile si rvalue
+    TagComponent(std::string t) : tag(std::move(t)) {}
 
     void serialize(json& j) const {
         j["tag"] = tag;

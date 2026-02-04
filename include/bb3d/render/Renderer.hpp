@@ -8,6 +8,7 @@
 #include "bb3d/scene/Scene.hpp"
 #include "bb3d/render/Material.hpp"
 #include "bb3d/render/Mesh.hpp"
+#include "bb3d/render/RenderTarget.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 #include <unordered_map>
@@ -35,6 +36,8 @@ public:
 private:
     void createSyncObjects();
     void createGlobalDescriptors();
+    void createPipelines(const EngineConfig& config);
+    void createCopyPipeline();
     
     Ref<Material> getMaterialForTexture(Ref<Texture> texture);
 
@@ -42,6 +45,7 @@ private:
     Window& m_window;
     EngineConfig m_config;
     Scope<SwapChain> m_swapChain;
+    Scope<RenderTarget> m_renderTarget;
     
     Frustum m_frustum;
     
@@ -49,6 +53,11 @@ private:
     std::unordered_map<MaterialType, Scope<GraphicsPipeline>> m_pipelines;
     std::unordered_map<MaterialType, vk::DescriptorSetLayout> m_layouts;
     
+    // Pipeline de copie (Fullscreen Quad)
+    Scope<GraphicsPipeline> m_copyPipeline;
+    vk::DescriptorSetLayout m_copyLayout;
+    vk::DescriptorSet m_copyDescriptorSet;
+
     // Shaders cache (to avoid reloading)
     std::unordered_map<std::string, Scope<Shader>> m_shaders;
 
@@ -61,6 +70,9 @@ private:
     std::vector<vk::Semaphore> m_imageAvailableSemaphores;
     std::vector<vk::Semaphore> m_renderFinishedSemaphores;
     std::vector<vk::Fence> m_inFlightFences;
+    
+    // Suivi des fences par image de swapchain
+    std::vector<vk::Fence> m_imagesInUseFences;
 
     // Global UBO
 #pragma warning(push)
@@ -100,9 +112,12 @@ private:
     Ref<SkySphereMaterial> m_internalSkySphereMat;
     Ref<Material> m_fallbackMaterial;
 
-    void createPipelines(const EngineConfig& config);
     vk::DescriptorSetLayout getLayoutForType(MaterialType type);
     void renderSkybox(vk::CommandBuffer cb, Scene& scene);
+    
+    // Helpers
+    void drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView colorView, vk::ImageView depthView, vk::Extent2D extent);
+    void compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex);
 };
 
 } // namespace bb3d
