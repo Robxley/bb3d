@@ -1,7 +1,6 @@
 #include "bb3d/render/VulkanContext.hpp"
 #include "bb3d/core/Log.hpp"
 
-#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 #include <vulkan/vulkan.hpp>
 
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
@@ -123,12 +122,14 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     vmaCreateAllocator(&allocatorInfo, &m_allocator);
 
     m_shortLivedCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_graphicsQueueFamily });
+    m_stagingBuffer = CreateScope<StagingBuffer>(*this);
     BB_CORE_INFO("VulkanContext initialized (VMA with dynamic dispatch).");
 }
 
 void VulkanContext::cleanup() {
     if (m_device) {
         m_device.waitIdle();
+        m_stagingBuffer.reset();
         if (m_shortLivedCommandPool) {
             m_device.destroyCommandPool(m_shortLivedCommandPool);
         }

@@ -10,23 +10,14 @@
 
 namespace bb3d {
 
-struct RenderCommand {
-    MaterialType type;
-    Material* material;
-    Mesh* mesh;
-    glm::mat4 transform;
-
-    bool operator<(const RenderCommand& other) const {
-        if (type != other.type) return type < other.type;
-        if (material != other.material) return material < other.material;
-        return mesh < other.mesh;
-    }
-};
-
 Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& config)
     : m_context(context), m_window(window), m_config(config) {
     m_swapChain = CreateScope<SwapChain>(context, config.window.width, config.window.height);
     
+    // Optimisation : Pré-allouer de la mémoire pour éviter les réallocations fréquentes
+    m_renderCommands.reserve(1000);
+    m_instanceTransforms.reserve(MAX_INSTANCES);
+
     if (m_config.graphics.enableOffscreenRendering) {
         uint32_t w = static_cast<uint32_t>(m_swapChain->getExtent().width * m_config.graphics.renderScale);
         uint32_t h = static_cast<uint32_t>(m_swapChain->getExtent().height * m_config.graphics.renderScale);
@@ -364,7 +355,7 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
     
     renderSkybox(cb, scene);
 
-    std::vector<RenderCommand> commands;
+    m_renderCommands.clear();
     auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
     for (auto entity : meshView) {
         auto& meshComp = meshView.get<MeshComponent>(entity);
@@ -381,7 +372,7 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
              // Fallback minimal
              mat = m_fallbackMaterial.get();
         }
-        commands.push_back({ mat->getType(), mat, meshComp.mesh.get(), transform });
+        m_renderCommands.push_back({ mat->getType(), mat, meshComp.mesh.get(), transform });
     }
 
     auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
@@ -402,39 +393,39 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
                 mat = tex ? getMaterialForTexture(tex).get() : nullptr;
             }
             if (!mat) mat = m_fallbackMaterial.get();
-            commands.push_back({ mat->getType(), mat, mesh.get(), transform });
+            m_renderCommands.push_back({ mat->getType(), mat, mesh.get(), transform });
         }
     }
 
-    std::sort(commands.begin(), commands.end());
+    std::sort(m_renderCommands.begin(), m_renderCommands.end());
 
     GraphicsPipeline* lastPipeline = nullptr;
     Material* lastMaterial = nullptr;
     Mesh* lastMesh = nullptr;
-    std::vector<glm::mat4> instanceTransforms;
-    instanceTransforms.reserve(MAX_INSTANCES);
+    
+    m_instanceTransforms.clear();
 
     uint32_t currentInstanceOffset = 0;
     auto flushInstances = [&]() {
-        if (instanceTransforms.empty()) return;
+        if (m_instanceTransforms.empty()) return;
 
-        if (currentInstanceOffset + instanceTransforms.size() > MAX_INSTANCES) {
-            BB_CORE_ERROR("Renderer: Too many instances in one frame! ({0} > {1})", currentInstanceOffset + instanceTransforms.size(), MAX_INSTANCES);
-            instanceTransforms.clear();
+        if (currentInstanceOffset + m_instanceTransforms.size() > MAX_INSTANCES) {
+            BB_CORE_ERROR("Renderer: Too many instances in one frame! ({0} > {1})", currentInstanceOffset + m_instanceTransforms.size(), MAX_INSTANCES);
+            m_instanceTransforms.clear();
             return;
         }
 
         void* data = static_cast<char*>(m_instanceBuffers[m_currentFrame]->getMappedData()) + (currentInstanceOffset * sizeof(glm::mat4));
-        memcpy(data, instanceTransforms.data(), instanceTransforms.size() * sizeof(glm::mat4));
+        memcpy(data, m_instanceTransforms.data(), m_instanceTransforms.size() * sizeof(glm::mat4));
         
-        lastMesh->draw(cb, (uint32_t)instanceTransforms.size(), currentInstanceOffset);
+        lastMesh->draw(cb, (uint32_t)m_instanceTransforms.size(), currentInstanceOffset);
         
-        currentInstanceOffset += (uint32_t)instanceTransforms.size();
-        instanceTransforms.clear();
+        currentInstanceOffset += (uint32_t)m_instanceTransforms.size();
+        m_instanceTransforms.clear();
     };
 
-    for (const auto& cmd : commands) {
-        if (instanceTransforms.size() >= MAX_INSTANCES || (lastMesh && cmd.mesh != lastMesh) || (lastMaterial && cmd.material != lastMaterial)) {
+    for (const auto& cmd : m_renderCommands) {
+        if (m_instanceTransforms.size() >= MAX_INSTANCES || (lastMesh && cmd.mesh != lastMesh) || (lastMaterial && cmd.material != lastMaterial)) {
             flushInstances();
         }
 
@@ -454,7 +445,7 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
             }
             
             lastMesh = cmd.mesh;
-            instanceTransforms.push_back(cmd.transform);
+            m_instanceTransforms.push_back(cmd.transform);
         }
     }
     flushInstances();

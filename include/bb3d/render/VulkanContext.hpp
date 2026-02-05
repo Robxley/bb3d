@@ -1,7 +1,7 @@
 #pragma once
 
 #include "bb3d/core/Base.hpp"
-#define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
+#include "bb3d/render/StagingBuffer.hpp"
 #include <vulkan/vulkan.hpp>
 #include <vk_mem_alloc.h>
 #include <string>
@@ -55,6 +55,9 @@ public:
     /** @brief Récupère l'allocateur VMA pour la création de buffers/images. */
     [[nodiscard]] inline VmaAllocator getAllocator() const { return m_allocator; }
     
+    /** @brief Récupère le gestionnaire de staging buffer. */
+    [[nodiscard]] StagingBuffer& getStagingBuffer() { return *m_stagingBuffer; }
+
     /** @brief Nom commercial du GPU utilisé (ex: "NVIDIA GeForce RTX 3080"). */
     [[nodiscard]] inline std::string_view getDeviceName() const { return m_deviceName; }
 
@@ -81,6 +84,7 @@ private:
 
     VmaAllocator m_allocator = nullptr;
     vk::CommandPool m_shortLivedCommandPool;
+    Scope<class StagingBuffer> m_stagingBuffer;
     std::string m_deviceName;
 };
 

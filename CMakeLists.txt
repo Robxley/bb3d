@@ -191,7 +191,10 @@ target_include_directories(biobazard3d PUBLIC
 )
 
 # Vulkan requires depth range [0, 1] unlike OpenGL [-1, 1]
-target_compile_definitions(biobazard3d PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
+target_compile_definitions(biobazard3d PUBLIC 
+    GLM_FORCE_DEPTH_ZERO_TO_ONE
+    VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+)
 
 # Note: nlohmann_json is header-only, spdlog needs linking
 target_link_libraries(biobazard3d PUBLIC 

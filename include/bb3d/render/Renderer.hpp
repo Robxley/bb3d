@@ -19,6 +19,19 @@ namespace bb3d {
 
 class Window; // Forward declaration
 
+struct RenderCommand {
+    MaterialType type;
+    Material* material;
+    Mesh* mesh;
+    glm::mat4 transform;
+
+    bool operator<(const RenderCommand& other) const {
+        if (type != other.type) return type < other.type;
+        if (material != other.material) return material < other.material;
+        return mesh < other.mesh;
+    }
+};
+
 /**
  * @brief Chef d'orchestre du rendu graphique.
  * 
@@ -120,6 +133,10 @@ private:
     
     // Cache pour compatibilité avec les Mesh sans Material explicite
     std::unordered_map<std::string, Ref<Material>> m_defaultMaterials;
+
+    // Optimisation : Éviter les réallocations par frame
+    std::vector<RenderCommand> m_renderCommands;
+    std::vector<glm::mat4> m_instanceTransforms;
 
     Scope<Mesh> m_skyboxCube;
     Ref<SkyboxMaterial> m_internalSkyboxMat;

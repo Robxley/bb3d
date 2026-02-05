@@ -119,11 +119,12 @@ namespace bb3d {
         bool logConsole = true; ///< Active la sortie console.
         bool logFile = true;    ///< Active la sortie fichier.
         std::string logDirectory = "logs"; ///< Dossier de stockage des logs.
+        std::string logFileName = "engine.log"; ///< Nom du fichier de log.
 
         SystemConfig& setMaxThreads(int t) { maxThreads = t; return *this; }
         SystemConfig& setAssetPath(std::string_view p) { assetPath = p; return *this; }
 
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(SystemConfig, maxThreads, assetPath, logLevel, logConsole, logFile, logDirectory)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(SystemConfig, maxThreads, assetPath, logLevel, logConsole, logFile, logDirectory, logFileName)
     };
 
     /**
