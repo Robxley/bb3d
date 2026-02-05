@@ -64,6 +64,18 @@ void Window::SwapBuffers()
     // In a pure SDL renderer, we would call SDL_GL_SwapWindow or similar.
 }
 
+int Window::GetWidth() const {
+    int w;
+    SDL_GetWindowSize(m_Window, &w, nullptr);
+    return w;
+}
+
+int Window::GetHeight() const {
+    int h;
+    SDL_GetWindowSize(m_Window, nullptr, &h);
+    return h;
+}
+
 void Window::HandleEvent(SDL_Event& event)
 {
     if (event.type == SDL_EVENT_QUIT) {

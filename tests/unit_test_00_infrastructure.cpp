@@ -8,6 +8,7 @@
 int main() {
     bb3d::EngineConfig logConfig;
     logConfig.system.logDirectory = "unit_test_logs";
+    logConfig.system.logFileName = "unit_test_00.log";
     bb3d::Log::Init(logConfig);
     
     BB_CORE_INFO("Validation de l'infrastructure Core...");

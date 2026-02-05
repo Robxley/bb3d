@@ -7,6 +7,7 @@
 int main() {
     bb3d::EngineConfig logConfig;
     logConfig.system.logDirectory = "unit_test_logs";
+    logConfig.system.logFileName = "unit_test_12.log";
     bb3d::Log::Init(logConfig);
     BB_CORE_INFO("Test Unitaire 12 : ECS & Scene");
 

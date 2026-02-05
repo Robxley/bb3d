@@ -165,6 +165,7 @@ void runCoreSystemsTest(const bb3d::EngineConfig& logConfig) {
 int main() {
     bb3d::EngineConfig logConfig;
     logConfig.system.logDirectory = "unit_test_logs";
+    logConfig.system.logFileName = "unit_test_08.log";
     
     try {
         runCoreSystemsTest(logConfig);

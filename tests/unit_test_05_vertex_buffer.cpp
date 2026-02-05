@@ -37,6 +37,7 @@ void transitionImageLayout(vk::CommandBuffer commandBuffer, vk::Image image, vk:
 int main() {
     bb3d::EngineConfig logConfig;
     logConfig.system.logDirectory = "unit_test_logs";
+    logConfig.system.logFileName = "unit_test_05.log";
     bb3d::Log::Init(logConfig);
     BB_CORE_INFO("Test Unitaire 05 : Vertex Buffer & VMA (Vulkan-Hpp)");
 

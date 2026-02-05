@@ -45,6 +45,7 @@ void SwapChain::cleanup() {
 }
 
 void SwapChain::recreate(int width, int height) {
+    if (width == 0 || height == 0) return;
     m_context.getDevice().waitIdle();
     cleanup();
     createSwapChain(width, height);

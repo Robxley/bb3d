@@ -35,6 +35,7 @@ void transitionImageLayout(vk::CommandBuffer commandBuffer, vk::Image image, vk:
 int main() {
     bb3d::EngineConfig logConfig;
     logConfig.system.logDirectory = "unit_test_logs";
+    logConfig.system.logFileName = "unit_test_04.log";
     bb3d::Log::Init(logConfig);
     BB_CORE_INFO("Test Unitaire 04 : Hello Triangle (Vulkan-Hpp)");
 
@@ -123,7 +124,12 @@ int main() {
             vk::SubmitInfo submitInfo(1, &imageAvailableSemaphores[currentFrame], waitStages, 1, &commandBuffer, 1, &renderFinishedSemaphores[currentFrame]);
 
             context.getGraphicsQueue().submit(submitInfo, inFlightFences[currentFrame]);
-            swapChain.present(renderFinishedSemaphores[currentFrame], imageIndex);
+            
+            try {
+                swapChain.present(renderFinishedSemaphores[currentFrame], imageIndex);
+            } catch (const vk::OutOfDateKHRError&) {
+                // Ignorer
+            }
 
             currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
         }

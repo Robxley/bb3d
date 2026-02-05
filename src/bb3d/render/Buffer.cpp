@@ -1,4 +1,5 @@
 #include "bb3d/render/Buffer.hpp"
+#include "bb3d/render/VulkanContext.hpp"
 #include "bb3d/core/Log.hpp"
 #include <cstring>
 
@@ -44,31 +45,31 @@ void Buffer::upload(const void* data, vk::DeviceSize size, vk::DeviceSize offset
 }
 
 Scope<Buffer> Buffer::CreateVertexBuffer(VulkanContext& context, const void* data, vk::DeviceSize size) {
-    // 1. Staging Buffer (Host Visible)
-    Buffer staging(context, size, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
-    staging.upload(data, size);
+    // 1. RÃ©server dans le Staging Buffer central
+    auto stagingAlloc = context.getStagingBuffer().allocate(size);
+    std::memcpy(stagingAlloc.mappedData, data, static_cast<size_t>(size));
 
     // 2. Vertex Buffer (Device Local)
     auto vertexBuffer = CreateScope<Buffer>(context, size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer, VMA_MEMORY_USAGE_GPU_ONLY);
 
     // 3. Copy
     vk::CommandBuffer commandBuffer = context.beginSingleTimeCommands();
-    vk::BufferCopy copyRegion(0, 0, size);
-    commandBuffer.copyBuffer(staging.getHandle(), vertexBuffer->getHandle(), 1, &copyRegion);
+    vk::BufferCopy copyRegion(stagingAlloc.offset, 0, size);
+    commandBuffer.copyBuffer(stagingAlloc.buffer, vertexBuffer->getHandle(), 1, &copyRegion);
     context.endSingleTimeCommands(commandBuffer);
 
     return vertexBuffer;
 }
 
 Scope<Buffer> Buffer::CreateIndexBuffer(VulkanContext& context, const void* data, vk::DeviceSize size) {
-    Buffer staging(context, size, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
-    staging.upload(data, size);
+    auto stagingAlloc = context.getStagingBuffer().allocate(size);
+    std::memcpy(stagingAlloc.mappedData, data, static_cast<size_t>(size));
 
     auto indexBuffer = CreateScope<Buffer>(context, size, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer, VMA_MEMORY_USAGE_GPU_ONLY);
 
     vk::CommandBuffer commandBuffer = context.beginSingleTimeCommands();
-    vk::BufferCopy copyRegion(0, 0, size);
-    commandBuffer.copyBuffer(staging.getHandle(), indexBuffer->getHandle(), 1, &copyRegion);
+    vk::BufferCopy copyRegion(stagingAlloc.offset, 0, size);
+    commandBuffer.copyBuffer(stagingAlloc.buffer, indexBuffer->getHandle(), 1, &copyRegion);
     context.endSingleTimeCommands(commandBuffer);
 
     return indexBuffer;

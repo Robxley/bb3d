@@ -1,8 +1,11 @@
 #pragma once
 #include "bb3d/core/Core.hpp"
-#include "bb3d/render/VulkanContext.hpp"
+#include <vulkan/vulkan.hpp>
+#include <vk_mem_alloc.h>
 
 namespace bb3d {
+
+class VulkanContext; // Forward declaration
 
 class Buffer {
 public:
