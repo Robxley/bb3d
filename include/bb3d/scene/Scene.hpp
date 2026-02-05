@@ -37,18 +37,18 @@ public:
     /** @brief Met à jour la logique de la scène (systèmes, composants). */
     void onUpdate(float deltaTime);
 
-    /** @brief Crée une nouvelle entité dans cette scène. */
+    /** @brief Crée une nouvelle entité vide avec un TransformComponent par défaut. */
     Entity createEntity(const std::string& name = "Entity");
     
     /** 
      * @brief Crée une caméra orbitale pré-configurée avec contrôles souris.
-     * @param engine (Optionnel) Engine pour l'input. Utilise le contexte de scène si null.
+     * @param engine Pointeur vers l'Engine (peut être null si défini via setEngineContext).
      */
     View<OrbitControllerComponent> createOrbitCamera(const std::string& name, float fov, float aspect, const glm::vec3& target, float distance, Engine* engine = nullptr);
 
     /** 
      * @brief Crée une caméra FPS pré-configurée avec contrôles ZQSD + Souris.
-     * @param engine (Optionnel) Engine pour l'input. Utilise le contexte de scène si null.
+     * @param engine Pointeur vers l'Engine (peut être null si défini via setEngineContext).
      */
     View<FPSControllerComponent> createFPSCamera(const std::string& name, float fov, float aspect, const glm::vec3& position, Engine* engine = nullptr);
 
@@ -57,8 +57,8 @@ public:
      * @param name Nom de l'entité.
      * @param path Chemin vers le fichier modèle (.obj, .gltf, .glb).
      * @param position Position initiale dans le monde.
-     * @param normalizeSize (Optionnel) Si non nul, redimensionne le modèle pour qu'il tienne dans cette boîte englobante.
-     * @return L'entité créée (ou invalide si échec).
+     * @param normalizeSize (Optionnel) Si > 0, normalise l'échelle du modèle pour qu'il tienne dans ce volume.
+     * @return Vue sur le ModelComponent créé.
      */
     View<ModelComponent> createModelEntity(const std::string& name, const std::string& path, const glm::vec3& position = {0,0,0}, const glm::vec3& normalizeSize = {0,0,0});
 
@@ -68,23 +68,25 @@ public:
      */
     View<LightComponent> createDirectionalLight(const std::string& name, const glm::vec3& color, float intensity, const glm::vec3& rotation = {-45.0f, 0.0f, 0.0f});
 
-    /** @brief Crée une lumière ponctuelle (Omni). */
+    /** @brief Crée une lumière ponctuelle (Omni-directionnelle). */
     View<LightComponent> createPointLight(const std::string& name, const glm::vec3& color, float intensity, float range, const glm::vec3& position);
 
     /** 
-     * @brief Crée une SkySphere (environnement panoramique) à partir d'une texture.
-     * @return L'entité créée (ou invalide si échec de chargement).
+     * @brief Crée une SkySphere (environnement panoramique) à partir d'une texture HDR/JPG.
+     * @return Vue sur le SkySphereComponent.
      */
     View<SkySphereComponent> createSkySphere(const std::string& name, const std::string& texturePath);
 
-    /** @brief Supprime une entité de la scène. */
+    /** @brief Supprime une entité et ses composants du registre. */
     void destroyEntity(Entity entity);
 
-    /** @brief Accès direct au registre EnTT (pour les systèmes internes). */
+    /** @brief Accès direct au registre EnTT (pour les systèmes internes avancés). */
     [[nodiscard]] inline entt::registry& getRegistry() { return m_registry; }
 
     /** @brief Définit le contexte moteur (appelé automatiquement par Engine::CreateScene). */
     void setEngineContext(Engine* engine) { m_EngineContext = engine; }
+    
+    /** @brief Récupère le contexte moteur associé. */
     Engine* getEngineContext() const { return m_EngineContext; }
 
     // --- Scene Environment ---

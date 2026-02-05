@@ -54,7 +54,7 @@ Engine::~Engine() {
 void Engine::Init() {
     BB_PROFILE_SCOPE("Engine::Init");
 
-    // 1. Job System
+    // 1. Job System (Initialisé en premier pour être dispo pour les chargements asynchrones)
     if (m_Config.modules.enableJobSystem) {
         m_JobSystem = CreateScope<JobSystem>();
         m_JobSystem->init(m_Config.system.maxThreads);
@@ -62,17 +62,19 @@ void Engine::Init() {
         BB_CORE_WARN("Engine: JobSystem is disabled in config.");
     }
 
-    // 2. Event Bus
+    // 2. Event Bus (Communication découplée entre systèmes)
     m_EventBus = CreateScope<EventBus>();
 
-    // 3. Input Manager
+    // 3. Input Manager (Doit être prêt avant la création de la fenêtre pour les callbacks)
     m_InputManager = CreateScope<InputManager>();
 
-    // 4. Window
+    // 4. Window (SDL)
+    // Nécessaire pour créer la surface Vulkan par la suite.
     m_Window = CreateScope<Window>(m_Config);
     m_Window->SetEventCallback([this](SDL_Event& e) {
         if (m_InputManager) m_InputManager->onEvent(e);
         
+        // Gestion du redimensionnement : On notifie le renderer pour reconstruire la SwapChain
         if (e.type == SDL_EVENT_WINDOW_RESIZED || e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
             int w = e.window.data1;
             int h = e.window.data2;
@@ -82,23 +84,27 @@ void Engine::Init() {
         }
     });
 
-    // 5. Vulkan Context
+    // 5. Vulkan Context (Instance, PhysicalDevice, LogicalDevice)
+    // Initialise Vulkan en s'attachant à la fenêtre SDL créée juste avant.
     m_VulkanContext = CreateScope<VulkanContext>();
     m_VulkanContext->init(m_Window->GetNativeWindow(), m_Config.window.title, m_Config.graphics.enableValidationLayers);
 
-    // 6. Renderer
+    // 6. Renderer (SwapChain, Pipelines, RenderPasses)
+    // Dépend du VulkanContext et de la Window.
     m_Renderer = CreateScope<Renderer>(*m_VulkanContext, *m_Window, m_Config);
 
-    // 7. Resource Manager
+    // 7. Resource Manager (Textures, Models, Shaders)
+    // Gère le chargement et le cache. Utilise le JobSystem pour le chargement async.
     m_ResourceManager = CreateScope<ResourceManager>(*m_VulkanContext, *m_JobSystem);
 
-    // 8. Physics
+    // 8. Physics (Jolt)
+    // Indépendant du rendu, peut être initialisé ici.
     if (m_Config.modules.enablePhysics) {
         m_PhysicsWorld = CreateScope<PhysicsWorld>();
         m_PhysicsWorld->init();
     }
 
-    // 9. Audio
+    // 9. Audio (miniaudio/OpenAL)
     if (m_Config.modules.enableAudio) {
         m_AudioSystem = CreateScope<AudioSystem>();
         m_AudioSystem->init();
@@ -111,10 +117,12 @@ void Engine::Shutdown() {
     BB_PROFILE_SCOPE("Engine::Shutdown");
     BB_CORE_INFO("Engine: Shutting down...");
 
+    // 1. Attente GPU : On s'assure que le GPU ne travaille plus avant de détruire quoi que ce soit.
     if (m_VulkanContext && m_VulkanContext->getDevice()) {
         m_VulkanContext->getDevice().waitIdle();
     }
 
+    // 2. Systèmes de haut niveau (Audio, Physique)
     if (m_AudioSystem) {
         m_AudioSystem->shutdown();
         m_AudioSystem.reset();
@@ -125,21 +133,30 @@ void Engine::Shutdown() {
         m_PhysicsWorld.reset();
     }
 
+    // 3. Scène active (Détruit les Entités, Components, Scripts)
     m_ActiveScene.reset();
     
-    m_Renderer.reset(); // On détruit le Renderer d'abord car il possède bcp de ressources VMA
+    // 4. Renderer
+    // IMPORTANT : On détruit le Renderer avant le Context et le Window.
+    // Il contient la SwapChain et les Framebuffers qui dépendent de la Surface.
+    m_Renderer.reset(); 
 
+    // 5. Ressources
+    // On vide le cache des textures/modèles. Note : Les textures Vulkan dépendent de l'allocator (VMA)
+    // qui est géré par le VulkanContext. Elles doivent être libérées AVANT le contexte.
     if (m_ResourceManager) {
         m_ResourceManager->clearCache();
         m_ResourceManager.reset();
     }
     
-    Material::Cleanup(); // Libérer les textures par défaut
+    Material::Cleanup(); // Libérer les textures "par défaut" (blanc, noir)
 
-    m_VulkanContext.reset();
-    m_Window.reset();
+    // 6. Bas niveau (Vulkan, Window)
+    m_VulkanContext.reset(); // Détruit Device, Instance, Surface.
+    m_Window.reset(); // Ferme la fenêtre SDL.
     m_EventBus.reset();
 
+    // 7. JobSystem (On arrête les threads en dernier)
     if (m_JobSystem) {
         m_JobSystem->shutdown();
         m_JobSystem.reset();

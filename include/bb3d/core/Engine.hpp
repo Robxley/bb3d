@@ -51,10 +51,31 @@ public:
      */
     static Engine& Get();
 
+    /**
+     * @brief Démarre la boucle principale du moteur.
+     * 
+     * Cette méthode bloque l'exécution jusqu'à ce que la fenêtre soit fermée
+     * ou que Stop() soit appelé.
+     * 
+     * Séquence : Input -> Window Events -> Update -> Render.
+     */
     void Run();
+
+    /**
+     * @brief Arrête proprement le moteur et libère les ressources.
+     * 
+     * Appelé automatiquement par le destructeur, mais peut être appelé manuellement.
+     * Attend que le GPU soit inactif avant de détruire les objets Vulkan.
+     */
     void Shutdown();
 
     // Accesseurs aux systèmes core
+    
+    /**
+     * @brief Demande l'arrêt de la boucle principale.
+     * 
+     * Le moteur s'arrêtera à la fin de la frame courante.
+     */
     void Stop();
 
     /** @name Accesseurs Haut Niveau (Aliases)

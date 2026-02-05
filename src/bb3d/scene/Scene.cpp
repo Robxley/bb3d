@@ -132,20 +132,21 @@ void Scene::onUpdate(float deltaTime) {
     auto& input = m_EngineContext->input();
 
     // --- SYSTEM: FPS Controller ---
+    // Gère le déplacement de la caméra en mode First Person (ZQSD + Souris)
     auto fpsView = m_registry.view<FPSControllerComponent, CameraComponent, TransformComponent>();
     for (auto entity : fpsView) {
         auto [ctrl, cam, trans] = fpsView.get(entity);
         if (!cam.active) continue;
 
-        // Rotation (Souris)
+        // Rotation (Souris - Clic Droit maintenu pour "look around")
         if (input.isMouseButtonPressed(Mouse::Right)) {
             glm::vec2 delta = input.getMouseDelta();
             ctrl.yaw += delta.x * ctrl.rotationSpeed.x;
-            ctrl.pitch -= delta.y * ctrl.rotationSpeed.y; // Inversé
-            ctrl.pitch = std::clamp(ctrl.pitch, -89.0f, 89.0f);
+            ctrl.pitch -= delta.y * ctrl.rotationSpeed.y; // Inversé car souris bas = regard haut
+            ctrl.pitch = std::clamp(ctrl.pitch, -89.0f, 89.0f); // Empêche le gimbal lock
         }
 
-        // Calcul des vecteurs avant/droite
+        // Calcul des vecteurs avant/droite basés sur les angles d'Euler
         glm::vec3 front;
         front.x = cos(glm::radians(ctrl.yaw)) * cos(glm::radians(ctrl.pitch));
         front.y = sin(glm::radians(ctrl.pitch));
@@ -160,6 +161,7 @@ void Scene::onUpdate(float deltaTime) {
         if (input.isKeyPressed(Key::S)) moveDir -= forward * ctrl.movementSpeed.z;
         if (input.isKeyPressed(Key::D)) moveDir += right * ctrl.movementSpeed.x;
         if (input.isKeyPressed(Key::A)) moveDir -= right * ctrl.movementSpeed.x;
+        // Montée/Descente absolue
         if (input.isKeyPressed(Key::Space)) moveDir += glm::vec3(0,1,0) * ctrl.movementSpeed.y;
         if (input.isKeyPressed(Key::LeftShift)) moveDir -= glm::vec3(0,1,0) * ctrl.movementSpeed.y;
 
@@ -173,12 +175,13 @@ void Scene::onUpdate(float deltaTime) {
     }
 
     // --- SYSTEM: Orbit Controller ---
+    // Gère la caméra orbitale (rotation autour d'un point cible)
     auto orbitView = m_registry.view<OrbitControllerComponent, CameraComponent, TransformComponent>();
     for (auto entity : orbitView) {
         auto [ctrl, cam, trans] = orbitView.get(entity);
         if (!cam.active) continue;
 
-        // Rotation
+        // Rotation (Clic Gauche maintenu)
         if (input.isMouseButtonPressed(Mouse::Left)) {
             glm::vec2 delta = input.getMouseDelta();
             ctrl.yaw += delta.x * ctrl.rotationSpeed.x;
@@ -186,14 +189,14 @@ void Scene::onUpdate(float deltaTime) {
             ctrl.pitch = std::clamp(ctrl.pitch, -89.0f, 89.0f);
         }
 
-        // Zoom
+        // Zoom (Molette)
         float scroll = input.getMouseScroll().y;
         if (scroll != 0.0f) {
             ctrl.distance -= scroll * ctrl.zoomSpeed;
             ctrl.distance = std::clamp(ctrl.distance, ctrl.minDistance, ctrl.maxDistance);
         }
 
-        // Calcul position sphérique
+        // Conversion Coordonnées Sphériques -> Cartésiennes
         float x = ctrl.distance * std::cos(glm::radians(ctrl.pitch)) * std::sin(glm::radians(ctrl.yaw));
         float y = ctrl.distance * std::sin(glm::radians(ctrl.pitch));
         float z = ctrl.distance * std::cos(glm::radians(ctrl.pitch)) * std::cos(glm::radians(ctrl.yaw));

@@ -85,5 +85,17 @@ int main() {
     // 6. Lancement
     engine->Run();
 
+    // 7. Nettoyage explicite des références locales avant l'arrêt du moteur
+    // Sinon ces ressources (Ref) tenteraient de se libérer après la destruction de l'allocateur Vulkan.
+    houseModel.reset();
+    brickTexture.reset();
+    antModel.reset();
+    cubeMesh.reset();
+    floorMesh.reset();
+    scene.reset();
+
+    engine->Shutdown();
+    bb3d::Material::Cleanup();
+
     return 0;
 }

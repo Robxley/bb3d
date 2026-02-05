@@ -12,6 +12,7 @@
 #include "bb3d/core/JobSystem.hpp"
 #include "bb3d/scene/Components.hpp"
 #include "bb3d/scene/Camera.hpp"
+#include "bb3d/scene/FPSCamera.hpp"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
@@ -186,6 +187,7 @@ int main() {
             model.reset();
             texture.reset();
             resources.clearCache();
+            bb3d::Material::Cleanup();
 
             // 6. Shutdown Systems
             jobSystem.shutdown();

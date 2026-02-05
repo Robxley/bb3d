@@ -16,6 +16,8 @@ Window::Window(const EngineConfig& config)
     }
 
     // Create the window
+    // SDL_WINDOW_VULKAN : Indispensable pour créer une surface Vulkan par la suite.
+    // SDL_WINDOW_RESIZABLE : Permet à l'utilisateur de redimensionner la fenêtre (génère des événements SDL_EVENT_WINDOW_RESIZED).
     m_Window = SDL_CreateWindow(
         config.window.title.c_str(),
         config.window.width,

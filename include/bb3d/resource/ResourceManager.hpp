@@ -34,8 +34,11 @@ class VulkanContext;
 class ResourceManager;
 
 /**
- * @brief Cache spécialisé pour un type de ressource donné.
+ * @brief Cache spécialisé pour un type de ressource donné (Texture, Model, etc.).
  * @tparam T Type de la ressource (doit dériver de Resource).
+ * 
+ * @note Cette classe est interne au ResourceManager. Elle utilise un `std::shared_mutex`
+ * pour permettre plusieurs lectures simultanées mais une seule écriture lors du chargement.
  */
 template<typename T>
 class ResourceCache : public IResourceCache {
@@ -44,16 +47,24 @@ public:
         : m_context(context), m_manager(manager) {}
 
     /**
-     * @brief Récupère une ressource du cache ou la charge si nécessaire.
+     * @brief Récupère une ressource du cache ou l'instancie si elle est absente.
+     * 
+     * Cette méthode est le cœur du système d'idempotence : charger deux fois "rock.obj"
+     * renverra exactement le même `Ref<Model>`.
+     * 
+     * @param path Identifiant unique (chemin du fichier).
+     * @param args Arguments optionnels passés au constructeur de la ressource T.
      */
     template<typename... Args>
     Ref<T> getOrLoad(std::string_view path, Args&&... args) {
+        // 1. Essai de lecture rapide (Shared Lock)
         {
             std::shared_lock<std::shared_mutex> readLock(m_mutex);
             auto it = m_resources.find(path);
             if (it != m_resources.end()) return it->second;
         }
 
+        // 2. Double-check lock pour l'écriture (chargement réel)
         std::unique_lock<std::shared_mutex> writeLock(m_mutex);
         auto it = m_resources.find(path);
         if (it != m_resources.end()) return it->second;
@@ -62,6 +73,7 @@ public:
         
         Ref<T> resource = nullptr;
         try {
+            // Détection automatique du constructeur approprié via SFINAE/Concepts
             if constexpr (std::is_constructible_v<T, VulkanContext&, ResourceManager&, std::string, Args...>) {
                 resource = CreateRef<T>(m_context, *m_manager, std::string(path), std::forward<Args>(args)...);
             } else if constexpr (std::is_constructible_v<T, VulkanContext&, std::string, Args...>) {
@@ -76,6 +88,7 @@ public:
         return resource;
     }
 
+    /** @brief Vide le cache et libère les Refs (peut déclencher la destruction des objets GPU). */
     void clear() override {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
         m_resources.clear();
@@ -85,20 +98,34 @@ private:
     VulkanContext& m_context;
     ResourceManager* m_manager;
     std::shared_mutex m_mutex;
+    // Map utilisant un StringHash transparent pour éviter des allocations de std::string lors de la recherche par string_view.
     std::unordered_map<std::string, Ref<T>, StringHash, std::equal_to<>> m_resources;
 };
 
 /**
- * @brief Gestionnaire global des ressources avec mise en cache et chargement asynchrone.
+ * @brief Gestionnaire centralisé des ressources du moteur.
+ * 
+ * Fonctionnalités :
+ * - **Caching automatique** : Évite les duplications mémoire.
+ * - **Thread-Safety** : Chargement possible depuis plusieurs threads.
+ * - **Async Loading** : Intégration avec le JobSystem.
+ * - **Généricité** : Supporte n'importe quel type dérivé de `Resource`.
  */
 class ResourceManager {
 public:
+    /**
+     * @brief Construit le manager.
+     * @param context Contexte Vulkan (pour les textures/buffers).
+     * @param jobSystem Système de workers (pour le chargement async).
+     */
     ResourceManager(VulkanContext& context, JobSystem& jobSystem);
     ~ResourceManager() = default;
 
     /**
-     * @brief Charge une ressource de manière synchrone.
-     * @tparam T Type de la ressource.
+     * @brief Charge une ressource de manière synchrone (bloque le thread appelant).
+     * @tparam T Type de la ressource (ex: Texture, Model).
+     * @param path Chemin relatif de l'asset.
+     * @param args Paramètres additionnels (ex: type de filtrage pour une texture).
      */
     template<typename T, typename... Args>
     Ref<T> load(std::string_view path, Args&&... args) {
@@ -106,18 +133,19 @@ public:
     }
 
     /**
-     * @brief Charge une ressource de manière asynchrone via le JobSystem.
+     * @brief Charge une ressource de manière asynchrone (non-bloquant).
      * @tparam T Type de la ressource.
-     * @param callback Fonction appelée une fois le chargement terminé.
+     * @param path Chemin relatif.
+     * @param callback Fonction appelée à la fin (ex: lambda capturant l'entité).
+     * @param args Paramètres additionnels.
      */
     template<typename T, typename... Args>
     void loadAsync(std::string_view path, std::function<void(Ref<T>)> callback, Args&&... args) {
         std::string sPath(path);
-        // On doit capturer les arguments par valeur pour l'async
+        // On capture les arguments pour le thread worker
         auto tupleArgs = std::make_tuple(std::forward<Args>(args)...);
         m_jobSystem.execute([this, sPath, callback, tupleArgs](std::stop_token) {
-            // Note: Simplifié, le forwarding de tuple vers variadic load est complexe en C++20 sans apply
-            // On va juste supporter le cas sans args pour loadAsync pour l'instant ou utiliser std::apply
+            // Utilisation de std::apply pour déballer le tuple d'arguments
             auto resource = std::apply([&](auto&&... unpackedArgs) {
                 return load<T>(sPath, std::forward<decltype(unpackedArgs)>(unpackedArgs)...);
             }, tupleArgs);
@@ -129,6 +157,7 @@ public:
     void clearCache();
 
 private:
+    /** @brief Récupère ou crée dynamiquement le cache pour un type spécifique. */
     template<typename T>
     ResourceCache<T>& getCache() {
         std::type_index typeIdx(typeid(T));

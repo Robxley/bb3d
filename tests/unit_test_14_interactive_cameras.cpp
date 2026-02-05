@@ -189,7 +189,15 @@ int main() {
 
                 vk::PipelineStageFlags wait = vk::PipelineStageFlagBits::eColorAttachmentOutput;
                 dev.getQueue(context.getGraphicsQueueFamily(), 0).submit(vk::SubmitInfo(1, &semA[frameIdx], &wait, 1, &cb, 1, &semR[frameIdx]), fen[frameIdx]);
-                swapChain.present(semR[frameIdx], imgIdx);
+                
+                try {
+                    swapChain.present(semR[frameIdx], imgIdx);
+                } catch (const vk::OutOfDateKHRError&) {
+                    swapChain.recreate(window.GetWidth(), window.GetHeight());
+                } catch (const std::exception& e) {
+                    BB_CORE_ERROR("Present error: {}", e.what());
+                }
+
                 frameIdx = (frameIdx + 1) % MAX_FRAMES;
             }
             end_loop:

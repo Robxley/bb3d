@@ -57,15 +57,44 @@ public:
     /** @name Mapping Haut Niveau
      * @{
      */
+    /**
+     * @brief Associe une action logique à une touche physique.
+     * @param name Nom de l'action (ex: "Jump", "Fire").
+     * @param key Touche clavier à associer.
+     */
     void mapAction(std::string_view name, Key key);
+
+    /**
+     * @brief Associe une action logique à un bouton de souris.
+     * @param name Nom de l'action.
+     * @param button Bouton souris à associer.
+     */
     void mapAction(std::string_view name, Mouse button);
+
+    /**
+     * @brief Associe un axe logique (valeur float entre -1 et 1) à une paire de touches.
+     * @param name Nom de l'axe (ex: "MoveForward").
+     * @param positive Touche pour la valeur +1.0 (ex: Key::W).
+     * @param negative Touche pour la valeur -1.0 (ex: Key::S).
+     */
     void mapAxis(std::string_view name, Key positive, Key negative);
     /** @} */
 
     /** @name Requêtes d'Actions
      * @{
      */
+    /**
+     * @brief Vérifie si une action mappée est active.
+     * @param name Nom de l'action.
+     * @return true si l'input associé est pressé, false sinon.
+     */
     [[nodiscard]] bool isActionPressed(std::string_view name) const;
+
+    /**
+     * @brief Récupère la valeur d'un axe virtuel.
+     * @param name Nom de l'axe.
+     * @return float Valeur résultante (1.0, -1.0 ou 0.0 si aucune/les deux touches sont pressées).
+     */
     [[nodiscard]] float getAxis(std::string_view name) const;
     /** @} */
 

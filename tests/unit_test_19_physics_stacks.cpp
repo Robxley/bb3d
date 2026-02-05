@@ -107,8 +107,8 @@ int main() {
         ballMeshes.push_back(m);
     }
 
-    player.toEntity().add<NativeScriptComponent>([scene, &engine, ballMeshes](Entity e, float /*dt*/) {
-        auto& input = engine->input();
+    player.toEntity().add<NativeScriptComponent>([pScene = scene.get(), pEngine = engine.get(), ballMeshes](Entity e, float /*dt*/) {
+        auto& input = pEngine->input();
         static bool lastClick = false;
         bool click = input.isMouseButtonPressed(Mouse::Left);
 
@@ -129,7 +129,7 @@ int main() {
             float radius = 0.2f + meshIdx * 0.1f;
             float mass = radius * 15.0f; 
 
-            auto ball = scene->createEntity("Projectile");
+            auto ball = pScene->createEntity("Projectile");
             ball.at(spawnPos);
             ball.add<MeshComponent>(ballMeshes[meshIdx]);
             
@@ -140,7 +140,7 @@ int main() {
 
             ball.add<SphereColliderComponent>(radius);
             
-            engine->physics().createRigidBody(ball);
+            pEngine->physics().createRigidBody(ball);
             BB_CORE_INFO("Pew! Ball spawned (Mass: {0})", mass);
         }
         lastClick = click;
@@ -149,6 +149,18 @@ int main() {
     BB_CORE_INFO("Physics Shooter Ready. Move with ZQSD, Click to shoot.");
 
     engine->Run();
+
+    // Cleanup local references and scripts before shutdown
+    scene->getRegistry().clear<NativeScriptComponent>();
+    ballMeshes.clear();
+    matFloor.reset();
+    matBox.reset();
+    matBall.reset();
+    groundMesh.reset();
+    cubeMesh.reset();
+    scene.reset();
+
+    engine->Shutdown();
 
     return 0;
 }

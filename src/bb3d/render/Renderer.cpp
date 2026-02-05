@@ -209,6 +209,8 @@ Ref<Material> Renderer::getMaterialForTexture(Ref<Texture> texture) {
 }
 
 void Renderer::onResize(int width, int height) {
+    if (width == 0 || height == 0) return;
+    
     m_swapChain->recreate(width, height);
     m_imagesInUseFences.resize(m_swapChain->getImageCount(), nullptr);
     
@@ -236,25 +238,33 @@ void Renderer::onResize(int width, int height) {
 }
 
 void Renderer::render(Scene& scene) {
+    // Évite le rendu si la fenêtre est minimisée
     if (m_window.GetWidth() == 0 || m_window.GetHeight() == 0) return;
 
     auto dev = m_context.getDevice();
+    
+    // 1. Synchro CPU-GPU : On attend que le GPU ait fini de traiter la frame correspondante (Triple buffering)
     (void)dev.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
+
+    // 2. Récupération de la caméra active pour le calcul des matrices View/Proj
     Camera* activeCamera = nullptr;
     auto camView = scene.getRegistry().view<CameraComponent>();
     for (auto entity : camView) { if (camView.get<CameraComponent>(entity).active) { activeCamera = camView.get<CameraComponent>(entity).camera.get(); break; } }
     if (!activeCamera) return;
 
+    // 3. Préparation des données globales (UBO)
     GlobalUBO uboData; 
     uboData.view = activeCamera->getViewMatrix(); 
     uboData.proj = activeCamera->getProjectionMatrix(); 
     uboData.camPos = glm::vec4(glm::vec3(glm::inverse(uboData.view)[3]), 0.0f);
     int numLights = 0;
 
+    // Culling frustum pour optimiser les draw calls
     if (m_config.graphics.enableFrustumCulling) {
         m_frustum.update(uboData.proj * uboData.view);
     }
 
+    // Collecte des lumières (limité à 10 pour le shader standard)
     auto lightView = scene.getRegistry().view<LightComponent>();
     for (auto entity : lightView) {
         if (numLights >= 10) break;
@@ -263,12 +273,12 @@ void Renderer::render(Scene& scene) {
         sl.color = glm::vec4(light.color, light.intensity);
         sl.params = glm::vec4(light.range, 0.0f, 0.0f, 0.0f);
         if (light.type == LightType::Directional) {
-            sl.position.w = 0.0f;
+            sl.position.w = 0.0f; // Type 0 = Directionnelle
             if (scene.getRegistry().all_of<TransformComponent>(entity)) {
                 sl.direction = glm::vec4(scene.getRegistry().get<TransformComponent>(entity).getForward(), 0.0f);
             } else { sl.direction = glm::vec4(0.0f, -1.0f, 0.0f, 0.0f); }
         } else if (light.type == LightType::Point) {
-            sl.position.w = 1.0f;
+            sl.position.w = 1.0f; // Type 1 = Ponctuelle
             if (scene.getRegistry().all_of<TransformComponent>(entity)) {
                 sl.position = glm::vec4(scene.getRegistry().get<TransformComponent>(entity).translation, 1.0f);
             }
@@ -278,6 +288,8 @@ void Renderer::render(Scene& scene) {
     uboData.globalParams = glm::vec4((float)numLights, 0.0f, 0.0f, 0.0f);
     m_cameraUbos[m_currentFrame]->update(&uboData, sizeof(uboData));
 
+    // 4. Acquisition de l'image Swapchain
+    // 4. Acquisition de l'image Swapchain
     uint32_t imageIndex;
     try { 
         imageIndex = m_swapChain->acquireNextImage(m_imageAvailableSemaphores[m_currentFrame]); 
@@ -287,7 +299,7 @@ void Renderer::render(Scene& scene) {
         return; 
     }
 
-    // Si l'image est dÃ©jÃ  utilisÃ©e par une frame prÃ©cÃ©dente, on attend que cette frame soit finie
+    // Sécurité : Si l'image est déjà utilisée par une frame précédente encore en vol, on attend.
     if (m_imagesInUseFences[imageIndex]) {
         (void)dev.waitForFences(1, &m_imagesInUseFences[imageIndex], VK_TRUE, UINT64_MAX);
     }
@@ -295,16 +307,16 @@ void Renderer::render(Scene& scene) {
 
     (void)dev.resetFences(1, &m_inFlightFences[m_currentFrame]);
 
+    // 5. Enregistrement des commandes GPU
     auto& cb = m_commandBuffers[m_currentFrame];
     cb.reset({}); cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 
     if (m_config.graphics.enableOffscreenRendering) {
-        // Transition explicite RenderTarget : Undefined -> ColorAttachment
+        // Mode Post-Process : Rendu dans un RenderTarget intermédiaire puis composite vers swapchain
         vk::Image rtImage = m_renderTarget->getColorImage();
         vk::ImageMemoryBarrier rtBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, rtBarrier);
 
-        // Transition explicite Depth : Undefined -> DepthAttachment
         vk::Image dImage = m_renderTarget->getDepthImage();
         vk::ImageMemoryBarrier dBarrier({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, dImage, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
@@ -312,19 +324,18 @@ void Renderer::render(Scene& scene) {
         drawScene(cb, scene, m_renderTarget->getColorImageView(), m_renderTarget->getDepthImageView(), m_renderTarget->getExtent());
         compositeToSwapchain(cb, imageIndex);
     } else {
-        // Transition explicite Swapchain : Undefined -> ColorAttachment
+        // Mode Direct : Rendu directement dans l'image finale de la Swapchain
         vk::Image swImage = m_swapChain->getImage(imageIndex);
         vk::ImageMemoryBarrier swBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, swBarrier);
 
-        // Transition explicite Depth Swapchain : Undefined -> DepthAttachment
         vk::Image dImage = m_swapChain->getDepthImage();
         vk::ImageMemoryBarrier dBarrier({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, dImage, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
 
         drawScene(cb, scene, m_swapChain->getImageViews()[imageIndex], m_swapChain->getDepthImageView(), m_swapChain->getExtent());
 
-        // Transition finale explicite pour la présentation (Direct Mode)
+        // Transition finale pour la présentation (ColorAttachment -> PresentSrc)
         vk::ImageMemoryBarrier presentBarrier(vk::AccessFlagBits::eColorAttachmentWrite, {}, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe, {}, nullptr, nullptr, presentBarrier);
     }

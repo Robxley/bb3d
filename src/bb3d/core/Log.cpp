@@ -18,41 +18,50 @@ namespace bb3d {
 
     void Log::Init(const EngineConfig& config)
     {
+        // On utilise un 'dist_sink' pour envoyer les logs vers plusieurs destinations (Console, Fichier, etc.)
+        // de manière thread-safe.
         auto dist_sink = std::make_shared<spdlog::sinks::dist_sink_mt>();
 
-        // 1. Console Sink
+        // 1. Console Sink (Sortie standard colorée)
         if (config.system.logConsole) {
             auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+            // Pattern: [Heure] NomLogger: Message
             console_sink->set_pattern("%^[%T] %n: %v%$");
             dist_sink->add_sink(console_sink);
         }
 
-        // 2. File Sink
+        // 2. File Sink (Fichier texte)
         if (config.system.logFile) {
             try {
+                // Création du dossier de logs s'il n'existe pas
                 if (!std::filesystem::exists(config.system.logDirectory)) {
                     std::filesystem::create_directories(config.system.logDirectory);
                 }
                 
                 std::string logPath = config.system.logDirectory + "/bb3d.log";
+                // basic_file_sink_mt est thread-safe. Le paramètre 'true' écrase le fichier à chaque démarrage (truncate).
                 auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath, true);
+                // Pattern détaillé pour le fichier: [Date Heure] [Nom] [Level] Message
                 file_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%l] %v");
                 dist_sink->add_sink(file_sink);
             } catch (const std::exception& e) {
-                // On ne peut pas logger via spdlog ici si ça échoue, on utilise stderr
+                // Fallback critique : On ne peut pas logger via spdlog ici si l'init échoue, on utilise stderr
                 fprintf(stderr, "Failed to initialize file logging: %s\n", e.what());
             }
         }
 
-        // Create loggers using the distribution sink
+        // Création des loggers utilisant le sink distribué
+        // CORE : Logger interne du moteur
         s_CoreLogger = std::make_shared<spdlog::logger>("CORE", dist_sink);
         s_CoreLogger->set_level(spdlog::level::trace);
-        s_CoreLogger->flush_on(spdlog::level::trace);
+        s_CoreLogger->flush_on(spdlog::level::trace); // Flush immédiat pour le debug
 
+        // APP : Logger pour le client
         s_ClientLogger = std::make_shared<spdlog::logger>("APP", dist_sink);
         s_ClientLogger->set_level(spdlog::level::trace);
         s_ClientLogger->flush_on(spdlog::level::trace);
 
+        // Enregistrement global pour accès via spdlog::get("CORE") si besoin
         spdlog::register_logger(s_CoreLogger);
         spdlog::register_logger(s_ClientLogger);
 

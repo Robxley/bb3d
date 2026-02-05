@@ -20,17 +20,31 @@ namespace bb3d {
 class Window; // Forward declaration
 
 /**
- * @brief Gère le pipeline de rendu de haut niveau (PBR).
+ * @brief Chef d'orchestre du rendu graphique.
+ * 
+ * Cette classe implémente un moteur de rendu PBR (Physically Based Rendering) avec :
+ * - **Gestion de SwapChain** : Double/Triple buffering automatique.
+ * - **Système de Matériaux** : Gestion des shaders PBR, Unlit, Skybox via Descriptors.
+ * - **Instancing** : Optimisation automatique via SSBO pour les objets répétés.
+ * - **Frustum Culling** : Élimination des objets hors champ.
+ * - **Post-Process** : Support optionnel du rendu offscreen avec mise à l'échelle (Render Scale).
+ * 
+ * @note Utilise MAX_FRAMES_IN_FLIGHT (généralement 3) pour paralléliser CPU et GPU.
  */
 class Renderer {
 public:
     Renderer(VulkanContext& context, Window& window, const EngineConfig& config);
     ~Renderer();
 
+    /**
+     * @brief Exécute le rendu d'une scène complète.
+     */
     void render(Scene& scene);
+
+    /** @brief Notifie le renderer d'un changement de taille de fenêtre. */
     void onResize(int width, int height);
     
-    // Accesseurs pour les tests ou usage avancé
+    /** @brief Récupère la SwapChain actuelle. */
     SwapChain& getSwapChain() { return *m_swapChain; }
 
 private:
@@ -58,7 +72,7 @@ private:
     vk::DescriptorSetLayout m_copyLayout;
     vk::DescriptorSet m_copyDescriptorSet;
 
-    // Shaders cache (to avoid reloading)
+    // Shaders cache
     std::unordered_map<std::string, Scope<Shader>> m_shaders;
 
     // Frames
@@ -94,7 +108,7 @@ private:
 #pragma warning(pop)
     std::vector<Scope<UniformBuffer>> m_cameraUbos;
     
-    // Instancing SSBOs (un par frame en vol)
+    // Instancing SSBOs
     static constexpr uint32_t MAX_INSTANCES = 10000;
     std::vector<Scope<Buffer>> m_instanceBuffers;
 
@@ -112,12 +126,10 @@ private:
     Ref<SkySphereMaterial> m_internalSkySphereMat;
     Ref<Material> m_fallbackMaterial;
 
-    vk::DescriptorSetLayout getLayoutForType(MaterialType type);
     void renderSkybox(vk::CommandBuffer cb, Scene& scene);
-    
-    // Helpers
     void drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView colorView, vk::ImageView depthView, vk::Extent2D extent);
     void compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex);
+    void updateGlobalUBO(uint32_t currentFrame, Scene& scene);
 };
 
 } // namespace bb3d

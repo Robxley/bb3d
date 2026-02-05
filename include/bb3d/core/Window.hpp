@@ -55,7 +55,9 @@ public:
     /** @brief Définit le callback pour les événements OS. */
     void SetEventCallback(const EventCallbackFn& callback) { m_EventCallback = callback; }
 
+    /** @brief Retourne la largeur actuelle de la fenêtre en pixels. */
     int GetWidth() const;
+    /** @brief Retourne la hauteur actuelle de la fenêtre en pixels. */
     int GetHeight() const;
 
 private:

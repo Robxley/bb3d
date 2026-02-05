@@ -133,7 +133,8 @@ namespace bb3d {
     void PhysicsWorld::update(float deltaTime, Scene& scene) {
         if (!m_impl->initialized) return;
 
-        // Sync Kinematic: Engine -> Jolt
+        // 1. Synchro "Kinematic" : Moteur -> Jolt
+        // Pour les objets cinématiques (déplacés par le code/animation), on force leur position dans Jolt.
         auto& bodyInterface = m_impl->physicsSystem->GetBodyInterface();
         auto kinematicView = scene.getRegistry().view<RigidBodyComponent, TransformComponent>();
         for (auto entity : kinematicView) {
@@ -143,7 +144,8 @@ namespace bb3d {
             bodyInterface.SetPositionAndRotation(JPH::BodyID(rb.bodyID), toJPH(tf.translation), toJPH(glm::quat(tf.rotation)), JPH::EActivation::Activate);
         }
 
-        // Update Characters
+        // 2. Mise à jour des personnages (CharacterVirtual)
+        // Les personnages utilisent une logique spécifique car ils ne sont pas des RigidBodies standards.
         for (auto it = m_impl->characters.begin(); it != m_impl->characters.end(); ) {
             entt::entity handle = static_cast<entt::entity>(it->first);
             if (!scene.getRegistry().valid(handle)) { it = m_impl->characters.erase(it); continue; }
@@ -158,6 +160,7 @@ namespace bb3d {
                                  m_impl->physicsSystem->GetDefaultBroadPhaseLayerFilter(Layers::MOVING),
                                  m_impl->physicsSystem->GetDefaultLayerFilter(Layers::MOVING), {}, {}, *m_impl->tempAllocator);
 
+            // Retour de la position physique vers le moteur
             tf.translation = fromJPH(charV->GetPosition());
             tf.rotation = glm::eulerAngles(fromJPH(charV->GetRotation()));
             cc.isGrounded = charV->IsSupported();
@@ -165,10 +168,11 @@ namespace bb3d {
             ++it;
         }
 
-        // Step
+        // 3. Step de la simulation (Calcul des collisions et forces)
         m_impl->physicsSystem->Update(deltaTime, 1, m_impl->tempAllocator.get(), m_impl->jobSystem.get());
 
-        // Sync Dynamic: Jolt -> Engine
+        // 4. Synchro "Dynamic" : Jolt -> Moteur
+        // Pour les objets dynamiques (tombant par gravité, etc.), on récupère la position calculée.
         syncTransforms(scene);
     }
 

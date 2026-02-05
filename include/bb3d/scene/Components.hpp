@@ -28,7 +28,7 @@ using json = nlohmann::json;
 enum class BodyType { Static, Dynamic, Kinematic, Character };
 enum class LightType { Directional, Point, Spot };
 
-/** @brief Identifiant unique déterministe et thread-safe. */
+/** @brief Identifiant unique déterministe et thread-safe pour les entités. */
 struct IDComponent {
     uint64_t id;
 
@@ -36,6 +36,8 @@ struct IDComponent {
     static inline std::atomic<uint64_t> s_NextID{1}; 
 
     IDComponent() : id(s_NextID++) {}
+    
+    /** @brief Constructeur explicite pour le chargement ou la duplication. */
     IDComponent(uint64_t _id) : id(_id) {
         // Si on force un ID (ex: chargement), on s'assure que le compteur est à jour pour éviter les collisions futures
         uint64_t next = s_NextID.load();
@@ -71,23 +73,26 @@ struct TagComponent {
     }
 };
 
-/** @brief Composant gérant la position, rotation et l'échelle. */
+/** @brief Composant gérant la position, rotation et l'échelle dans l'espace 3D. */
 struct TransformComponent {
     glm::vec3 translation = { 0.0f, 0.0f, 0.0f };
-    glm::vec3 rotation = { 0.0f, 0.0f, 0.0f }; ///< Angles d'Euler.
+    glm::vec3 rotation = { 0.0f, 0.0f, 0.0f }; ///< Angles d'Euler en radians (X:Pitch, Y:Yaw, Z:Roll).
     glm::vec3 scale = { 1.0f, 1.0f, 1.0f };
 
     TransformComponent() = default;
 
-    /** @brief Calcule la matrice de transformation 4x4. */
+    /** @brief Calcule la matrice de transformation 4x4 (Model Matrix). */
     [[nodiscard]] inline glm::mat4 getTransform() const {
         return glm::translate(glm::mat4(1.0f), translation) * 
                glm::toMat4(glm::quat(rotation)) * 
                glm::scale(glm::mat4(1.0f), scale);
     }
 
+    /** @brief Vecteur Forward (Z-) local. */
     [[nodiscard]] inline glm::vec3 getForward() const { return glm::rotate(glm::quat(rotation), glm::vec3(0.0f, 0.0f, -1.0f)); }
+    /** @brief Vecteur Up (Y+) local. */
     [[nodiscard]] inline glm::vec3 getUp() const { return glm::rotate(glm::quat(rotation), glm::vec3(0.0f, 1.0f, 0.0f)); }
+    /** @brief Vecteur Right (X+) local. */
     [[nodiscard]] inline glm::vec3 getRight() const { return glm::rotate(glm::quat(rotation), glm::vec3(1.0f, 0.0f, 0.0f)); }
 
     void serialize(json& j) const {
