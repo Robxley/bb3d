@@ -31,14 +31,14 @@ Buffer::~Buffer() {
     }
 }
 
-void Buffer::upload(const void* data, vk::DeviceSize size) {
+void Buffer::upload(const void* data, vk::DeviceSize size, vk::DeviceSize offset) {
     if (m_mappedData) {
-        std::memcpy(m_mappedData, data, static_cast<size_t>(size));
+        std::memcpy((char*)m_mappedData + offset, data, static_cast<size_t>(size));
     } else {
         // Fallback: map temporary if not already mapped
         void* mapped;
         vmaMapMemory(m_context.getAllocator(), m_allocation, &mapped);
-        std::memcpy(mapped, data, static_cast<size_t>(size));
+        std::memcpy((char*)mapped + offset, data, static_cast<size_t>(size));
         vmaUnmapMemory(m_context.getAllocator(), m_allocation);
     }
 }

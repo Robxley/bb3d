@@ -23,7 +23,7 @@ void InputManager::update() {
     // 1. Sauvegarder l'état précédent
     std::memcpy(m_previousKeyState, m_currentKeyState, sizeof(m_currentKeyState));
     m_previousMouseState = m_currentMouseState;
-    m_previousMousePos = m_currentMousePos;
+    glm::vec2 oldMousePos = m_currentMousePos;
 
     // 2. Récupérer le nouvel état du clavier
     int numKeys;
@@ -40,6 +40,16 @@ void InputManager::update() {
     float mx, my;
     m_currentMouseState = SDL_GetMouseState(&mx, &my);
     m_currentMousePos = {mx, my};
+    m_mouseDelta = m_currentMousePos - oldMousePos;
+
+    // On reset le scroll à chaque frame car c'est un delta ponctuel
+    m_mouseScroll = { 0.0f, 0.0f };
+}
+
+void InputManager::onEvent(const SDL_Event& event) {
+    if (event.type == SDL_EVENT_MOUSE_WHEEL) {
+        m_mouseScroll = { event.wheel.x, event.wheel.y };
+    }
 }
 
 bool InputManager::isKeyPressed(Key key) const {
@@ -74,14 +84,6 @@ bool InputManager::isMouseButtonJustReleased(Mouse button) const {
     bool current = (m_currentMouseState & SDL_BUTTON_MASK(toSDLButton(button))) != 0;
     bool previous = (m_previousMouseState & SDL_BUTTON_MASK(toSDLButton(button))) != 0;
     return !current && previous;
-}
-
-glm::vec2 InputManager::getMousePosition() const {
-    return m_currentMousePos;
-}
-
-glm::vec2 InputManager::getMouseDelta() const {
-    return m_currentMousePos - m_previousMousePos;
 }
 
 void InputManager::mapAction(std::string_view name, Key key) {

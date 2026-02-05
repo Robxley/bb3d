@@ -28,7 +28,7 @@ public:
     virtual ~Camera() = default;
 
     /** @brief Met à jour la logique de la caméra (ex: interpolation). */
-    virtual void update(float deltaTime) = 0;
+    virtual void update(float /*deltaTime*/) {}
 
     /** @name Getters
      * @{

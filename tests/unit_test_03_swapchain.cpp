@@ -44,8 +44,8 @@ int main() {
         while (!window.ShouldClose() && frameCount < 100) {
             window.PollEvents();
 
-            auto waitResult = device.waitForFences(1, &inFlightFence, VK_TRUE, UINT64_MAX);
-            device.resetFences(1, &inFlightFence);
+            (void)device.waitForFences(1, &inFlightFence, VK_TRUE, UINT64_MAX);
+            (void)device.resetFences(1, &inFlightFence);
 
             // 1. Acquire
             uint32_t imageIndex;

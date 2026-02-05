@@ -1,38 +1,53 @@
 #pragma once
 #include "bb3d/scene/Camera.hpp"
+#include <glm/glm.hpp>
 
 namespace bb3d {
 
 /**
- * @brief Caméra orbitale qui tourne autour d'un point cible.
+ * @brief [COMPATIBILITY WRAPPER] Caméra Orbitale.
+ * Utilisée par les anciens tests unitaires.
  */
 class OrbitCamera : public Camera {
 public:
-    OrbitCamera(float fov, float aspect, float near, float far);
-    ~OrbitCamera() override = default;
+    OrbitCamera(float fov, float aspect, float near, float far) : Camera(fov, aspect, near, far) {
+        updatePosition();
+    }
 
-    /** @brief Calcule la position de la caméra en fonction de l'orbite. */
-    void update(float deltaTime) override;
+    void setTarget(const glm::vec3& target) {
+        m_target = target;
+        updatePosition();
+    }
 
-    /** @name Contrôles
-     * @{
-     */
-    void rotate(float yawOffset, float pitchOffset);
-    void zoom(float delta);
-    void setTarget(const glm::vec3& target);
-    /** @} */
+    void rotate(float deltaYaw, float deltaPitch) {
+        m_yaw += deltaYaw * 0.1f;
+        m_pitch += deltaPitch * 0.1f;
+        updatePosition();
+    }
+
+    void zoom(float delta) {
+        m_distance -= delta * 0.5f;
+        if (m_distance < 0.1f) m_distance = 0.1f;
+        updatePosition();
+    }
+
+    void update(float) override {
+        updatePosition();
+    }
 
 private:
-    glm::vec3 m_target{0.0f, 0.0f, 0.0f};
-    float m_distance = 5.0f;
-    float m_minDistance = 1.0f;
-    float m_maxDistance = 100.0f;
+    void updatePosition() {
+        float x = m_distance * std::cos(glm::radians(m_pitch)) * std::sin(glm::radians(m_yaw));
+        float y = m_distance * std::sin(glm::radians(m_pitch));
+        float z = m_distance * std::cos(glm::radians(m_pitch)) * std::cos(glm::radians(m_yaw));
+        m_position = m_target + glm::vec3(x, y, z);
+        lookAt(m_target);
+    }
 
+    glm::vec3 m_target{0.0f};
+    float m_distance = 5.0f;
     float m_yaw = 0.0f;
     float m_pitch = 0.0f;
-    
-    float m_mouseSensitivity = 0.1f;
-    float m_zoomSpeed = 0.5f;
 };
 
 } // namespace bb3d

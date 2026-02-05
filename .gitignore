@@ -8,7 +8,11 @@ CMakeUserPresets.json
 
 # Assets (binary files, generated models, etc.)
 assets/
+temp_textures/
 
+# Logs
+logs/
 unit_test_logs/
 
-logs/
+# Compiled Shaders
+*.spv

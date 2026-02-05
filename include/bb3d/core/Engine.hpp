@@ -16,6 +16,9 @@
 
 namespace bb3d {
 
+class PhysicsWorld;
+class AudioSystem;
+
 /**
  * @brief La classe principale représentant le moteur de jeu biobazard3d.
  * 
@@ -48,7 +51,31 @@ public:
      */
     static Engine& Get();
 
+    /**
+     * @brief Démarre la boucle principale du moteur.
+     * 
+     * Cette méthode bloque l'exécution jusqu'à ce que la fenêtre soit fermée
+     * ou que Stop() soit appelé.
+     * 
+     * Séquence : Input -> Window Events -> Update -> Render.
+     */
     void Run();
+
+    /**
+     * @brief Arrête proprement le moteur et libère les ressources.
+     * 
+     * Appelé automatiquement par le destructeur, mais peut être appelé manuellement.
+     * Attend que le GPU soit inactif avant de détruire les objets Vulkan.
+     */
+    void Shutdown();
+
+    // Accesseurs aux systèmes core
+    
+    /**
+     * @brief Demande l'arrêt de la boucle principale.
+     * 
+     * Le moteur s'arrêtera à la fin de la frame courante.
+     */
     void Stop();
 
     /** @name Accesseurs Haut Niveau (Aliases)
@@ -61,6 +88,8 @@ public:
     inline JobSystem& jobs() { return *m_JobSystem; }
     inline EventBus& events() { return *m_EventBus; }
     inline InputManager& input() { return *m_InputManager; }
+    inline PhysicsWorld& physics() { return *m_PhysicsWorld; }
+    inline AudioSystem& audio() { return *m_AudioSystem; }
     /** @} */
 
     /** @name Accesseurs Originaux
@@ -72,15 +101,21 @@ public:
     Window& GetWindow() { return *m_Window; }
     JobSystem* GetJobSystem() { return m_JobSystem.get(); }
     EventBus& GetEventBus() { return *m_EventBus; }
+    PhysicsWorld* GetPhysicsWorld() { return m_PhysicsWorld.get(); }
+    AudioSystem* GetAudioSystem() { return m_AudioSystem.get(); }
     /** @} */
 
     Ref<Scene> CreateScene();
     void SetActiveScene(Ref<Scene> scene) { m_ActiveScene = scene; }
     Ref<Scene> GetActiveScene() const { return m_ActiveScene; }
 
+    const EngineConfig& GetConfig() const { return m_Config; }
+
+    void exportScene(const std::string& filepath);
+    void importScene(const std::string& filepath);
+
 private:
     void Init();
-    void Shutdown();
     void Update(float deltaTime);
     void Render();
 
@@ -94,6 +129,8 @@ private:
     Scope<JobSystem> m_JobSystem;
     Scope<EventBus> m_EventBus;
     Scope<InputManager> m_InputManager;
+    Scope<PhysicsWorld> m_PhysicsWorld;
+    Scope<AudioSystem> m_AudioSystem;
     Ref<Scene> m_ActiveScene;
 
     bool m_Running = false;

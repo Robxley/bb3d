@@ -1,11 +1,12 @@
 #pragma once
 
-#include "bb3d/scene/Scene.hpp"
 #include "bb3d/scene/Components.hpp"
 #include <entt/entt.hpp>
 #include <functional>
 
 namespace bb3d {
+
+class Scene; // Forward declaration
 
 /**
  * @brief Wrapper léger autour d'un identifiant d'entité EnTT.
@@ -18,43 +19,30 @@ public:
     Entity(entt::entity handle, Scene& scene) : m_entityHandle(handle), m_scene(&scene) {}
 
     /** @brief Définit la position de l'entité (raccourci TransformComponent). */
-    Entity& at(const glm::vec3& position) {
-        get<TransformComponent>().translation = position;
-        return *this;
-    }
+    Entity& at(const glm::vec3& position);
 
     /** @brief Ajoute un composant à l'entité. Retourne l'entité pour chaînage. */
     template<typename T, typename... Args>
-    Entity& add(Args&&... args) {
-        m_scene->m_registry.emplace<T>(m_entityHandle, std::forward<Args>(args)...);
-        return *this;
-    }
+    Entity& add(Args&&... args);
 
     /** @brief Configure un composant via une lambda. Retourne l'entité pour chaînage. */
     template<typename T>
-    Entity& setup(std::function<void(T&)> func) {
-        func(get<T>());
-        return *this;
-    }
+    Entity& setup(std::function<void(T&)> func);
 
     /** @brief Récupère un composant de l'entité. */
     template<typename T>
-    T& get() {
-        return m_scene->m_registry.get<T>(m_entityHandle);
-    }
+    T& get();
 
     /** @brief Vérifie si l'entité possède un composant. */
     template<typename T>
-    bool has() {
-        return m_scene->m_registry.all_of<T>(m_entityHandle);
-    }
+    bool has();
+
+    /** @brief Récupère le handle interne EnTT. */
+    entt::entity getHandle() const { return m_entityHandle; }
 
     /** @brief Supprime un composant de l'entité. */
     template<typename T>
-    Entity& remove() {
-        m_scene->m_registry.remove<T>(m_entityHandle);
-        return *this;
-    }
+    Entity& remove();
 
     /** @brief Vérifie si l'entité est valide. */
     operator bool() const { return m_entityHandle != entt::null && m_scene != nullptr; }

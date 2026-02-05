@@ -4,22 +4,27 @@
 #include "bb3d/render/Buffer.hpp"
 #include "bb3d/render/Vertex.hpp"
 #include "bb3d/render/Texture.hpp"
+#include "bb3d/render/Material.hpp"
 #include <vector>
 #include <limits>
 #include <glm/glm.hpp>
 
 namespace bb3d {
 
+class VulkanContext;
+
 /** @brief Boîte englobante alignée sur les axes (Axis-Aligned Bounding Box). */
 struct AABB {
-    glm::vec3 min{std::numeric_limits<float>::max()};
-    glm::vec3 max{std::numeric_limits<float>::lowest()};
+    glm::vec3 min{std::numeric_limits<float>::max()}; ///< Coin minimum (x, y, z).
+    glm::vec3 max{std::numeric_limits<float>::lowest()}; ///< Coin maximum (x, y, z).
 
+    /** @brief Étend la boîte pour inclure un nouveau point. */
     void extend(const glm::vec3& point) {
         min = glm::min(min, point);
         max = glm::max(max, point);
     }
     
+    /** @brief Étend la boîte pour inclure une autre AABB. */
     void extend(const AABB& other) {
         min = glm::min(min, other.min);
         max = glm::max(max, other.max);
@@ -29,7 +34,7 @@ struct AABB {
     [[nodiscard]] inline glm::vec3 size() const { return max - min; }
 
     /** @brief Calcule une nouvelle AABB après transformation par une matrice. */
-    [[nodiscard]] AABB transform(const glm::mat4& m) const {
+    [[nodiscard]] inline AABB transform(const glm::mat4& m) const {
         glm::vec3 newMin = m[3];
         glm::vec3 newMax = m[3];
         for (int i = 0; i < 3; i++) {
@@ -48,40 +53,83 @@ struct AABB {
 };
 
 /**
- * @brief Représente une partie de géométrie indexée avec ses tampons GPU.
+ * @brief Objet contenant les données géométriques prêtes pour le GPU.
+ * 
+ * Un maillage (Mesh) possède :
+ * - Un **Vertex Buffer** (Tampon de sommets : Position, Normal, UV, etc.).
+ * - Un **Index Buffer** (Tampon d'indices pour le dessin indexé).
+ * - Une **AABB locale** pour le culling.
+ * - Un lien optionnel vers un **Material**.
  */
 class Mesh {
 public:
+    /**
+     * @brief Crée un maillage et transfère les données vers la mémoire GPU.
+     * @param context Contexte Vulkan pour la création des buffers.
+     * @param vertices Liste des sommets.
+     * @param indices Liste des indices de triangles.
+     */
     Mesh(VulkanContext& context, 
          const std::vector<Vertex>& vertices, 
          const std::vector<uint32_t>& indices)
-         : m_indexCount(static_cast<uint32_t>(indices.size())) {
+         : m_context(context), m_vertices(vertices), m_indices(indices), m_indexCount(static_cast<uint32_t>(indices.size())) {
         
-        m_vertexBuffer = Buffer::CreateVertexBuffer(context, vertices.data(), vertices.size() * sizeof(Vertex));
-        m_indexBuffer = Buffer::CreateIndexBuffer(context, indices.data(), indices.size() * sizeof(uint32_t));
+        m_vertexBuffer = Buffer::CreateVertexBuffer(context, m_vertices.data(), m_vertices.size() * sizeof(Vertex));
+        m_indexBuffer = Buffer::CreateIndexBuffer(context, m_indices.data(), m_indices.size() * sizeof(uint32_t));
 
         for (const auto& v : vertices) {
             m_bounds.extend(v.position);
         }
     }
 
-    ~Mesh() = default;
+    ~Mesh() {
+        m_vertexBuffer.reset();
+        m_indexBuffer.reset();
+    }
 
-    /** @brief Récupère l'AABB locale du maillage. */
+    /** @brief Récupère les limites spatiales locales du maillage. */
     [[nodiscard]] inline const AABB& getBounds() const { return m_bounds; }
 
-    /** @brief Enregistre les commandes de rendu pour ce maillage. */
-    inline void draw(vk::CommandBuffer commandBuffer) const {
+    /** 
+     * @brief Enregistre les commandes de rendu pour ce maillage.
+     * @param commandBuffer Buffer de commande actif.
+     * @param instanceCount Nombre d'instances à dessiner (Instancing).
+     * @param firstInstance Index du premier exemplaire dans le SSBO d'instances.
+     */
+    inline void draw(vk::CommandBuffer commandBuffer, uint32_t instanceCount = 1, uint32_t firstInstance = 0) const {
         vk::Buffer vbs[] = {m_vertexBuffer->getHandle()};
         vk::DeviceSize offsets[] = {0};
         commandBuffer.bindVertexBuffers(0, 1, vbs, offsets);
         commandBuffer.bindIndexBuffer(m_indexBuffer->getHandle(), 0, vk::IndexType::eUint32);
-        commandBuffer.drawIndexed(m_indexCount, 1, 0, 0, 0);
+        commandBuffer.drawIndexed(m_indexCount, instanceCount, 0, 0, firstInstance);
     }
 
+    /** @brief Met à jour les buffers GPU après modification de la liste `getVertices()`. */
+    inline void updateVertices() {
+        m_vertexBuffer = Buffer::CreateVertexBuffer(m_context, m_vertices.data(), m_vertices.size() * sizeof(Vertex));
+        m_bounds = AABB();
+        for (const auto& v : m_vertices) {
+            m_bounds.extend(v.position);
+        }
+    }
+
+    std::vector<Vertex>& getVertices() { return m_vertices; }
+    const std::vector<uint32_t>& getIndices() const { return m_indices; }
+    
+    void setTexture(Ref<Texture> texture) { m_texture = texture; }
+    Ref<Texture> getTexture() const { return m_texture; }
+
+    void setMaterial(Ref<Material> material) { m_material = material; }
+    Ref<Material> getMaterial() const { return m_material; }
+
 private:
+    VulkanContext& m_context;
+    std::vector<Vertex> m_vertices;
+    std::vector<uint32_t> m_indices;
     Scope<Buffer> m_vertexBuffer;
     Scope<Buffer> m_indexBuffer;
+    Ref<Texture> m_texture;
+    Ref<Material> m_material;
     uint32_t m_indexCount;
     AABB m_bounds;
 };

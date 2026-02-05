@@ -57,7 +57,7 @@ int main() {
         bb3d::Shader vertShader(context, "assets/shaders/triangle.vert.spv");
         bb3d::Shader fragShader(context, "assets/shaders/triangle.frag.spv");
 
-        bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {}, false);
+        bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {}, {}, false);
 
         vk::Device device = context.getDevice();
         vk::CommandPool commandPool = device.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.getGraphicsQueueFamily() });
@@ -86,8 +86,9 @@ int main() {
         while (!window.ShouldClose()) {
             window.PollEvents();
 
-            auto waitResult = device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
-            device.resetFences(1, &inFlightFences[currentFrame]);
+            // Attendre que la frame pr├®c├®dente soit finie
+            (void)device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+            (void)device.resetFences(1, &inFlightFences[currentFrame]);
 
             uint32_t imageIndex;
             try {

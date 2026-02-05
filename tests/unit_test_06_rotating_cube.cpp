@@ -14,8 +14,7 @@
 #include <chrono>
 #include <array>
 
-struct UniformBufferObject {
-    alignas(16) glm::mat4 model;
+struct GlobalUBO {
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
 };
@@ -81,7 +80,7 @@ int main() {
         bb3d::Buffer indexBuffer(context, iSize, vk::BufferUsageFlagBits::eIndexBuffer, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
         indexBuffer.upload(indices.data(), iSize);
 
-        bb3d::UniformBuffer ubo(context, sizeof(UniformBufferObject));
+        bb3d::UniformBuffer ubo(context, sizeof(GlobalUBO));
 
         vk::Device device = context.getDevice();
         vk::DescriptorSetLayoutBinding uboBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex);
@@ -92,11 +91,12 @@ int main() {
 
         vk::DescriptorSet descriptorSet = device.allocateDescriptorSets({ descriptorPool, 1, &descriptorSetLayout })[0];
 
-        vk::DescriptorBufferInfo bufferInfo(ubo.getHandle(), 0, sizeof(UniformBufferObject));
+        vk::DescriptorBufferInfo bufferInfo(ubo.getHandle(), 0, sizeof(GlobalUBO));
         vk::WriteDescriptorSet descriptorWrite(descriptorSet, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bufferInfo);
         device.updateDescriptorSets(1, &descriptorWrite, 0, nullptr);
 
-        bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {descriptorSetLayout});
+        vk::PushConstantRange pcr(vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4));
+        bb3d::GraphicsPipeline pipeline(context, swapChain, vertShader, fragShader, config, {descriptorSetLayout}, {pcr});
 
         vk::CommandPool commandPool = device.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, context.getGraphicsQueueFamily() });
         vk::CommandBuffer commandBuffer = device.allocateCommandBuffers({ commandPool, vk::CommandBufferLevel::ePrimary, 1 })[0];
@@ -112,8 +112,8 @@ int main() {
             static auto startTime = std::chrono::high_resolution_clock::now();
             float time = std::chrono::duration<float, std::chrono::seconds::period>(std::chrono::high_resolution_clock::now() - startTime).count();
 
-            UniformBufferObject uboData{};
-            uboData.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+            GlobalUBO uboData{};
+            glm::mat4 modelMat = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
             uboData.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
             uboData.proj = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 10.0f);
             uboData.proj[1][1] *= -1;
@@ -135,6 +135,8 @@ int main() {
             commandBuffer.setScissor(0, vk::Rect2D({0, 0}, swapChain.getExtent()));
 
             commandBuffer.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.getLayout(), 0, 1, &descriptorSet, 0, nullptr);
+            commandBuffer.pushConstants(pipeline.getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &modelMat);
+            
             vk::Buffer vbs[] = { vertexBuffer.getHandle() };
             vk::DeviceSize offsets[] = { 0 };
             commandBuffer.bindVertexBuffers(0, 1, vbs, offsets);

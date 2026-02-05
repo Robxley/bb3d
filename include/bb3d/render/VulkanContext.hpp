@@ -12,8 +12,13 @@ struct SDL_Window;
 namespace bb3d {
 
 /**
- * @brief Gère l'initialisation et la destruction du contexte Vulkan de bas niveau via Vulkan-Hpp.
- * (Instance, Surface, PhysicalDevice, Device, VMA).
+ * @brief Point d'entrée pour l'abstraction de l'API Vulkan 1.3.
+ * 
+ * Cette classe gère le cycle de vie des objets fondamentaux :
+ * - **Instance & Surface** : Connection avec le système de fenêtrage (SDL3).
+ * - **PhysicalDevice & Logical Device** : Sélection du GPU et gestion des files (Queues).
+ * - **Vulkan Memory Allocator (VMA)** : Gestionnaire d'allocation mémoire haute performance.
+ * - **Validation Layers** : Intégration des outils de debug Vulkan.
  */
 class VulkanContext {
 public:
@@ -23,9 +28,20 @@ public:
     VulkanContext(const VulkanContext&) = delete;
     VulkanContext& operator=(const VulkanContext&) = delete;
 
+    /**
+     * @brief Initialise Vulkan et VMA.
+     * @param window Fenêtre SDL3 sur laquelle le rendu sera effectué.
+     * @param appName Nom de l'application (utilisé par le driver).
+     * @param enableValidationLayers Active/Désactive les couches de debug (impact perf).
+     */
     void init(SDL_Window* window, std::string_view appName, bool enableValidationLayers);
+
+    /** @brief Libère proprement tous les objets Vulkan et l'allocateur VMA. */
     void cleanup();
 
+    /** @name Accesseurs Vulkan-Hpp
+     * @{
+     */
     [[nodiscard]] inline vk::Instance getInstance() const { return m_instance; }
     [[nodiscard]] inline vk::SurfaceKHR getSurface() const { return m_surface; }
     [[nodiscard]] inline vk::PhysicalDevice getPhysicalDevice() const { return m_physicalDevice; }
@@ -34,11 +50,21 @@ public:
     [[nodiscard]] inline vk::Queue getPresentQueue() const { return m_presentQueue; }
     [[nodiscard]] inline uint32_t getGraphicsQueueFamily() const { return m_graphicsQueueFamily; }
     [[nodiscard]] inline uint32_t getPresentQueueFamily() const { return m_presentQueueFamily; }
+    /** @} */
+
+    /** @brief Récupère l'allocateur VMA pour la création de buffers/images. */
     [[nodiscard]] inline VmaAllocator getAllocator() const { return m_allocator; }
+    
+    /** @brief Nom commercial du GPU utilisé (ex: "NVIDIA GeForce RTX 3080"). */
     [[nodiscard]] inline std::string_view getDeviceName() const { return m_deviceName; }
 
-    // Helpers pour commandes uniques
+    /** 
+     * @brief Démarre un command buffer temporaire pour un transfert unique (CPU->GPU).
+     * @note Utilise une pool de commandes dédiée aux tâches courtes.
+     */
     vk::CommandBuffer beginSingleTimeCommands();
+
+    /** @brief Soumet et termine un command buffer de transfert, puis attend la fin de l'exécution (bloquant). */
     void endSingleTimeCommands(vk::CommandBuffer commandBuffer);
 
 private:

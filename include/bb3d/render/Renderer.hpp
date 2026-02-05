@@ -6,45 +6,77 @@
 #include "bb3d/render/GraphicsPipeline.hpp"
 #include "bb3d/render/UniformBuffer.hpp"
 #include "bb3d/scene/Scene.hpp"
+#include "bb3d/render/Material.hpp"
+#include "bb3d/render/Mesh.hpp"
+#include "bb3d/render/RenderTarget.hpp"
 #include <glm/glm.hpp>
 #include <vector>
+#include <unordered_map>
+
+#include "bb3d/scene/Frustum.hpp"
 
 namespace bb3d {
 
 class Window; // Forward declaration
 
 /**
- * @brief Gère le pipeline de rendu de haut niveau.
+ * @brief Chef d'orchestre du rendu graphique.
  * 
- * S'occupe de la synchronisation Vulkan, de la SwapChain et du rendu
- * automatique de la scène active.
+ * Cette classe implémente un moteur de rendu PBR (Physically Based Rendering) avec :
+ * - **Gestion de SwapChain** : Double/Triple buffering automatique.
+ * - **Système de Matériaux** : Gestion des shaders PBR, Unlit, Skybox via Descriptors.
+ * - **Instancing** : Optimisation automatique via SSBO pour les objets répétés.
+ * - **Frustum Culling** : Élimination des objets hors champ.
+ * - **Post-Process** : Support optionnel du rendu offscreen avec mise à l'échelle (Render Scale).
+ * 
+ * @note Utilise MAX_FRAMES_IN_FLIGHT (généralement 3) pour paralléliser CPU et GPU.
  */
 class Renderer {
 public:
     Renderer(VulkanContext& context, Window& window, const EngineConfig& config);
     ~Renderer();
 
-    /** @brief Prépare et enregistre les commandes de rendu pour la scène. */
+    /**
+     * @brief Exécute le rendu d'une scène complète.
+     */
     void render(Scene& scene);
 
-    /** @brief Gère le redimensionnement de la fenêtre. */
+    /** @brief Notifie le renderer d'un changement de taille de fenêtre. */
     void onResize(int width, int height);
+    
+    /** @brief Récupère la SwapChain actuelle. */
+    SwapChain& getSwapChain() { return *m_swapChain; }
 
 private:
     void createSyncObjects();
     void createGlobalDescriptors();
+    void createPipelines(const EngineConfig& config);
+    void createCopyPipeline();
+    
+    Ref<Material> getMaterialForTexture(Ref<Texture> texture);
 
     VulkanContext& m_context;
     Window& m_window;
+    EngineConfig m_config;
     Scope<SwapChain> m_swapChain;
+    Scope<RenderTarget> m_renderTarget;
     
-    // Pipelines par défaut
-    Scope<GraphicsPipeline> m_defaultPipeline;
-    Scope<Shader> m_defaultVert;
-    Scope<Shader> m_defaultFrag;
+    Frustum m_frustum;
+    
+    // Pipelines
+    std::unordered_map<MaterialType, Scope<GraphicsPipeline>> m_pipelines;
+    std::unordered_map<MaterialType, vk::DescriptorSetLayout> m_layouts;
+    
+    // Pipeline de copie (Fullscreen Quad)
+    Scope<GraphicsPipeline> m_copyPipeline;
+    vk::DescriptorSetLayout m_copyLayout;
+    vk::DescriptorSet m_copyDescriptorSet;
 
-    // Frames in flight management
-    static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 2;
+    // Shaders cache
+    std::unordered_map<std::string, Scope<Shader>> m_shaders;
+
+    // Frames
+    static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 3;
     uint32_t m_currentFrame = 0;
 
     vk::CommandPool m_commandPool;
@@ -52,16 +84,52 @@ private:
     std::vector<vk::Semaphore> m_imageAvailableSemaphores;
     std::vector<vk::Semaphore> m_renderFinishedSemaphores;
     std::vector<vk::Fence> m_inFlightFences;
+    
+    // Suivi des fences par image de swapchain
+    std::vector<vk::Fence> m_imagesInUseFences;
 
-    // Global UBO (Camera, Lights)
+    // Global UBO
+#pragma warning(push)
+#pragma warning(disable: 4324)
+    struct ShaderLight {
+        glm::vec4 position;  // xyz = pos, w = type (0=Dir, 1=Point)
+        glm::vec4 color;     // rgb = color, a = intensity
+        glm::vec4 direction; // xyz = dir, w = unused
+        glm::vec4 params;    // x = range, y = spotAngle, zw = unused
+    };
+
     struct GlobalUBO {
         glm::mat4 view;
         glm::mat4 proj;
+        glm::vec4 camPos;      // .xyz = pos, .w = padding
+        glm::vec4 globalParams; // .x = numLights (cast to int), .yzw = padding
+        ShaderLight lights[10];
     };
-    Scope<UniformBuffer> m_cameraUbo;
+#pragma warning(pop)
+    std::vector<Scope<UniformBuffer>> m_cameraUbos;
+    
+    // Instancing SSBOs
+    static constexpr uint32_t MAX_INSTANCES = 10000;
+    std::vector<Scope<Buffer>> m_instanceBuffers;
+
     vk::DescriptorSetLayout m_globalDescriptorLayout;
-    vk::DescriptorPool m_descriptorPool;
     std::vector<vk::DescriptorSet> m_globalDescriptorSets;
+
+    // Materials
+    vk::DescriptorPool m_descriptorPool; 
+    
+    // Cache pour compatibilité avec les Mesh sans Material explicite
+    std::unordered_map<std::string, Ref<Material>> m_defaultMaterials;
+
+    Scope<Mesh> m_skyboxCube;
+    Ref<SkyboxMaterial> m_internalSkyboxMat;
+    Ref<SkySphereMaterial> m_internalSkySphereMat;
+    Ref<Material> m_fallbackMaterial;
+
+    void renderSkybox(vk::CommandBuffer cb, Scene& scene);
+    void drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView colorView, vk::ImageView depthView, vk::Extent2D extent);
+    void compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex);
+    void updateGlobalUBO(uint32_t currentFrame, Scene& scene);
 };
 
 } // namespace bb3d

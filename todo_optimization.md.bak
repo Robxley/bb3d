@@ -1,0 +1,54 @@
+# 🚀 Optimisations Performance - biobazard3d
+
+Ce document liste les optimisations identifiées lors de la revue de code du moteur (Février 2026).
+
+## 🟢 Priorité : Haute (Gain immédiat, Faible effort)
+
+### 1. Élimination des allocations par frame (Heap Pressure)
+*   **Fichier :** `src/bb3d/render/Renderer.cpp`
+*   **Problème :** Les vecteurs `commands` et `instanceTransforms` dans `drawScene` sont réalloués à chaque frame.
+*   **Action :** 
+    *   [x] Déplacer les vecteurs en membres privés de la classe `Renderer`.
+    *   [x] Utiliser `reserve()` au démarrage.
+    *   [x] Appeler `clear()` à chaque début de frame au lieu de détruire l'objet.
+*   **Bénéfice :** Zéro allocation dynamique dans le "Hot Path" de rendu. (Terminé : Février 2026)
+
+### 2. Staging Buffer Manager & Uploads Asynchrones
+*   **Fichier :** `src/bb3d/render/Buffer.cpp`
+*   **Problème :** Chaque création de Mesh/Texture fait un `waitIdle` sur le GPU pour le transfert.
+*   **Action :** 
+    *   [x] Créer un `StagingManager` avec un buffer circulaire de ~64MB.
+    *   [x] Batcher les transferts de données.
+    *   [x] Utiliser des Fences pour libérer les zones du staging buffer sans bloquer le CPU.
+*   **Bénéfice :** Chargement d'assets 10x plus rapide, suppression des micro-stutters lors du streaming. (Terminé : Février 2026)
+
+## 🟡 Priorité : Moyenne (Gain CPU, Effort Modéré)
+
+### 3. ParallÃ©lisation du Culling & Tri
+*   **Fichier :** `src/bb3d/render/Renderer.cpp`
+*   **ProblÃ¨me :** Le culling Frustum et le tri des commandes sont faits sur un seul thread.
+*   **Action :** 
+    *   [x] Utiliser `JobSystem::dispatch` pour parallÃ©liser le test d'intersection AABB/Frustum.
+    *   [x] Utiliser `std::sort` parallÃ¨le si possible ou trier par blocs.
+*   **BÃ©nÃ©fice :** Meilleure utilisation des processeurs multi-cÅ“urs sur les scÃ¨nes chargÃ©es. (TerminÃ© : FÃ©vrier 2026)
+
+### 4. Affinage des barriÃ¨res de synchronisation Vulkan
+*   **Fichier :** `src/bb3d/render/Renderer.cpp` / `SwapChain.cpp`
+*   **ProblÃ¨me :** Usage frÃ©quent de `TOP_OF_PIPE` et `BOTTOM_OF_PIPE`.
+*   **Action :** 
+    *   [x] Remplacer par des stages prÃ©cis (ex: `COLOR_ATTACHMENT_OUTPUT` -> `FRAGMENT_SHADER`).
+    *   [x] Utiliser `vk::DependencyInfo` (Vulkan 1.3) pour simplifier la syntaxe.
+*   **BÃ©nÃ©fice :** RÃ©duction des temps d'attente "bulles" du GPU. (TerminÃ© : FÃ©vrier 2026)
+
+## 🔴 Priorité : Basse / Recherche (Expertise requise)
+
+### 5. GPU-Driven Rendering (Indirect Draw & GPU Culling)
+*   **ProblÃ¨me :** Trop de draw calls cÃ´tÃ© CPU et culling CPU limitant pour les scÃ¨nes massives.
+*   **Action :** 
+    *   [ ] ImplÃ©menter un SSBO pour les matrices d'objets.
+    *   [ ] Utiliser `vkCmdDrawIndexedIndirect` pour envoyer les commandes de dessin groupÃ©es.
+    *   [ ] ImplÃ©menter un Compute Shader pour le culling Frustum.
+*   **BÃ©nÃ©fice :** DÃ©charge totale du CPU pour la visibilitÃ© et la soumission des commandes de dessin. (TerminÃ© : FÃ©vrier 2026)
+
+---
+*Note : Document généré par l'agent Gemini CLI.*

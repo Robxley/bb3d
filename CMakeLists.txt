@@ -84,7 +84,24 @@ FetchContent_Declare(
   GIT_TAG        v3.13.2
 )
 
-FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm stb fastgltf tinyobjloader entt)
+# Jolt Physics
+set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
+set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
+set(TARGET_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(TARGET_SAMPLES OFF CACHE BOOL "" FORCE)
+set(TARGET_HELLO_WORLD OFF CACHE BOOL "" FORCE)
+set(TARGET_PERFORMANCE_TEST OFF CACHE BOOL "" FORCE)
+set(USE_AVX2 ON CACHE BOOL "" FORCE) 
+set(FLOATING_POINT_EXCEPTIONS_ENABLED OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(
+  Jolt
+  GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git
+  GIT_TAG        master
+  SOURCE_SUBDIR  Build
+)
+
+FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm stb fastgltf tinyobjloader entt Jolt)
 
 # Find Vulkan SDK
 find_package(Vulkan REQUIRED)
@@ -129,6 +146,18 @@ set(SHADERS
     "${SHADER_DIR}/texture_cube.frag"
     "${SHADER_DIR}/textured_mesh.vert"
     "${SHADER_DIR}/textured_mesh.frag"
+    "${SHADER_DIR}/pbr.vert"
+    "${SHADER_DIR}/pbr.frag"
+    "${SHADER_DIR}/unlit.vert"
+    "${SHADER_DIR}/unlit.frag"
+    "${SHADER_DIR}/toon.vert"
+    "${SHADER_DIR}/toon.frag"
+    "${SHADER_DIR}/skybox.vert"
+    "${SHADER_DIR}/skybox.frag"
+    "${SHADER_DIR}/skysphere.vert"
+    "${SHADER_DIR}/skysphere.frag"
+    "${SHADER_DIR}/fullscreen.vert"
+    "${SHADER_DIR}/copy.frag"
 )
 
 set(SPV_SHADERS "")
@@ -137,6 +166,15 @@ foreach(SHADER ${SHADERS})
     set(SPV_OUTPUT "${SHADER_BUILD_DIR}/${FILENAME}.spv")
     compile_shader(${SHADER} ${SPV_OUTPUT})
     list(APPEND SPV_SHADERS ${SPV_OUTPUT})
+
+    # [DEV CONVENIENCE] Copy compiled shader back to source directory
+    # allows running executables from project root without cd build/Debug
+    add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv"
+        COMMAND ${CMAKE_COMMAND} -E copy ${SPV_OUTPUT} "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv"
+        DEPENDS ${SPV_OUTPUT}
+        COMMENT "Updating source asset: ${FILENAME}.spv"
+    )
+    list(APPEND SPV_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv")
 endforeach()
 
 add_custom_target(CompileShaders ALL DEPENDS ${SPV_SHADERS})
@@ -149,7 +187,11 @@ add_library(biobazard3d ${ENGINE_SOURCES})
 target_include_directories(biobazard3d PUBLIC 
     include
     ${stb_SOURCE_DIR}
+    ${Jolt_SOURCE_DIR}
 )
+
+# Vulkan requires depth range [0, 1] unlike OpenGL [-1, 1]
+target_compile_definitions(biobazard3d PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE)
 
 # Note: nlohmann_json is header-only, spdlog needs linking
 target_link_libraries(biobazard3d PUBLIC 
@@ -162,6 +204,7 @@ target_link_libraries(biobazard3d PUBLIC
     fastgltf::fastgltf
     tinyobjloader
     EnTT::EnTT
+    Jolt
 )
 
 # Apply strict warnings only to our target, not dependencies
@@ -184,6 +227,25 @@ add_executable(unit_test_00_infrastructure
 )
 target_link_libraries(unit_test_00_infrastructure PRIVATE biobazard3d)
 
+# --- Deploy Assets Target ---
+# Copies shaders and general assets to the binary output directory
+add_custom_target(DeployAssets DEPENDS CompileShaders)
+
+# 1. Deploy Shaders
+add_custom_command(TARGET DeployAssets POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_BINARY_DIR}/assets/shaders
+    $<TARGET_FILE_DIR:unit_test_00_infrastructure>/assets/shaders
+    COMMENT "Deploying shaders to output directory"
+)
+
+# 2. Deploy General Assets (Models, Textures)
+add_custom_command(TARGET DeployAssets POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/assets
+    $<TARGET_FILE_DIR:unit_test_00_infrastructure>/assets
+    COMMENT "Deploying general assets to output directory"
+)
 
 add_executable(unit_test_01_window
     tests/unit_test_01_window.cpp
@@ -211,50 +273,25 @@ add_executable(unit_test_04_hello_triangle
     tests/unit_test_04_hello_triangle.cpp
 )
 target_link_libraries(unit_test_04_hello_triangle PRIVATE biobazard3d)
-add_dependencies(unit_test_04_hello_triangle CompileShaders)
-
-# Copy shaders to executable directory
-add_custom_command(TARGET unit_test_04_hello_triangle POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_04_hello_triangle>/assets/shaders
-)
+add_dependencies(unit_test_04_hello_triangle DeployAssets)
 
 add_executable(unit_test_05_vertex_buffer
     tests/unit_test_05_vertex_buffer.cpp
 )
 target_link_libraries(unit_test_05_vertex_buffer PRIVATE biobazard3d)
-add_dependencies(unit_test_05_vertex_buffer CompileShaders)
-
-add_custom_command(TARGET unit_test_05_vertex_buffer POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_05_vertex_buffer>/assets/shaders
-)
+add_dependencies(unit_test_05_vertex_buffer DeployAssets)
 
 add_executable(unit_test_06_rotating_cube
     tests/unit_test_06_rotating_cube.cpp
 )
 target_link_libraries(unit_test_06_rotating_cube PRIVATE biobazard3d)
-add_dependencies(unit_test_06_rotating_cube CompileShaders)
-
-add_custom_command(TARGET unit_test_06_rotating_cube POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_06_rotating_cube>/assets/shaders
-)
+add_dependencies(unit_test_06_rotating_cube DeployAssets)
 
 add_executable(unit_test_07_texture_cube
     tests/unit_test_07_texture_cube.cpp
 )
 target_link_libraries(unit_test_07_texture_cube PRIVATE biobazard3d)
-add_dependencies(unit_test_07_texture_cube CompileShaders)
-
-add_custom_command(TARGET unit_test_07_texture_cube POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_07_texture_cube>/assets/shaders
-)
+add_dependencies(unit_test_07_texture_cube DeployAssets)
 
 add_executable(unit_test_08_core_systems
     tests/unit_test_08_core_systems.cpp
@@ -266,36 +303,14 @@ add_executable(unit_test_10_obj_loader
     tests/unit_test_10_obj_loader.cpp
 )
 target_link_libraries(unit_test_10_obj_loader PRIVATE biobazard3d)
-add_dependencies(unit_test_10_obj_loader CompileShaders)
-
-add_custom_command(TARGET unit_test_10_obj_loader POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_10_obj_loader>/assets/shaders
-)
-add_custom_command(TARGET unit_test_10_obj_loader POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/assets
-    $<TARGET_FILE_DIR:unit_test_10_obj_loader>/assets
-)
+add_dependencies(unit_test_10_obj_loader DeployAssets)
 
 # --- Unit Test 11: GLTF Loader (Box) ---
 add_executable(unit_test_11_gltf_loader
     tests/unit_test_11_gltf_loader.cpp
 )
 target_link_libraries(unit_test_11_gltf_loader PRIVATE biobazard3d)
-add_dependencies(unit_test_11_gltf_loader CompileShaders)
-
-add_custom_command(TARGET unit_test_11_gltf_loader POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_11_gltf_loader>/assets/shaders
-)
-add_custom_command(TARGET unit_test_11_gltf_loader POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/assets
-    $<TARGET_FILE_DIR:unit_test_11_gltf_loader>/assets
-)
+add_dependencies(unit_test_11_gltf_loader DeployAssets)
 
 # --- Unit Test 12: ECS & Scene ---
 add_executable(unit_test_12_ecs
@@ -314,41 +329,85 @@ add_executable(unit_test_14_interactive_cameras
     tests/unit_test_14_interactive_cameras.cpp
 )
 target_link_libraries(unit_test_14_interactive_cameras PRIVATE biobazard3d)
-add_dependencies(unit_test_14_interactive_cameras CompileShaders)
-
-add_custom_command(TARGET unit_test_14_interactive_cameras POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_14_interactive_cameras>/assets/shaders
-)
-add_custom_command(TARGET unit_test_14_interactive_cameras POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/assets/textures
-    $<TARGET_FILE_DIR:unit_test_14_interactive_cameras>/assets/textures
-)
+add_dependencies(unit_test_14_interactive_cameras DeployAssets)
 
 # --- Unit Test 15: Hello World Simplified ---
 add_executable(unit_test_15_hello_world
     tests/unit_test_15_hello_world.cpp
 )
 target_link_libraries(unit_test_15_hello_world PRIVATE biobazard3d)
-add_dependencies(unit_test_15_hello_world CompileShaders)
-
-add_custom_command(TARGET unit_test_15_hello_world POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_BINARY_DIR}/assets/shaders
-    $<TARGET_FILE_DIR:unit_test_15_hello_world>/assets/shaders
-)
+add_dependencies(unit_test_15_hello_world DeployAssets)
 
 add_executable(unit_test_09_resource_manager
     tests/unit_test_09_resource_manager.cpp
 )
 target_link_libraries(unit_test_09_resource_manager PRIVATE biobazard3d)
+add_dependencies(unit_test_09_resource_manager DeployAssets)
 
-add_custom_command(TARGET unit_test_09_resource_manager POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/assets
-    $<TARGET_FILE_DIR:unit_test_09_resource_manager>/assets
+# --- Unit Test 16: Materials ---
+add_executable(unit_test_16_materials
+    tests/unit_test_16_materials.cpp
+)
+target_link_libraries(unit_test_16_materials PRIVATE biobazard3d)
+add_dependencies(unit_test_16_materials DeployAssets)
+
+# --- Unit Test 17: Skybox ---
+add_executable(unit_test_17_skybox
+    tests/unit_test_17_skybox.cpp
+)
+target_link_libraries(unit_test_17_skybox PRIVATE biobazard3d)
+add_dependencies(unit_test_17_skybox DeployAssets)
+
+add_executable(unit_test_18_physics_basic
+    tests/unit_test_18_physics_basic.cpp
+)
+target_link_libraries(unit_test_18_physics_basic PRIVATE biobazard3d)
+add_dependencies(unit_test_18_physics_basic DeployAssets)
+
+add_executable(unit_test_19_physics_stacks
+    tests/unit_test_19_physics_stacks.cpp
+)
+target_link_libraries(unit_test_19_physics_stacks PRIVATE biobazard3d)
+add_dependencies(unit_test_19_physics_stacks DeployAssets)
+
+# --- Demo Engine ---
+add_executable(demo_engine
+    tests/demo_engine.cpp
+)
+target_link_libraries(demo_engine PRIVATE biobazard3d)
+add_dependencies(demo_engine DeployAssets)
+
+# --- CTest Registration ---
+enable_testing()
+
+add_test(NAME Infrastructure COMMAND unit_test_00_infrastructure)
+add_test(NAME Window COMMAND unit_test_01_window)
+add_test(NAME VulkanInit COMMAND unit_test_02_vulkan_init)
+add_test(NAME SwapChain COMMAND unit_test_03_swapchain)
+add_test(NAME HelloTriangle COMMAND unit_test_04_hello_triangle)
+add_test(NAME VertexBuffer COMMAND unit_test_05_vertex_buffer)
+add_test(NAME RotatingCube COMMAND unit_test_06_rotating_cube)
+add_test(NAME TextureCube COMMAND unit_test_07_texture_cube)
+add_test(NAME CoreSystems COMMAND unit_test_08_core_systems)
+add_test(NAME ResourceManager COMMAND unit_test_09_resource_manager)
+add_test(NAME ObjLoader COMMAND unit_test_10_obj_loader)
+add_test(NAME GltfLoader COMMAND unit_test_11_gltf_loader)
+add_test(NAME ECS COMMAND unit_test_12_ecs)
+add_test(NAME Camera COMMAND unit_test_13_camera)
+add_test(NAME InteractiveCameras COMMAND unit_test_14_interactive_cameras)
+add_test(NAME HelloWorld COMMAND unit_test_15_hello_world)
+add_test(NAME Materials COMMAND unit_test_16_materials)
+add_test(NAME Skybox COMMAND unit_test_17_skybox)
+add_test(NAME PhysicsBasic COMMAND unit_test_18_physics_basic)
+add_test(NAME PhysicsStacks COMMAND unit_test_19_physics_stacks)
+add_test(NAME Demo COMMAND demo_engine)
+
+# Set working directory for tests to find assets
+set_tests_properties(
+    Infrastructure Window VulkanInit SwapChain HelloTriangle VertexBuffer 
+    RotatingCube TextureCube CoreSystems ResourceManager ObjLoader GltfLoader 
+    ECS Camera InteractiveCameras HelloWorld Materials Skybox PhysicsBasic PhysicsStacks Demo
+    PROPERTIES WORKING_DIRECTORY $<TARGET_FILE_DIR:unit_test_00_infrastructure>
 )
 
 message(STATUS "biobazard3d project configured for C++20 with strict warnings.")

@@ -12,7 +12,7 @@ public:
     Buffer(const Buffer&) = delete;
     Buffer& operator=(const Buffer&) = delete;
 
-    void upload(const void* data, vk::DeviceSize size);
+    void upload(const void* data, vk::DeviceSize size, vk::DeviceSize offset = 0);
     
     [[nodiscard]] inline vk::Buffer getHandle() const { return m_buffer; }
     [[nodiscard]] inline vk::DeviceSize getSize() const { return m_size; }

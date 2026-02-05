@@ -1,50 +1,52 @@
 #pragma once
 #include "bb3d/scene/Camera.hpp"
-#include <glm/gtc/quaternion.hpp>
+#include <glm/glm.hpp>
 
 namespace bb3d {
 
 /**
- * @brief Caméra de type First Person Shooter (FPS).
- * 
- * Permet une rotation libre (Yaw/Pitch) et des déplacements relatifs à l'orientation.
+ * @brief [COMPATIBILITY WRAPPER] Caméra First Person.
+ * Utilisée par les anciens tests unitaires.
  */
 class FPSCamera : public Camera {
 public:
-    FPSCamera(float fov, float aspect, float near, float far);
-    ~FPSCamera() override = default;
+    FPSCamera(float fov, float aspect, float near, float far) : Camera(fov, aspect, near, far) {
+        updateVectors();
+    }
 
-    /** @brief Met à jour la matrice de vue. */
-    void update(float deltaTime) override;
+    void setRotation(float yaw, float pitch) {
+        m_yaw = yaw;
+        m_pitch = pitch;
+        updateVectors();
+    }
 
-    /** @name Contrôles
-     * @{
-     */
-    void move(const glm::vec3& direction, float deltaTime);
-    void rotate(float yawOffset, float pitchOffset);
-    /** @} */
+    void rotate(float deltaYaw, float deltaPitch) {
+        m_yaw += deltaYaw * 0.1f;
+        m_pitch += deltaPitch * 0.1f;
+        updateVectors();
+    }
 
-    /** @name Setters
-     * @{
-     */
-    void setRotation(float yaw, float pitch);
-    void setMovementSpeed(float speed) { m_movementSpeed = speed; }
-    void setSensitivity(float sensitivity) { m_mouseSensitivity = sensitivity; }
-    /** @} */
+    void move(const glm::vec3& direction, float amount) {
+        m_position += direction * amount;
+        updateVectors();
+    }
+
+    void update(float) override {
+        updateVectors();
+    }
 
 private:
-    void updateCameraVectors();
-
-    glm::vec3 m_front{0.0f, 0.0f, -1.0f};
-    glm::vec3 m_up{0.0f, 1.0f, 0.0f};
-    glm::vec3 m_right{1.0f, 0.0f, 0.0f};
-    glm::vec3 m_worldUp{0.0f, 1.0f, 0.0f};
+    void updateVectors() {
+        glm::vec3 front;
+        front.x = cos(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
+        front.y = sin(glm::radians(m_pitch));
+        front.z = sin(glm::radians(m_yaw)) * cos(glm::radians(m_pitch));
+        glm::vec3 forward = glm::normalize(front);
+        lookAt(m_position + forward);
+    }
 
     float m_yaw = -90.0f;
     float m_pitch = 0.0f;
-    
-    float m_movementSpeed = 5.0f;
-    float m_mouseSensitivity = 0.1f;
 };
 
 } // namespace bb3d

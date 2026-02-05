@@ -101,8 +101,9 @@ int main() {
             data.proj = glm::perspective(glm::radians(45.0f), (float)config.window.width/config.window.height, 0.1f, 10.f); data.proj[1][1] *= -1;
             ubo.update(&data, sizeof(data));
 
-            auto wr = dev.waitForFences(1, &fen, VK_TRUE, UINT64_MAX);
-            dev.resetFences(1, &fen);
+            // Attendre la frame pr├®c├®dente
+            (void)dev.waitForFences(1, &fen, VK_TRUE, UINT64_MAX);
+            (void)dev.resetFences(1, &fen);
             uint32_t idx = swapChain.acquireNextImage(semA);
             cb.reset({}); cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
             transitionImageLayout(cb, swapChain.getImage(idx), swapChain.getImageFormat(), vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal);

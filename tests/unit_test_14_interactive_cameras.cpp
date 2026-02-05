@@ -8,8 +8,7 @@
 #include <SDL3/SDL.h>
 #include <chrono>
 
-struct UBO {
-    glm::mat4 model;
+struct GlobalUBO {
     glm::mat4 view;
     glm::mat4 proj;
 };
@@ -67,17 +66,18 @@ int main() {
             bb3d::Shader vert(context, "assets/shaders/simple_3d.vert.spv");
             bb3d::Shader frag(context, "assets/shaders/simple_3d.frag.spv");
 
-            bb3d::UniformBuffer ubo(context, sizeof(UBO));
+            bb3d::UniformBuffer ubo(context, sizeof(GlobalUBO));
             vk::DescriptorSetLayoutBinding binding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex);
             vk::DescriptorSetLayout dsl = dev.createDescriptorSetLayout({ {}, 1, &binding });
             vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, 1);
             vk::DescriptorPool pool = dev.createDescriptorPool({ {}, 1, 1, &poolSize });
             vk::DescriptorSet ds = dev.allocateDescriptorSets({ pool, 1, &dsl })[0];
-            vk::DescriptorBufferInfo bInfo(ubo.getHandle(), 0, sizeof(UBO));
+            vk::DescriptorBufferInfo bInfo(ubo.getHandle(), 0, sizeof(GlobalUBO));
             vk::WriteDescriptorSet write(ds, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo);
             dev.updateDescriptorSets(1, &write, 0, nullptr);
 
-            bb3d::GraphicsPipeline pipeline(context, swapChain, vert, frag, config, {dsl});
+            vk::PushConstantRange pcr(vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4));
+            bb3d::GraphicsPipeline pipeline(context, swapChain, vert, frag, config, {dsl}, {pcr});
 
             auto fpsCam = bb3d::CreateScope<bb3d::FPSCamera>(45.0f, 1280.0f/720.0f, 0.1f, 100.0f);
             auto orbitCam = bb3d::CreateScope<bb3d::OrbitCamera>(45.0f, 1280.0f/720.0f, 0.1f, 100.0f);
@@ -140,7 +140,8 @@ int main() {
                 }
                 activeCam->update(dt);
 
-                auto waitRes = dev.waitForFences(1, &fen[frameIdx], VK_TRUE, UINT64_MAX); dev.resetFences(1, &fen[frameIdx]);
+                (void)dev.waitForFences(1, &fen[frameIdx], VK_TRUE, UINT64_MAX); 
+                (void)dev.resetFences(1, &fen[frameIdx]);
                 uint32_t imgIdx;
                 try { imgIdx = swapChain.acquireNextImage(semA[frameIdx]); } catch (...) { continue; }
 
@@ -159,14 +160,28 @@ int main() {
                 cb.setScissor(0, vk::Rect2D({0,0}, swapChain.getExtent()));
                 cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline.getLayout(), 0, 1, &ds, 0, nullptr);
 
-                UBO data; data.view = activeCam->getViewMatrix(); data.proj = activeCam->getProjectionMatrix();
-                data.model = glm::mat4(1.0f); ubo.update(&data, sizeof(data)); floor->draw(cb);
-                data.model = glm::translate(glm::mat4(1.0f), {2, 0.5f, 0}); ubo.update(&data, sizeof(data)); cube->draw(cb);
+                GlobalUBO data; data.view = activeCam->getViewMatrix(); data.proj = activeCam->getProjectionMatrix();
+                ubo.update(&data, sizeof(data));
+
+                // 1. Floor
+                glm::mat4 model = glm::mat4(1.0f);
+                cb.pushConstants(pipeline.getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &model);
+                floor->draw(cb);
+
+                // 2. Cube
+                model = glm::translate(glm::mat4(1.0f), {2, 0.5f, 0});
+                cb.pushConstants(pipeline.getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &model);
+                cube->draw(cb);
+
                 // 3. Sphère
-                data.model = glm::translate(glm::mat4(1.0f), {-2, 0.5f, 0}); ubo.update(&data, sizeof(data)); sphere->draw(cb);
+                model = glm::translate(glm::mat4(1.0f), {-2, 0.5f, 0});
+                cb.pushConstants(pipeline.getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &model);
+                sphere->draw(cb);
 
                 // 4. Point d'orbite (Verte)
-                data.model = glm::translate(glm::mat4(1.0f), {0, 0, 0}); ubo.update(&data, sizeof(data)); centerSphere->draw(cb);
+                model = glm::translate(glm::mat4(1.0f), {0, 0, 0});
+                cb.pushConstants(pipeline.getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &model);
+                centerSphere->draw(cb);
 
                 cb.endRendering();
                 transitionLayout(cb, swapChain.getImage(imgIdx), swapChain.getImageFormat(), vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR);
@@ -174,7 +189,15 @@ int main() {
 
                 vk::PipelineStageFlags wait = vk::PipelineStageFlagBits::eColorAttachmentOutput;
                 dev.getQueue(context.getGraphicsQueueFamily(), 0).submit(vk::SubmitInfo(1, &semA[frameIdx], &wait, 1, &cb, 1, &semR[frameIdx]), fen[frameIdx]);
-                swapChain.present(semR[frameIdx], imgIdx);
+                
+                try {
+                    swapChain.present(semR[frameIdx], imgIdx);
+                } catch (const vk::OutOfDateKHRError&) {
+                    swapChain.recreate(window.GetWidth(), window.GetHeight());
+                } catch (const std::exception& e) {
+                    BB_CORE_ERROR("Present error: {}", e.what());
+                }
+
                 frameIdx = (frameIdx + 1) % MAX_FRAMES;
             }
             end_loop:

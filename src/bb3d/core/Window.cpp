@@ -16,6 +16,8 @@ Window::Window(const EngineConfig& config)
     }
 
     // Create the window
+    // SDL_WINDOW_VULKAN : Indispensable pour créer une surface Vulkan par la suite.
+    // SDL_WINDOW_RESIZABLE : Permet à l'utilisateur de redimensionner la fenêtre (génère des événements SDL_EVENT_WINDOW_RESIZED).
     m_Window = SDL_CreateWindow(
         config.window.title.c_str(),
         config.window.width,
@@ -50,6 +52,9 @@ void Window::PollEvents()
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         HandleEvent(e);
+        if (m_EventCallback) {
+            m_EventCallback(e);
+        }
     }
 }
 
@@ -71,6 +76,20 @@ void Window::HandleEvent(SDL_Event& event)
             m_ShouldClose = true;
         }
     }
+}
+
+int Window::GetWidth() const
+{
+    int w;
+    SDL_GetWindowSize(m_Window, &w, nullptr);
+    return w;
+}
+
+int Window::GetHeight() const
+{
+    int h;
+    SDL_GetWindowSize(m_Window, nullptr, &h);
+    return h;
 }
 
 } // namespace bb3d
