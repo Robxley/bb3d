@@ -26,7 +26,7 @@ Texture::Texture(VulkanContext& context, std::string_view filepath, bool isColor
 
     initFromPixels(pixels.get());
     
-    BB_CORE_INFO("Texture chargée: {} ({}x{}, format: {})", filepath, m_width, m_height, vk::to_string(m_format));
+    BB_CORE_INFO("Texture: Loaded file '{0}' ({1}x{2}, format: {3})", filepath, m_width, m_height, vk::to_string(m_format));
 }
 
 Texture::Texture(VulkanContext& context, std::span<const std::byte> data, bool isColor)
@@ -45,7 +45,7 @@ Texture::Texture(VulkanContext& context, std::span<const std::byte> data, bool i
 
     initFromPixels(pixels.get());
     
-    BB_CORE_INFO("Texture chargée depuis la mémoire ({}x{}, format: {})", m_width, m_height, vk::to_string(m_format));
+    BB_CORE_INFO("Texture: Loaded from memory ({0}x{1}, format: {2})", m_width, m_height, vk::to_string(m_format));
 }
 
 Texture::Texture(VulkanContext& context, std::span<const std::byte> data, int width, int height, bool isColor)
@@ -58,7 +58,7 @@ Texture::Texture(VulkanContext& context, std::span<const std::byte> data, int wi
     }
 
     initFromPixels(reinterpret_cast<const unsigned char*>(data.data()));
-    BB_CORE_INFO("Texture chargée depuis pixels bruts ({}x{}, format: {})", m_width, m_height, vk::to_string(m_format));
+    BB_CORE_INFO("Texture: Loaded from raw pixels ({0}x{1}, format: {2})", m_width, m_height, vk::to_string(m_format));
 }
 
 Texture::Texture(VulkanContext& context, const std::array<std::string, 6>& filepaths, bool isColor)
@@ -112,7 +112,7 @@ Texture::Texture(VulkanContext& context, const std::array<std::string, 6>& filep
     createImageView(6);
     createSampler();
 
-    BB_CORE_INFO("Cubemap chargée: {}x{} (mipLevels: {})", m_width, m_height, m_mipLevels);
+    BB_CORE_INFO("Texture: Loaded cubemap ({0}x{1}, mipLevels: {2})", m_width, m_height, m_mipLevels);
 }
 
 Texture::Texture(VulkanContext& context, std::span<const std::byte> data, int width, int height, int layers, bool isColor)
@@ -148,7 +148,7 @@ Texture::Texture(VulkanContext& context, std::span<const std::byte> data, int wi
     createImageView(layers);
     createSampler();
 
-    BB_CORE_INFO("Texture multicouche chargée ({}x{}, layers: {}, mipLevels: {})", width, height, layers, m_mipLevels);
+    BB_CORE_INFO("Texture: Loaded multi-layer ({0}x{1}, layers: {2}, mipLevels: {3})", width, height, layers, m_mipLevels);
 }
 
 void Texture::initFromPixels(const unsigned char* pixels) {

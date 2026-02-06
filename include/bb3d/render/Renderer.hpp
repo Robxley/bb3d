@@ -65,12 +65,20 @@ public:
     RenderTarget* getRenderTarget() { return m_renderTarget.get(); }
 
     /** 
-     * @brief Permet d'injecter des commandes de rendu UI après le rendu principal.
-     * @param func Fonction de callback recevant le command buffer courant.
+     * @brief Permet d'injecter des commandes de rendu UI après le rendu principal de la scène.
+     * 
+     * Cette méthode démarre une nouvelle passe de rendu sur l'image courante de la swapchain
+     * avec un LoadOp::Load, permettant à l'UI de se dessiner par-dessus le contenu existant.
+     * 
+     * @param func Fonction de callback recevant le command buffer Vulkan courant.
      */
     void renderUI(const std::function<void(vk::CommandBuffer)>& func);
 
-    /** @brief Termine l'enregistrement et soumet les commandes au GPU. */
+    /** 
+     * @brief Termine l'enregistrement du Command Buffer et soumet les commandes au GPU. 
+     * 
+     * Effectue la transition finale de l'image vers PresentSrcKHR et présente le résultat.
+     */
     void submitAndPresent();
 
 private:

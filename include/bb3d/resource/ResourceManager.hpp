@@ -85,6 +85,7 @@ public:
         }
 
         m_resources[std::string(path)] = resource;
+        BB_CORE_INFO("ResourceCache: Successfully loaded '{0}'", path);
         return resource;
     }
 

@@ -296,7 +296,8 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
     m_renderCommands.clear();
     auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
     for (auto entity : meshView) {
-        auto& meshComp = meshView.get<MeshComponent>(entity); if (!meshComp.mesh) continue;
+        auto& meshComp = meshView.get<MeshComponent>(entity); 
+        if (!meshComp.mesh || !meshComp.visible) continue;
         glm::mat4 transform = meshView.get<TransformComponent>(entity).getTransform();
         if (m_config.graphics.enableFrustumCulling) { AABB worldBox = meshComp.mesh->getBounds().transform(transform); if (!m_frustum.intersects(worldBox)) continue; }
         Material* mat = meshComp.mesh->getMaterial().get(); if (!mat) mat = m_fallbackMaterial.get();
@@ -304,7 +305,8 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
     }
     auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
     for (auto entity : modelView) {
-        auto& modelComp = modelView.get<ModelComponent>(entity); if (!modelComp.model) continue;
+        auto& modelComp = modelView.get<ModelComponent>(entity); 
+        if (!modelComp.model || !modelComp.visible) continue;
         glm::mat4 transform = modelView.get<TransformComponent>(entity).getTransform();
         if (m_config.graphics.enableFrustumCulling) { AABB worldBox = modelComp.model->getBounds().transform(transform); if (!m_frustum.intersects(worldBox)) continue; }
         for (const auto& mesh : modelComp.model->getMeshes()) {

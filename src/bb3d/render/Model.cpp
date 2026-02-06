@@ -164,6 +164,7 @@ void Model::loadOBJ(std::string_view path) {
         m_bounds.extend(mesh->getBounds());
         m_meshes.push_back(std::move(mesh));
     }
+    BB_CORE_INFO("Model: Successfully loaded OBJ '{0}' with {1} meshes", path, m_meshes.size());
 }
 
 void Model::loadGLTF(std::string_view path) {
@@ -281,6 +282,7 @@ void Model::loadGLTF(std::string_view path) {
             m_meshes.push_back(std::move(newMesh));
         }
     }
+    BB_CORE_INFO("Model: Successfully loaded GLTF '{0}' with {1} meshes", absPath.string(), m_meshes.size());
 }
 
 } // namespace bb3d

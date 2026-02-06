@@ -113,8 +113,9 @@ struct TransformComponent {
 /** @brief Composant pour l'affichage d'un maillage. */
 struct MeshComponent {
     Ref<Mesh> mesh;
-    std::string assetPath; // Pour la sérialisation
+    std::string assetPath; ///< Path used for serialization and hot-reloading.
     glm::vec3 color = {1.0f, 1.0f, 1.0f};
+    bool visible = true; ///< If false, the mesh is skipped during the rendering pass.
 
     MeshComponent() = default;
     MeshComponent(Ref<Mesh> m, const std::string& path = "") : mesh(m), assetPath(path) {}
@@ -122,28 +123,33 @@ struct MeshComponent {
     void serialize(json& j) const {
         j["assetPath"] = assetPath;
         j["color"] = color;
+        j["visible"] = visible;
     }
 
     void deserialize(const json& j) {
         if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath);
         if (j.contains("color")) j.at("color").get_to(color);
+        if (j.contains("visible")) j.at("visible").get_to(visible);
     }
 };
 
 /** @brief Composant pour l'affichage d'un modèle complet (plusieurs meshes). */
 struct ModelComponent {
     Ref<Model> model;
-    std::string assetPath; // Pour la sérialisation
+    std::string assetPath; ///< Path used for serialization.
+    bool visible = true; ///< If false, all meshes in this model are skipped during rendering.
 
     ModelComponent() = default;
     ModelComponent(Ref<Model> m, const std::string& path = "") : model(m), assetPath(path) {}
 
     void serialize(json& j) const {
         j["assetPath"] = assetPath;
+        j["visible"] = visible;
     }
 
     void deserialize(const json& j) {
         if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath);
+        if (j.contains("visible")) j.at("visible").get_to(visible);
     }
 };
 
@@ -203,7 +209,7 @@ struct OrbitControllerComponent {
     float maxDistance = 100.0f;
     
     glm::vec2 rotationSpeed = {0.2f, 0.2f};
-    float zoomSpeed = 2.0f;
+    float zoomSpeed = 0.5f;
 
     // État interne
     float yaw = 0.0f;

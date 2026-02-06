@@ -171,6 +171,15 @@ namespace bb3d {
         // 3. Step de la simulation (Calcul des collisions et forces)
         m_impl->physicsSystem->Update(deltaTime, 1, m_impl->tempAllocator.get(), m_impl->jobSystem.get());
 
+        // Scan for new RigidBodies without Jolt ID and create them
+        auto newBodiesView = scene.getRegistry().view<RigidBodyComponent>();
+        for (auto entityHandle : newBodiesView) {
+            auto& rb = newBodiesView.get<RigidBodyComponent>(entityHandle);
+            if (rb.bodyID == 0xFFFFFFFF) {
+                createRigidBody(Entity(entityHandle, scene));
+            }
+        }
+
         // 4. Synchro "Dynamic" : Jolt -> Moteur
         // Pour les objets dynamiques (tombant par gravité, etc.), on récupère la position calculée.
         syncTransforms(scene);

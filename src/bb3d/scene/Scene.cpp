@@ -15,6 +15,8 @@ Entity Scene::createEntity(const std::string& name) {
     }
     // Chaque entité a au moins un transform par défaut
     entity.add<TransformComponent>();
+    
+    BB_CORE_INFO("Scene: Created entity '{0}' (ID: {1})", name.empty() ? "Unnamed" : name, (uint32_t)entity.getHandle());
     return entity;
 }
 
@@ -124,7 +126,12 @@ View<SkySphereComponent> Scene::createSkySphere(const std::string& name, const s
 }
 
 void Scene::destroyEntity(Entity entity) {
+    std::string name = "Unknown";
+    if (entity.has<TagComponent>()) name = entity.get<TagComponent>().tag;
+    
+    uint32_t id = (uint32_t)entity.getHandle();
     m_registry.destroy(static_cast<entt::entity>(entity));
+    BB_CORE_INFO("Scene: Destroyed entity '{0}' (ID: {1})", name, id);
 }
 
 void Scene::onUpdate(float deltaTime) {

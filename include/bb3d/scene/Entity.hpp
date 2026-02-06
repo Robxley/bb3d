@@ -40,9 +40,19 @@ public:
     /** @brief Récupère le handle interne EnTT. */
     entt::entity getHandle() const { return m_entityHandle; }
 
+    /** @brief Accède à la scène parente de cette entité. */
+    Scene& getScene() { return *m_scene; }
+    /** @brief Accède à la scène parente de cette entité (lecture seule). */
+    const Scene& getScene() const { return *m_scene; }
+
     /** @brief Supprime un composant de l'entité. */
     template<typename T>
     Entity& remove();
+
+    /** @brief Compare deux entités (même handle et même scène). */
+    bool operator==(const Entity& other) const { return m_entityHandle == other.m_entityHandle && m_scene == other.m_scene; }
+    /** @brief Vérifie si deux entités sont différentes. */
+    bool operator!=(const Entity& other) const { return !(*this == other); }
 
     /** @brief Vérifie si l'entité est valide. */
     operator bool() const { return m_entityHandle != entt::null && m_scene != nullptr; }
