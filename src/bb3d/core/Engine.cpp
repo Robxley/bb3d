@@ -1,11 +1,13 @@
 #include "bb3d/core/Engine.hpp"
 #include "bb3d/core/Log.hpp"
+#include "bb3d/scene/Components.hpp"
 #include "bb3d/physics/PhysicsWorld.hpp"
 #include "bb3d/audio/AudioSystem.hpp"
 #include "bb3d/scene/SceneSerializer.hpp"
 #include "bb3d/render/Material.hpp"
 #include <SDL3/SDL.h>
 #include <stdexcept>
+#include <fstream>
 
 namespace bb3d {
 
@@ -91,7 +93,7 @@ void Engine::Init() {
 
     // 6. Renderer (SwapChain, Pipelines, RenderPasses)
     // Dépend du VulkanContext et de la Window.
-    m_Renderer = CreateScope<Renderer>(*m_VulkanContext, *m_Window, m_Config);
+    m_Renderer = CreateScope<Renderer>(*m_VulkanContext, *m_Window, *m_JobSystem, m_Config);
 
     // 7. Resource Manager (Textures, Models, Shaders)
     // Gère le chargement et le cache. Utilise le JobSystem pour le chargement async.
@@ -117,29 +119,43 @@ void Engine::Shutdown() {
     BB_PROFILE_SCOPE("Engine::Shutdown");
     BB_CORE_INFO("Engine: Shutting down...");
 
-    // 1. Attente GPU : On s'assure que le GPU ne travaille plus avant de détruire quoi que ce soit.
+    // On attend que le GPU ait fini son travail avant de tout péter
     if (m_VulkanContext && m_VulkanContext->getDevice()) {
-        m_VulkanContext->getDevice().waitIdle();
+        try {
+            m_VulkanContext->getDevice().waitIdle();
+        } catch(...) {}
     }
 
-    // 2. Systèmes de haut niveau (Audio, Physique)
+    // 1. Audio
     if (m_AudioSystem) {
         m_AudioSystem->shutdown();
         m_AudioSystem.reset();
     }
 
+    // 2. Physique
     if (m_PhysicsWorld) {
         m_PhysicsWorld->shutdown();
         m_PhysicsWorld.reset();
     }
 
     // 3. Scène active (Détruit les Entités, Components, Scripts)
+    // IMPORTANT : On vide le registre AVANT le renderer
+    if (m_ActiveScene) {
+        m_ActiveScene->getRegistry().clear();
+    }
     m_ActiveScene.reset();
     
     // 4. Renderer
     // IMPORTANT : On détruit le Renderer avant le Context et le Window.
     // Il contient la SwapChain et les Framebuffers qui dépendent de la Surface.
     m_Renderer.reset(); 
+
+    // Deuxième waitIdle par sécurité après destruction du renderer
+    if (m_VulkanContext && m_VulkanContext->getDevice()) {
+        try {
+            m_VulkanContext->getDevice().waitIdle();
+        } catch(...) {}
+    }
 
     // 5. Ressources
     // On vide le cache des textures/modèles. Note : Les textures Vulkan dépendent de l'allocator (VMA)
@@ -148,43 +164,57 @@ void Engine::Shutdown() {
         m_ResourceManager->clearCache();
         m_ResourceManager.reset();
     }
-    
-    Material::Cleanup(); // Libérer les textures "par défaut" (blanc, noir)
 
-    // 6. Bas niveau (Vulkan, Window)
-    m_VulkanContext.reset(); // Détruit Device, Instance, Surface.
-    m_Window.reset(); // Ferme la fenêtre SDL.
+    // Libérer les ressources statiques de Material avant de détruire l'allocateur
+    Material::Cleanup();
+
+    // 6. Contexte Graphique
+    m_VulkanContext.reset();
+
+    // 7. Fenêtre
+    m_Window.reset();
+
+    // 8. Communication & Input
     m_EventBus.reset();
+    m_InputManager.reset();
 
-    // 7. JobSystem (On arrête les threads en dernier)
+    // 9. Système de Jobs (en dernier pour que les threads soient dispos pour les destructeurs si besoin)
     if (m_JobSystem) {
         m_JobSystem->shutdown();
         m_JobSystem.reset();
     }
+
+    BB_CORE_INFO("Engine: Shutdown complete.");
 }
 
 void Engine::Run() {
     m_Running = true;
     BB_CORE_INFO("Engine: Entering main loop.");
 
-    uint64_t lastTime = SDL_GetPerformanceCounter();
-    uint64_t frequency = SDL_GetPerformanceFrequency();
+    uint64_t lastTime = SDL_GetTicks();
 
     while (m_Running && !m_Window->ShouldClose()) {
         BB_PROFILE_FRAME("MainLoop");
 
-        uint64_t currentTime = SDL_GetPerformanceCounter();
-        float deltaTime = static_cast<float>(currentTime - lastTime) / static_cast<float>(frequency);
+        uint64_t currentTime = SDL_GetTicks();
+        float deltaTime = static_cast<float>(currentTime - lastTime) / 1000.0f;
         lastTime = currentTime;
 
-        if (m_InputManager) m_InputManager->update();
+        // Limiter le deltaTime pour éviter les explosions physiques au démarrage ou après un freeze
+        if (deltaTime > 0.1f) deltaTime = 0.1f;
+
+        // 1. Événements système (Fenêtre, Input)
         m_Window->PollEvents();
         
+        // Mise à jour de l'état des entrées (reset deltas)
         if (m_InputManager) {
             m_InputManager->update();
         }
-        
+
+        // 2. Mise à jour de la logique (Update)
         Update(deltaTime);
+
+        // 3. Rendu (Render)
         Render();
     }
 
@@ -204,19 +234,18 @@ Ref<Scene> Engine::CreateScene() {
 void Engine::Update(float deltaTime) {
     BB_PROFILE_SCOPE("Engine::Update");
     
+    // Dispatch des événements accumulés
     if (m_EventBus) {
         m_EventBus->dispatchQueued();
     }
 
-    if (m_PhysicsWorld && m_ActiveScene) {
-        m_PhysicsWorld->update(deltaTime, *m_ActiveScene);
-    }
-
-    if (m_AudioSystem) {
-        m_AudioSystem->update(deltaTime);
-    }
-
     if (m_ActiveScene) {
+        // 1. Physique (La vérité master sur le Transform)
+        if (m_PhysicsWorld && m_Config.modules.enablePhysics) {
+            m_PhysicsWorld->update(deltaTime, *m_ActiveScene);
+        }
+
+        // 2. Caméras & Logique
         m_ActiveScene->onUpdate(deltaTime);
     }
 }
@@ -230,17 +259,16 @@ void Engine::Render() {
 }
 
 void Engine::exportScene(const std::string& filepath) {
-    if (m_ActiveScene) {
-        SceneSerializer serializer(m_ActiveScene);
-        serializer.serialize(filepath);
-    }
+    if (!m_ActiveScene) return;
+    SceneSerializer serializer(m_ActiveScene);
+    serializer.serialize(filepath);
 }
 
 void Engine::importScene(const std::string& filepath) {
-    auto scene = CreateScene();
+    auto scene = CreateRef<Scene>();
     SceneSerializer serializer(scene);
     if (serializer.deserialize(filepath)) {
-        SetActiveScene(scene);
+        m_ActiveScene = scene;
     }
 }
 

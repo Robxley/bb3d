@@ -151,16 +151,19 @@ int main() {
     engine->Run();
 
     // Cleanup local references and scripts before shutdown
-    scene->getRegistry().clear<NativeScriptComponent>();
+    scene->getRegistry().clear();
     ballMeshes.clear();
     matFloor.reset();
     matBox.reset();
     matBall.reset();
     groundMesh.reset();
     cubeMesh.reset();
+    
+    engine->SetActiveScene(nullptr);
     scene.reset();
 
     engine->Shutdown();
+    Material::Cleanup();
 
     return 0;
 }

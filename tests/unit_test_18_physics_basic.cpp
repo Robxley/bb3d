@@ -65,5 +65,16 @@ int main() {
 
     engine->Run();
 
+    scene->getRegistry().clear();
+    engine->SetActiveScene(nullptr);
+    scene.reset();
+    
+    groundMesh.reset();
+    cubeMesh.reset();
+    redMat.reset();
+
+    engine->Shutdown();
+    Material::Cleanup();
+
     return 0;
 }

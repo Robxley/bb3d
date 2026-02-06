@@ -113,5 +113,14 @@ int main() {
     BB_CORE_INFO("Demo Engine Ready!");
     engine->Run();
 
+    // Libération explicite des ressources détenues par le main() AVANT le shutdown
+    firstModel.reset();
+
+    scene->getRegistry().clear();
+    engine->SetActiveScene(nullptr);
+    scene.reset();
+    engine->Shutdown();
+    Material::Cleanup();
+
     return 0;
 }

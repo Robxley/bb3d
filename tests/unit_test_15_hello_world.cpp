@@ -87,11 +87,15 @@ int main() {
 
     // 7. Nettoyage explicite des références locales avant l'arrêt du moteur
     // Sinon ces ressources (Ref) tenteraient de se libérer après la destruction de l'allocateur Vulkan.
+    scene->getRegistry().clear(); // Détruire tous les composants (incluant les Refs vers Mesh/Model)
+    
     houseModel.reset();
     brickTexture.reset();
     antModel.reset();
     cubeMesh.reset();
     floorMesh.reset();
+    
+    engine->SetActiveScene(nullptr);
     scene.reset();
 
     engine->Shutdown();

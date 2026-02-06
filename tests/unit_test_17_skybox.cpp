@@ -58,5 +58,16 @@ int main() {
     scene->createEntity("Sun").add<bb3d::LightComponent>(bb3d::LightType::Directional, glm::vec3(1,1,1), 10.0f);
 
     engine->Run();
+
+    scene->getRegistry().clear();
+    engine->SetActiveScene(nullptr);
+    scene.reset();
+    
+    sphereMesh.reset();
+    redMat.reset();
+
+    engine->Shutdown();
+    bb3d::Material::Cleanup();
+
     return 0;
 }

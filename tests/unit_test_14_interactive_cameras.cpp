@@ -7,6 +7,7 @@
 #include "bb3d/render/UniformBuffer.hpp"
 #include <SDL3/SDL.h>
 #include <chrono>
+#include <thread>
 
 struct GlobalUBO {
     glm::mat4 view;
@@ -49,8 +50,10 @@ int main() {
         config.window.title = "BB3D - Camera Test";
         config.window.width = 1280;
         config.window.height = 720;
+        config.window.resizable = false;
         
         bb3d::Window window(config);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Laisser le temps à l'OS
         bb3d::VulkanContext context;
         context.init(window.GetNativeWindow(), "CameraTest", true);
         vk::Device dev = context.getDevice();

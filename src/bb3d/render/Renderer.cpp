@@ -10,8 +10,8 @@
 
 namespace bb3d {
 
-Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& config)
-    : m_context(context), m_window(window), m_config(config) {
+Renderer::Renderer(VulkanContext& context, Window& window, JobSystem& jobSystem, const EngineConfig& config)
+    : m_context(context), m_window(window), m_jobSystem(jobSystem), m_config(config) {
     m_swapChain = CreateScope<SwapChain>(context, config.window.width, config.window.height);
     
     // Optimisation : Pré-allouer de la mémoire pour éviter les réallocations fréquentes
@@ -42,7 +42,27 @@ Renderer::Renderer(VulkanContext& context, Window& window, const EngineConfig& c
 Renderer::~Renderer() {
     auto dev = m_context.getDevice();
     if (dev) {
-        dev.waitIdle();
+        try {
+            dev.waitIdle();
+        } catch(...) {}
+        
+        // 1. Libérer d'abord les objets de haut niveau
+        m_renderCommands.clear();
+        m_instanceTransforms.clear();
+        m_defaultMaterials.clear();
+        m_pipelines.clear();
+        m_shaders.clear();
+        
+        m_internalSkyboxMat.reset();
+        m_internalSkySphereMat.reset();
+        m_fallbackMaterial.reset();
+        m_skyboxCube.reset();
+
+        // 2. Libérer les buffers
+        m_cameraUbos.clear();
+        m_instanceBuffers.clear();
+
+        // 3. Libérer la synchro et les pools
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             if (m_imageAvailableSemaphores[i]) dev.destroySemaphore(m_imageAvailableSemaphores[i]);
             if (m_inFlightFences[i]) dev.destroyFence(m_inFlightFences[i]);
@@ -51,15 +71,6 @@ Renderer::~Renderer() {
         for (auto semaphore : m_renderFinishedSemaphores) {
             if (semaphore) dev.destroySemaphore(semaphore);
         }
-        
-        m_internalSkyboxMat.reset();
-        m_internalSkySphereMat.reset();
-        m_fallbackMaterial.reset();
-        m_skyboxCube.reset();
-        m_cameraUbos.clear();
-        m_defaultMaterials.clear();
-        m_pipelines.clear();
-        m_shaders.clear();
         
         if (m_descriptorPool) dev.destroyDescriptorPool(m_descriptorPool);
         if (m_globalDescriptorLayout) dev.destroyDescriptorSetLayout(m_globalDescriptorLayout);
@@ -305,11 +316,11 @@ void Renderer::render(Scene& scene) {
         // Mode Post-Process : Rendu dans un RenderTarget intermédiaire puis composite vers swapchain
         vk::Image rtImage = m_renderTarget->getColorImage();
         vk::ImageMemoryBarrier rtBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-        cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, rtBarrier);
+        cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, rtBarrier);
 
         vk::Image dImage = m_renderTarget->getDepthImage();
         vk::ImageMemoryBarrier dBarrier({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, dImage, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 });
-        cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
+        cb.pipelineBarrier(vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
 
         drawScene(cb, scene, m_renderTarget->getColorImageView(), m_renderTarget->getDepthImageView(), m_renderTarget->getExtent());
         compositeToSwapchain(cb, imageIndex);
@@ -317,11 +328,11 @@ void Renderer::render(Scene& scene) {
         // Mode Direct : Rendu directement dans l'image finale de la Swapchain
         vk::Image swImage = m_swapChain->getImage(imageIndex);
         vk::ImageMemoryBarrier swBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-        cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, swBarrier);
+        cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, swBarrier);
 
         vk::Image dImage = m_swapChain->getDepthImage();
         vk::ImageMemoryBarrier dBarrier({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, dImage, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 });
-        cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
+        cb.pipelineBarrier(vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
 
         drawScene(cb, scene, m_swapChain->getImageViews()[imageIndex], m_swapChain->getDepthImageView(), m_swapChain->getExtent());
 
@@ -356,6 +367,8 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
     renderSkybox(cb, scene);
 
     m_renderCommands.clear();
+    
+    // 1. Collecte des Meshes simples
     auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
     for (auto entity : meshView) {
         auto& meshComp = meshView.get<MeshComponent>(entity);
@@ -368,13 +381,11 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
         }
 
         Material* mat = meshComp.mesh->getMaterial().get();
-        if (!mat) {
-             // Fallback minimal
-             mat = m_fallbackMaterial.get();
-        }
+        if (!mat) mat = m_fallbackMaterial.get();
         m_renderCommands.push_back({ mat->getType(), mat, meshComp.mesh.get(), transform });
     }
 
+    // 2. Collecte des Modèles (multi-mesh)
     auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
     for (auto entity : modelView) {
         auto& modelComp = modelView.get<ModelComponent>(entity);
@@ -431,13 +442,15 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
 
         if (cmd.type != MaterialType::Skybox && cmd.type != MaterialType::SkySphere) {
             auto& pipeline = m_pipelines[cmd.type];
+            bool pipelineChanged = false;
             if (pipeline.get() != lastPipeline) {
                 pipeline->bind(cb);
                 lastPipeline = pipeline.get();
                 cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+                pipelineChanged = true;
             }
 
-            if (cmd.material != lastMaterial) {
+            if (cmd.material != lastMaterial || pipelineChanged) {
                 // Binding du DescriptorSet Materiau (Set 1)
                 vk::DescriptorSet ds = cmd.material->getDescriptorSet(m_descriptorPool, m_layouts[cmd.type]);
                 cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 1, 1, &ds, 0, nullptr);

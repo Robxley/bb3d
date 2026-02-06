@@ -22,9 +22,9 @@ public:
         m_plans[2] = { viewProj[0][3] + viewProj[0][1], viewProj[1][3] + viewProj[1][1], viewProj[2][3] + viewProj[2][1], viewProj[3][3] + viewProj[3][1] };
         // Top
         m_plans[3] = { viewProj[0][3] - viewProj[0][1], viewProj[1][3] - viewProj[1][1], viewProj[2][3] - viewProj[2][1], viewProj[3][3] - viewProj[3][1] };
-        // Near
-        m_plans[4] = { viewProj[0][3] + viewProj[0][2], viewProj[1][3] + viewProj[1][2], viewProj[2][3] + viewProj[2][2], viewProj[3][3] + viewProj[3][2] };
-        // Far
+        // Near (z = 0 in clip space for Vulkan)
+        m_plans[4] = { viewProj[0][2], viewProj[1][2], viewProj[2][2], viewProj[3][2] };
+        // Far (z = w in clip space)
         m_plans[5] = { viewProj[0][3] - viewProj[0][2], viewProj[1][3] - viewProj[1][2], viewProj[2][3] - viewProj[2][2], viewProj[3][3] - viewProj[3][2] };
 
         // Normalisation des plans

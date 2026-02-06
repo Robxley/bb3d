@@ -18,7 +18,14 @@ void Material::InitDefaults(VulkanContext& context) {
     s_defaultNormal = CreateRef<Texture>(context, std::span<const std::byte>(normal), 1, 1, false);
 }
 
-void Material::Cleanup() { s_defaultWhite = nullptr; s_defaultBlack = nullptr; s_defaultNormal = nullptr; }
+void Material::Cleanup() { 
+    if (s_defaultWhite) s_defaultWhite.reset();
+    if (s_defaultBlack) s_defaultBlack.reset();
+    if (s_defaultNormal) s_defaultNormal.reset();
+    s_defaultWhite = nullptr; 
+    s_defaultBlack = nullptr; 
+    s_defaultNormal = nullptr; 
+}
 
 // --- PBRMaterial ---
 PBRMaterial::PBRMaterial(VulkanContext& context) : Material(context) {

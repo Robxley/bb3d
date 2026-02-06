@@ -108,5 +108,23 @@ int main() {
 
     engine->Run();
 
+    scene->getRegistry().clear();
+    engine->SetActiveScene(nullptr);
+    scene.reset();
+    
+    albedoTex.reset();
+    normalTex.reset();
+    roughTex.reset();
+    aoTex.reset();
+    matPBR.reset();
+    matUnlit.reset();
+    matToon.reset();
+    meshPBR.reset();
+    meshUnlit.reset();
+    meshToon.reset();
+
+    engine->Shutdown();
+    bb3d::Material::Cleanup();
+
     return 0;
 }

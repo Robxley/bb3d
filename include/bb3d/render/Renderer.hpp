@@ -9,6 +9,7 @@
 #include "bb3d/render/Material.hpp"
 #include "bb3d/render/Mesh.hpp"
 #include "bb3d/render/RenderTarget.hpp"
+#include "bb3d/core/JobSystem.hpp"
 #include <glm/glm.hpp>
 #include <vector>
 #include <unordered_map>
@@ -46,7 +47,7 @@ struct RenderCommand {
  */
 class Renderer {
 public:
-    Renderer(VulkanContext& context, Window& window, const EngineConfig& config);
+    Renderer(VulkanContext& context, Window& window, JobSystem& jobSystem, const EngineConfig& config);
     ~Renderer();
 
     /**
@@ -70,6 +71,7 @@ private:
 
     VulkanContext& m_context;
     Window& m_window;
+    JobSystem& m_jobSystem;
     EngineConfig m_config;
     Scope<SwapChain> m_swapChain;
     Scope<RenderTarget> m_renderTarget;
@@ -137,6 +139,7 @@ private:
     // Optimisation : Éviter les réallocations par frame
     std::vector<RenderCommand> m_renderCommands;
     std::vector<glm::mat4> m_instanceTransforms;
+    std::mutex m_commandMutex;
 
     Scope<Mesh> m_skyboxCube;
     Ref<SkyboxMaterial> m_internalSkyboxMat;
