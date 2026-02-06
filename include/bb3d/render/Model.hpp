@@ -50,6 +50,11 @@ public:
     /** @brief Liste des maillages internes du modèle. */
     const std::vector<Scope<Mesh>>& getMeshes() const { return m_meshes; }
 
+    /** @brief Libère la RAM pour tous les maillages de ce modèle. */
+    void releaseCPUData() {
+        for (auto& mesh : m_meshes) mesh->releaseCPUData();
+    }
+
 private:
     void loadOBJ(std::string_view path);
     void loadGLTF(std::string_view path);

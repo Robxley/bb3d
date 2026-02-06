@@ -106,12 +106,32 @@ public:
 
     /** @brief Met à jour les buffers GPU après modification de la liste `getVertices()`. */
     inline void updateVertices() {
+        if (m_cpuDataReleased) {
+            BB_CORE_ERROR("Mesh: Cannot update vertices, CPU data has been released!");
+            return;
+        }
         m_vertexBuffer = Buffer::CreateVertexBuffer(m_context, m_vertices.data(), m_vertices.size() * sizeof(Vertex));
         m_bounds = AABB();
         for (const auto& v : m_vertices) {
             m_bounds.extend(v.position);
         }
     }
+
+    /** 
+     * @brief Libère la mémoire RAM (vertices/indices) pour économiser de la mémoire.
+     * @note Après cet appel, updateVertices() et l'accès direct aux vecteurs ne seront plus possibles.
+     */
+    void releaseCPUData() {
+        if (m_cpuDataReleased) return;
+        m_vertices.clear();
+        m_vertices.shrink_to_fit();
+        m_indices.clear();
+        m_indices.shrink_to_fit();
+        m_cpuDataReleased = true;
+        BB_CORE_TRACE("Mesh: CPU data released to save RAM.");
+    }
+
+    [[nodiscard]] bool isCPUDataReleased() const { return m_cpuDataReleased; }
 
     std::vector<Vertex>& getVertices() { return m_vertices; }
     const std::vector<uint32_t>& getIndices() const { return m_indices; }
@@ -132,6 +152,7 @@ private:
     Ref<Material> m_material;
     uint32_t m_indexCount;
     AABB m_bounds;
+    bool m_cpuDataReleased = false;
 };
 
 } // namespace bb3d

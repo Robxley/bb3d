@@ -29,9 +29,9 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     (void)messageType;
     (void)pUserData;
 
-    if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+    if (messageSeverity >= static_cast<VkDebugUtilsMessageSeverityFlagBitsEXT>(vk::DebugUtilsMessageSeverityFlagBitsEXT::eError)) {
         BB_CORE_ERROR("Validation Layer: {}", pCallbackData->pMessage);
-    } else if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT) {
+    } else if (messageSeverity >= static_cast<VkDebugUtilsMessageSeverityFlagBitsEXT>(vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning)) {
         BB_CORE_WARN("Validation Layer: {}", pCallbackData->pMessage);
     }
     
@@ -65,7 +65,10 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance);
 
     if (enableValidationLayers) {
-        vk::DebugUtilsMessengerCreateInfoEXT debugInfo({}, vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError, vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance, reinterpret_cast<PFN_vkDebugUtilsMessengerCallbackEXT>(debugCallback));
+        vk::DebugUtilsMessengerCreateInfoEXT debugInfo;
+        debugInfo.messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
+        debugInfo.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance;
+        debugInfo.pfnUserCallback = reinterpret_cast<vk::PFN_DebugUtilsMessengerCallbackEXT>(debugCallback);
         m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(debugInfo);
     }
 
