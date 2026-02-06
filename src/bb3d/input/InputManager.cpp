@@ -41,14 +41,16 @@ void InputManager::update() {
     m_currentMouseState = SDL_GetMouseState(&mx, &my);
     m_currentMousePos = {mx, my};
     m_mouseDelta = m_currentMousePos - oldMousePos;
+}
 
-    // On reset le scroll à chaque frame car c'est un delta ponctuel
+void InputManager::clearDeltas() {
+    // On reset le scroll au début de la frame
     m_mouseScroll = { 0.0f, 0.0f };
 }
 
 void InputManager::onEvent(const SDL_Event& event) {
     if (event.type == SDL_EVENT_MOUSE_WHEEL) {
-        m_mouseScroll = { event.wheel.x, event.wheel.y };
+        m_mouseScroll += glm::vec2(event.wheel.x, event.wheel.y);
     }
 }
 

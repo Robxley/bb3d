@@ -41,6 +41,9 @@ public:
     /** @brief Met à jour l'état interne (reset deltas). */
     void update(); 
 
+    /** @brief Réinitialise les deltas (scroll, etc.) au début d'une frame. */
+    void clearDeltas();
+
     /** @brief Traite un événement SDL entrant. */
     void onEvent(const SDL_Event& event);
 

@@ -196,6 +196,11 @@ void Engine::Run() {
     while (m_Running && !m_Window->ShouldClose()) {
         BB_PROFILE_FRAME("MainLoop");
 
+        // 0. Réinitialiser les deltas d'entrée pour la nouvelle frame
+        if (m_InputManager) {
+            m_InputManager->clearDeltas();
+        }
+
         uint64_t currentTime = SDL_GetTicks();
         float deltaTime = static_cast<float>(currentTime - lastTime) / 1000.0f;
         lastTime = currentTime;
