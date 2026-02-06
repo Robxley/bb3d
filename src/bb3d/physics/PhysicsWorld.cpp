@@ -215,6 +215,12 @@ namespace bb3d {
         } else if (entity.has<MeshColliderComponent>()) {
             auto& mc = entity.get<MeshColliderComponent>();
             if (mc.mesh) {
+#if defined(BB3D_DEBUG)
+                if (mc.mesh->isCPUDataReleased()) {
+                    BB_CORE_ERROR("PhysicsWorld: Cannot create MeshCollider for entity '{}', Mesh CPU data has been released! Create colliders BEFORE calling releaseCPUData().", 
+                        entity.has<TagComponent>() ? entity.get<TagComponent>().tag : "Unnamed");
+                }
+#endif
                 if (mc.convex) {
                     JPH::ConvexHullShapeSettings settings;
                     for (const auto& v : mc.mesh->getVertices()) settings.mPoints.push_back(toJPH(v.position * tf.scale));

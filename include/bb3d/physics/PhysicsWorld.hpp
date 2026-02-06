@@ -46,7 +46,10 @@ namespace bb3d {
         /** @brief Copie les positions de Jolt vers les TransformComponents de la scène. */
         void syncTransforms(Scene& scene);
 
-        /** @brief Crée un corps physique Jolt pour une entité possédant un RigidBodyComponent. */
+        /** 
+         * @brief Crée un corps physique Jolt pour une entité possédant un RigidBodyComponent. 
+         * @warning Pour les MeshColliders, cette méthode doit être appelée AVANT Mesh::releaseCPUData().
+         */
         void createRigidBody(Entity entity);
 
         /** @brief Crée un CharacterController virtuel (idéal pour le joueur). */

@@ -209,6 +209,9 @@ Pour les futures versions, l'outillage sera séparé du Runtime.
   * **Macros :** Définir des macros BB\_PROFILE\_FRAME(name) et BB\_PROFILE\_SCOPE(name) qui appellent Tracy.  
   * **Stripping :** Ces macros doivent être définies comme vides (\#define BB\_PROFILE\_SCOPE(name)) si le flag de profiling n'est pas activé (Build Release).  
 * **Tests Unitaires (Zéro Dépendance) :** * **Philosophie :** Pas de frameworks externes lourds. Système minimaliste interne (BB\_TEST\_CASE).
+* **Macro BB3D_DEBUG (Sécurité & Perf) :**
+    *   **Usage :** Utiliser `#if defined(BB3D_DEBUG)` pour envelopper les vérifications de sécurité coûteuses, les logs de trace intensifs ou les validations d'état (ex: vérifier si la RAM d'un Mesh a été libérée).
+    *   **Bénéfice :** Garantit un overhead strictement nul en mode Release tout en offrant une protection maximale durant le développement.
 
 ## **🔍 Instructions pour l'IA**
 
@@ -224,6 +227,7 @@ Pour les futures versions, l'outillage sera séparé du Runtime.
 10. **Sérialisation :** Assurer que tout code de composant généré inclut les hooks de sérialisation JSON pour l'export.  
 11. **Defaults :** Générer systématiquement des valeurs par défaut valides pour tous les composants.  
 12. **Modularité :** N'initialiser les systèmes (Audio, Physique, Jobs) que s'ils sont explicitement activés dans Config.
+13. **Debug vs Release :** Envelopper systématiquement les vérifications de sécurité impactant la performance (ex: accès aux données Mesh libérées) dans des blocs `#if defined(BB3D_DEBUG)`.
 
 ### **7\. Exemple Complet (Kitchen Sink Demo)**
 

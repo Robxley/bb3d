@@ -106,10 +106,12 @@ public:
 
     /** @brief Met à jour les buffers GPU après modification de la liste `getVertices()`. */
     inline void updateVertices() {
+#if defined(BB3D_DEBUG)
         if (m_cpuDataReleased) {
             BB_CORE_ERROR("Mesh: Cannot update vertices, CPU data has been released!");
             return;
         }
+#endif
         m_vertexBuffer = Buffer::CreateVertexBuffer(m_context, m_vertices.data(), m_vertices.size() * sizeof(Vertex));
         m_bounds = AABB();
         for (const auto& v : m_vertices) {
@@ -119,7 +121,8 @@ public:
 
     /** 
      * @brief Libère la mémoire RAM (vertices/indices) pour économiser de la mémoire.
-     * @note Après cet appel, updateVertices() et l'accès direct aux vecteurs ne seront plus possibles.
+     * @note Après cet appel, les données ne sont plus disponibles pour le CPU (ex: pour la Physique).
+     * @warning Assurez-vous que les colliders physiques ont été créés AVANT d'appeler cette méthode.
      */
     void releaseCPUData() {
         if (m_cpuDataReleased) return;
@@ -133,8 +136,29 @@ public:
 
     [[nodiscard]] bool isCPUDataReleased() const { return m_cpuDataReleased; }
 
-    std::vector<Vertex>& getVertices() { return m_vertices; }
-    const std::vector<uint32_t>& getIndices() const { return m_indices; }
+    /** @brief Récupère les sommets (Lecture seule). Log une erreur si les données ont été libérées (Debug uniquement). */
+    const std::vector<Vertex>& getVertices() const { 
+#if defined(BB3D_DEBUG)
+        if (m_cpuDataReleased) BB_CORE_ERROR("Mesh: Accessing vertices after releaseCPUData()! Results will be empty.");
+#endif
+        return m_vertices; 
+    }
+
+    /** @brief Récupère les indices (Lecture seule). Log une erreur si les données ont été libérées (Debug uniquement). */
+    const std::vector<uint32_t>& getIndices() const { 
+#if defined(BB3D_DEBUG)
+        if (m_cpuDataReleased) BB_CORE_ERROR("Mesh: Accessing indices after releaseCPUData()! Results will be empty.");
+#endif
+        return m_indices; 
+    }
+
+    /** @brief Récupère les sommets pour modification. Log une erreur si les données ont été libérées (Debug uniquement). */
+    std::vector<Vertex>& getVertices() { 
+#if defined(BB3D_DEBUG)
+        if (m_cpuDataReleased) BB_CORE_ERROR("Mesh: Accessing vertices for modification after releaseCPUData()!");
+#endif
+        return m_vertices; 
+    }
     
     void setTexture(Ref<Texture> texture) { m_texture = texture; }
     Ref<Texture> getTexture() const { return m_texture; }
