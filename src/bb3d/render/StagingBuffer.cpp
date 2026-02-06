@@ -28,7 +28,9 @@ StagingBuffer::Allocation StagingBuffer::allocate(vk::DeviceSize size) {
     if (m_offset + alignedSize > m_size) {
         // Pour l'instant, on fait un reset brutal (synchrone) si on dépasse la taille
         // Dans une version future, on utilisera des fences pour libérer par blocs.
+#if defined(BB3D_DEBUG)
         BB_CORE_WARN("StagingBuffer: Buffer full, waiting for GPU idle and resetting offset.");
+#endif
         m_context.getDevice().waitIdle();
         m_offset = 0;
     }

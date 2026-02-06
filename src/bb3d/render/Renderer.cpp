@@ -268,6 +268,11 @@ void Renderer::render(Scene& scene) {
 
     // Collecte des lumières (limité à 10 pour le shader standard)
     auto lightView = scene.getRegistry().view<LightComponent>();
+#if defined(BB3D_DEBUG)
+    if (lightView.size() > 10) {
+        BB_CORE_WARN("Renderer: Scene has {0} lights, but the standard shader only supports 10. Extra lights will be ignored.", lightView.size());
+    }
+#endif
     for (auto entity : lightView) {
         if (numLights >= 10) break;
         auto& light = lightView.get<LightComponent>(entity);
@@ -421,7 +426,9 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
         if (m_instanceTransforms.empty()) return;
 
         if (currentInstanceOffset + m_instanceTransforms.size() > MAX_INSTANCES) {
+#if defined(BB3D_DEBUG)
             BB_CORE_ERROR("Renderer: Too many instances in one frame! ({0} > {1})", currentInstanceOffset + m_instanceTransforms.size(), MAX_INSTANCES);
+#endif
             m_instanceTransforms.clear();
             return;
         }

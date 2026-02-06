@@ -54,16 +54,16 @@ namespace bb3d {
 
 // --- Macros de Log pour le Moteur (CORE) ---
 // Utilisez ces macros à l'intérieur du code du moteur (src/bb3d/...)
-#define BB_CORE_TRACE(...)    ::bb3d::Log::GetCoreLogger()->trace(__VA_ARGS__)
-#define BB_CORE_INFO(...)     ::bb3d::Log::GetCoreLogger()->info(__VA_ARGS__)
-#define BB_CORE_WARN(...)     ::bb3d::Log::GetCoreLogger()->warn(__VA_ARGS__)
-#define BB_CORE_ERROR(...)    ::bb3d::Log::GetCoreLogger()->error(__VA_ARGS__)
-#define BB_CORE_FATAL(...)    ::bb3d::Log::GetCoreLogger()->critical(__VA_ARGS__)
+#define BB_CORE_TRACE(...)    SPDLOG_LOGGER_CALL(::bb3d::Log::GetCoreLogger(), spdlog::level::trace, __VA_ARGS__)
+#define BB_CORE_INFO(...)     SPDLOG_LOGGER_CALL(::bb3d::Log::GetCoreLogger(), spdlog::level::info, __VA_ARGS__)
+#define BB_CORE_WARN(...)     SPDLOG_LOGGER_CALL(::bb3d::Log::GetCoreLogger(), spdlog::level::warn, __VA_ARGS__)
+#define BB_CORE_ERROR(...)    SPDLOG_LOGGER_CALL(::bb3d::Log::GetCoreLogger(), spdlog::level::err, __VA_ARGS__)
+#define BB_CORE_FATAL(...)    SPDLOG_LOGGER_CALL(::bb3d::Log::GetCoreLogger(), spdlog::level::critical, __VA_ARGS__)
 
 // --- Macros de Log pour l'Application (CLIENT) ---
 // Utilisez ces macros dans le code du jeu / application
-#define BB_TRACE(...)         ::bb3d::Log::GetClientLogger()->trace(__VA_ARGS__)
-#define BB_INFO(...)          ::bb3d::Log::GetClientLogger()->info(__VA_ARGS__)
-#define BB_WARN(...)          ::bb3d::Log::GetClientLogger()->warn(__VA_ARGS__)
-#define BB_ERROR(...)         ::bb3d::Log::GetClientLogger()->error(__VA_ARGS__)
-#define BB_FATAL(...)         ::bb3d::Log::GetClientLogger()->critical(__VA_ARGS__)
+#define BB_TRACE(...)         SPDLOG_LOGGER_CALL(::bb3d::Log::GetClientLogger(), spdlog::level::trace, __VA_ARGS__)
+#define BB_INFO(...)          SPDLOG_LOGGER_CALL(::bb3d::Log::GetClientLogger(), spdlog::level::info, __VA_ARGS__)
+#define BB_WARN(...)          SPDLOG_LOGGER_CALL(::bb3d::Log::GetClientLogger(), spdlog::level::warn, __VA_ARGS__)
+#define BB_ERROR(...)         SPDLOG_LOGGER_CALL(::bb3d::Log::GetClientLogger(), spdlog::level::err, __VA_ARGS__)
+#define BB_FATAL(...)         SPDLOG_LOGGER_CALL(::bb3d::Log::GetClientLogger(), spdlog::level::critical, __VA_ARGS__)

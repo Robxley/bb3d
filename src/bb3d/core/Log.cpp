@@ -4,6 +4,7 @@
 #include "spdlog/sinks/basic_file_sink.h"
 #include "spdlog/sinks/dist_sink.h"
 #include <filesystem>
+#include <algorithm>
 
 namespace bb3d {
 
@@ -53,19 +54,34 @@ namespace bb3d {
         // Création des loggers utilisant le sink distribué
         // CORE : Logger interne du moteur
         s_CoreLogger = std::make_shared<spdlog::logger>("CORE", dist_sink);
-        s_CoreLogger->set_level(spdlog::level::trace);
-        s_CoreLogger->flush_on(spdlog::level::trace); // Flush immédiat pour le debug
-
+        
         // APP : Logger pour le client
         s_ClientLogger = std::make_shared<spdlog::logger>("APP", dist_sink);
-        s_ClientLogger->set_level(spdlog::level::trace);
-        s_ClientLogger->flush_on(spdlog::level::trace);
+
+        // Définition du niveau de log depuis la config
+        spdlog::level::level_enum level = spdlog::level::info; // Par défaut
+        std::string levelStr = config.system.logLevel;
+        std::transform(levelStr.begin(), levelStr.end(), levelStr.begin(), ::tolower);
+
+        if (levelStr == "trace") level = spdlog::level::trace;
+        else if (levelStr == "debug") level = spdlog::level::debug;
+        else if (levelStr == "info") level = spdlog::level::info;
+        else if (levelStr == "warn") level = spdlog::level::warn;
+        else if (levelStr == "error") level = spdlog::level::err;
+        else if (levelStr == "fatal") level = spdlog::level::critical;
+
+        s_CoreLogger->set_level(level);
+        s_CoreLogger->flush_on(level); 
+
+        s_ClientLogger->set_level(level);
+        s_ClientLogger->flush_on(level);
 
         // Enregistrement global pour accès via spdlog::get("CORE") si besoin
         spdlog::register_logger(s_CoreLogger);
         spdlog::register_logger(s_ClientLogger);
 
-        BB_CORE_INFO("Logging System Initialized (Console: {}, File: {})", 
+        BB_CORE_INFO("Logging System Initialized (Level: {0}, Console: {1}, File: {2})", 
+            config.system.logLevel,
             config.system.logConsole ? "ON" : "OFF", 
             config.system.logFile ? "ON" : "OFF");
     }

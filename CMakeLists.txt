@@ -198,7 +198,8 @@ target_include_directories(biobazard3d PUBLIC
 target_compile_definitions(biobazard3d PUBLIC 
     GLM_FORCE_DEPTH_ZERO_TO_ONE
     VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
-    $<$<CONFIG:Debug>:BB3D_DEBUG>
+    $<$<CONFIG:Debug>:BB3D_DEBUG SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE>
+    $<$<CONFIG:Release>:SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO>
 )
 
 # Note: nlohmann_json is header-only, spdlog needs linking
