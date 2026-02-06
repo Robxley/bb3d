@@ -38,8 +38,11 @@ public:
     InputManager();
     ~InputManager() = default;
 
-    /** @brief Met à jour l'état interne (reset deltas). */
-    void update(); 
+    /** @brief Met à jour l'état interne (reset deltas). 
+     * @param captureMouse Si true, bloque les entrées souris pour le jeu.
+     * @param captureKeyboard Si true, bloque les entrées clavier pour le jeu.
+     */
+    void update(bool captureMouse = false, bool captureKeyboard = false); 
 
     /** @brief Réinitialise les deltas (scroll, etc.) au début d'une frame. */
     void clearDeltas();

@@ -5,6 +5,9 @@
 #include "bb3d/audio/AudioSystem.hpp"
 #include "bb3d/scene/SceneSerializer.hpp"
 #include "bb3d/render/Material.hpp"
+#if defined(BB3D_ENABLE_EDITOR)
+#include "bb3d/core/ImGuiLayer.hpp"
+#endif
 #include <SDL3/SDL.h>
 #include <stdexcept>
 #include <fstream>
@@ -74,6 +77,9 @@ void Engine::Init() {
     // Nécessaire pour créer la surface Vulkan par la suite.
     m_Window = CreateScope<Window>(m_Config);
     m_Window->SetEventCallback([this](SDL_Event& e) {
+#if defined(BB3D_ENABLE_EDITOR)
+        if (m_ImGuiLayer) m_ImGuiLayer->onEvent(e);
+#endif
         if (m_InputManager) m_InputManager->onEvent(e);
         
         // Gestion du redimensionnement : On notifie le renderer pour reconstruire la SwapChain
@@ -94,6 +100,11 @@ void Engine::Init() {
     // 6. Renderer (SwapChain, Pipelines, RenderPasses)
     // Dépend du VulkanContext et de la Window.
     m_Renderer = CreateScope<Renderer>(*m_VulkanContext, *m_Window, *m_JobSystem, m_Config);
+
+    // 6.5 ImGui Layer (Editor UI)
+#if defined(BB3D_ENABLE_EDITOR)
+    m_ImGuiLayer = CreateScope<ImGuiLayer>(*m_VulkanContext, *m_Window);
+#endif
 
     // 7. Resource Manager (Textures, Models, Shaders)
     // Gère le chargement et le cache. Utilise le JobSystem pour le chargement async.
@@ -211,9 +222,22 @@ void Engine::Run() {
         // 1. Événements système (Fenêtre, Input)
         m_Window->PollEvents();
         
+#if defined(BB3D_ENABLE_EDITOR)
+        if (m_ImGuiLayer) m_ImGuiLayer->beginFrame();
+#endif
+
         // Mise à jour de l'état des entrées (reset deltas)
         if (m_InputManager) {
-            m_InputManager->update();
+            // Bloquer les inputs du jeu si ImGui capture
+            bool captureMouse = false;
+            bool captureKeyboard = false;
+#if defined(BB3D_ENABLE_EDITOR)
+            if (m_ImGuiLayer) {
+                captureMouse = m_ImGuiLayer->wantCaptureMouse();
+                captureKeyboard = m_ImGuiLayer->wantCaptureKeyboard();
+            }
+#endif
+            m_InputManager->update(captureMouse, captureKeyboard);
         }
 
         // 2. Mise à jour de la logique (Update)
@@ -259,7 +283,20 @@ void Engine::Render() {
     BB_PROFILE_SCOPE("Engine::Render");
     
     if (m_ActiveScene && m_Renderer) {
+        // 1. Rendu de la scène
         m_Renderer->render(*m_ActiveScene);
+
+#if defined(BB3D_ENABLE_EDITOR)
+        // 2. Rendu de l'UI (ImGui) par dessus
+        if (m_ImGuiLayer) {
+            // On récupère le command buffer courant du renderer pour injecter l'UI
+            // Note: Renderer::render() termine sa passe de rendu interne.
+            // On a besoin d'une méthode pour dessiner l'UI dans le swapchain.
+            m_Renderer->renderUI([this](vk::CommandBuffer cb) {
+                m_ImGuiLayer->endFrame(cb);
+            });
+        }
+#endif
     }
 }
 

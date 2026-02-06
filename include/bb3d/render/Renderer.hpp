@@ -61,6 +61,18 @@ public:
     /** @brief Récupère la SwapChain actuelle. */
     SwapChain& getSwapChain() { return *m_swapChain; }
 
+    /** @brief Récupère le RenderTarget courant (pour affichage dans ImGui). */
+    RenderTarget* getRenderTarget() { return m_renderTarget.get(); }
+
+    /** 
+     * @brief Permet d'injecter des commandes de rendu UI après le rendu principal.
+     * @param func Fonction de callback recevant le command buffer courant.
+     */
+    void renderUI(const std::function<void(vk::CommandBuffer)>& func);
+
+    /** @brief Termine l'enregistrement et soumet les commandes au GPU. */
+    void submitAndPresent();
+
 private:
     void createSyncObjects();
     void createGlobalDescriptors();

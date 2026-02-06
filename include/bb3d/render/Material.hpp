@@ -83,6 +83,10 @@ public:
     
     /** @brief Définit les facteurs scalaires PBR. */
     void setParameters(const PBRParameters& params) { m_parameters = params; m_dirty = true; }
+    [[nodiscard]] const PBRParameters& getParameters() const { return m_parameters; }
+
+    void setColor(const glm::vec3& color) { m_parameters.baseColorFactor = glm::vec4(color, 1.0f); m_dirty = true; }
+    [[nodiscard]] glm::vec3 getColor() const { return glm::vec3(m_parameters.baseColorFactor); }
     
     vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
     

@@ -19,28 +19,38 @@ InputManager::InputManager() {
     std::memset(m_previousKeyState, 0, sizeof(m_previousKeyState));
 }
 
-void InputManager::update() {
+void InputManager::update(bool captureMouse, bool captureKeyboard) {
     // 1. Sauvegarder l'état précédent
     std::memcpy(m_previousKeyState, m_currentKeyState, sizeof(m_currentKeyState));
     m_previousMouseState = m_currentMouseState;
     glm::vec2 oldMousePos = m_currentMousePos;
 
     // 2. Récupérer le nouvel état du clavier
-    int numKeys;
-    const bool* state = SDL_GetKeyboardState(&numKeys);
-    if (state) {
-        // On sature à 512 pour éviter de déborder si SDL a plus de touches
-        int count = (numKeys < 512) ? numKeys : 512;
-        for (int i = 0; i < count; ++i) {
-            m_currentKeyState[i] = state[i] ? 1 : 0;
+    if (captureKeyboard) {
+        std::memset(m_currentKeyState, 0, sizeof(m_currentKeyState));
+    } else {
+        int numKeys;
+        const bool* state = SDL_GetKeyboardState(&numKeys);
+        if (state) {
+            int count = (numKeys < 512) ? numKeys : 512;
+            for (int i = 0; i < count; ++i) {
+                m_currentKeyState[i] = state[i] ? 1 : 0;
+            }
         }
     }
 
     // 3. Récupérer le nouvel état de la souris
     float mx, my;
-    m_currentMouseState = SDL_GetMouseState(&mx, &my);
+    uint32_t state = SDL_GetMouseState(&mx, &my);
     m_currentMousePos = {mx, my};
     m_mouseDelta = m_currentMousePos - oldMousePos;
+
+    if (captureMouse) {
+        m_currentMouseState = 0;
+        // On garde la position de la souris pour le picking mais on bloque les boutons
+    } else {
+        m_currentMouseState = state;
+    }
 }
 
 void InputManager::clearDeltas() {

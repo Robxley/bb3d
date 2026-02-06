@@ -80,6 +80,8 @@ struct TransformComponent {
     glm::vec3 scale = { 1.0f, 1.0f, 1.0f };
 
     TransformComponent() = default;
+    TransformComponent(const glm::vec3& t, const glm::vec3& r = {0,0,0}, const glm::vec3& s = {1,1,1}) 
+        : translation(t), rotation(r), scale(s) {}
 
     /** @brief Calcule la matrice de transformation 4x4 (Model Matrix). */
     [[nodiscard]] inline glm::mat4 getTransform() const {

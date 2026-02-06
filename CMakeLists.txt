@@ -6,14 +6,17 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Unity Build optimization for faster compilation
-set(CMAKE_UNITY_BUILD ON)
-set(CMAKE_UNITY_BUILD_BATCH_SIZE 16)
+# Disable Unity Build as it causes conflicts with some dependencies like FreeType
+set(CMAKE_UNITY_BUILD OFF)
 
 # Set default build type to Debug
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
 endif()
+
+# Engine Options
+option(BB3D_ENABLE_EDITOR "Enable Editor features (ImGui)" ON)
+option(BB3D_ENABLE_PROFILING "Enable Tracy profiling" ON)
 
 # --- Dependencies ---
 include(FetchContent)
@@ -88,6 +91,20 @@ FetchContent_Declare(
   GIT_TAG        v3.13.2
 )
 
+# FreeType for better font rendering and color emojis
+FetchContent_Declare(
+  freetype
+  GIT_REPOSITORY https://github.com/freetype/freetype.git
+  GIT_TAG        VER-2-13-3
+)
+
+# Dear ImGui
+FetchContent_Declare(
+  imgui
+  GIT_REPOSITORY https://github.com/ocornut/imgui.git
+  GIT_TAG        v1.91.8-docking
+)
+
 # Jolt Physics
 set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
 set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
@@ -105,7 +122,7 @@ FetchContent_Declare(
   SOURCE_SUBDIR  Build
 )
 
-FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm stb fastgltf tinyobjloader entt Jolt)
+FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm stb fastgltf tinyobjloader entt freetype imgui Jolt)
 
 # Find Vulkan SDK
 find_package(Vulkan REQUIRED)
@@ -186,18 +203,37 @@ add_custom_target(CompileShaders ALL DEPENDS ${SPV_SHADERS})
 
 # --- Engine Library (Automatic Source Discovery) ---
 file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-add_library(biobazard3d ${ENGINE_SOURCES})
+
+# ImGui implementation files for SDL3 and Vulkan
+set(IMGUI_SOURCES
+    ${imgui_SOURCE_DIR}/imgui.cpp
+    ${imgui_SOURCE_DIR}/imgui_draw.cpp
+    ${imgui_SOURCE_DIR}/imgui_tables.cpp
+    ${imgui_SOURCE_DIR}/imgui_widgets.cpp
+    ${imgui_SOURCE_DIR}/imgui_demo.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp
+    ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
+    ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp
+    ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp
+)
+
+add_library(biobazard3d ${ENGINE_SOURCES} ${IMGUI_SOURCES})
 
 target_include_directories(biobazard3d PUBLIC 
     include
     ${stb_SOURCE_DIR}
     ${Jolt_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}
+    ${imgui_SOURCE_DIR}/backends
+    ${imgui_SOURCE_DIR}/misc/freetype
 )
 
 # Vulkan requires depth range [0, 1] unlike OpenGL [-1, 1]
 target_compile_definitions(biobazard3d PUBLIC 
     GLM_FORCE_DEPTH_ZERO_TO_ONE
     VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+    IMGUI_ENABLE_FREETYPE # Required for color emojis
+    $<$<BOOL:${BB3D_ENABLE_EDITOR}>:BB3D_ENABLE_EDITOR>
     $<$<CONFIG:Debug>:BB3D_DEBUG SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE>
     $<$<CONFIG:Release>:SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO>
 )
@@ -213,6 +249,7 @@ target_link_libraries(biobazard3d PUBLIC
     fastgltf::fastgltf
     tinyobjloader
     EnTT::EnTT
+    freetype
     Jolt
 )
 
@@ -222,8 +259,6 @@ target_compile_options(biobazard3d PRIVATE
     $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>
 )
 
-# Enable profiling for the engine based on a CMake option
-option(BB3D_ENABLE_PROFILING "Enable Tracy profiling" ON)
 if(BB3D_ENABLE_PROFILING)
     target_compile_definitions(biobazard3d PUBLIC BB_PROFILE)
     target_link_libraries(biobazard3d PUBLIC TracyClient)
@@ -346,6 +381,13 @@ add_executable(unit_test_15_hello_world
 )
 target_link_libraries(unit_test_15_hello_world PRIVATE biobazard3d)
 add_dependencies(unit_test_15_hello_world DeployAssets)
+
+# --- Unit Test 15: Editor & Viewport ---
+add_executable(unit_test_15_editor_viewport
+    tests/unit_test_15_editor_viewport.cpp
+)
+target_link_libraries(unit_test_15_editor_viewport PRIVATE biobazard3d)
+add_dependencies(unit_test_15_editor_viewport DeployAssets)
 
 add_executable(unit_test_09_resource_manager
     tests/unit_test_09_resource_manager.cpp

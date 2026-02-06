@@ -195,10 +195,15 @@ Ce document détaille le plan de développement séquentiel du moteur **biobazar
 * **Validation (unit\_test\_14\_terrain\_fx.cpp) :**  
   * Rendu d'un terrain vallonné avec fumée.
 
-### **Étape 6.4 : Outils & Hot Reload**
+### **Étape 6.4 : Outils & Editeur (ImGui)**
 
 * **Objectifs Techniques :**  
-  * Intégrer **ImGui**.  
-  * HotReloader : Surveiller les fichiers Shaders.  
-* **Validation (unit\_test\_15\_tools\_hotreload.cpp) :**  
-  * Modification d'un shader frag sur le disque \= Changement de couleur instantané sans redémarrage.
+  * Intégrer **Dear ImGui** avec une architecture de "Layer" découplée.
+  * **Modularité :** Compilation conditionnelle (`BB3D_ENABLE_EDITOR`). Le code ImGui doit disparaître en Release Game.
+  * **Overlay System :** Hook dans la boucle de rendu pour dessiner l'UI par dessus la scène.
+  * **Panneaux :** Inspecteur de scène, Console de logs, Stats (FPS/RAM).
+* **Validation (unit\_test\_15\_tools\_editor.cpp) :**  
+  * Une fenêtre ImGui s'affiche par dessus le rendu 3D.
+  * Modifier une valeur dans ImGui (ex: intensité lumière) met à jour la scène en temps réel.
+  * Les inputs clavier dans ImGui (ex: taper du texte) ne déclenchent pas d'actions de jeu (ex: avancer).
+  * En mode Release, aucune trace d'ImGui n'est présente.

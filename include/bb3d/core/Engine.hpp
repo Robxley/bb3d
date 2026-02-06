@@ -18,6 +18,7 @@ namespace bb3d {
 
 class PhysicsWorld;
 class AudioSystem;
+class ImGuiLayer;
 
 /**
  * @brief La classe principale représentant le moteur de jeu biobazard3d.
@@ -90,6 +91,9 @@ public:
     inline InputManager& input() { return *m_InputManager; }
     inline PhysicsWorld& physics() { return *m_PhysicsWorld; }
     inline AudioSystem& audio() { return *m_AudioSystem; }
+#if defined(BB3D_ENABLE_EDITOR)
+    inline ImGuiLayer& editor() { return *m_ImGuiLayer; }
+#endif
     /** @} */
 
     /** @name Accesseurs Originaux
@@ -103,6 +107,9 @@ public:
     EventBus& GetEventBus() { return *m_EventBus; }
     PhysicsWorld* GetPhysicsWorld() { return m_PhysicsWorld.get(); }
     AudioSystem* GetAudioSystem() { return m_AudioSystem.get(); }
+#if defined(BB3D_ENABLE_EDITOR)
+    ImGuiLayer* GetImGuiLayer() { return m_ImGuiLayer.get(); }
+#endif
     /** @} */
 
     Ref<Scene> CreateScene();
@@ -131,6 +138,9 @@ private:
     Scope<InputManager> m_InputManager;
     Scope<PhysicsWorld> m_PhysicsWorld;
     Scope<AudioSystem> m_AudioSystem;
+#if defined(BB3D_ENABLE_EDITOR)
+    Scope<ImGuiLayer> m_ImGuiLayer;
+#endif
     Ref<Scene> m_ActiveScene;
 
     bool m_Running = false;

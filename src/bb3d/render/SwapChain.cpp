@@ -62,7 +62,8 @@ uint32_t SwapChain::acquireNextImage(vk::Semaphore semaphore, vk::Fence fence) {
         throw std::runtime_error("Failed to acquire swap chain image!");
     }
 
-    return result.value;
+    m_currentImageIndex = result.value;
+    return m_currentImageIndex;
 }
 
 void SwapChain::present(vk::Semaphore waitSemaphore, uint32_t imageIndex) {

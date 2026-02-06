@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bb3d/core/Base.hpp"
+#include "bb3d/core/Log.hpp"
 #include "bb3d/render/Buffer.hpp"
 #include "bb3d/render/Vertex.hpp"
 #include "bb3d/render/Texture.hpp"

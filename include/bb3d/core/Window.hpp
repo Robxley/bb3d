@@ -51,6 +51,7 @@ public:
     
     /** @brief Récupère le pointeur natif SDL_Window. */
     [[nodiscard]] inline SDL_Window* GetNativeWindow() const { return m_Window; }
+    [[nodiscard]] inline SDL_Window* GetSDLWindow() const { return m_Window; }
 
     /** @brief Définit le callback pour les événements OS. */
     void SetEventCallback(const EventCallbackFn& callback) { m_EventCallback = callback; }

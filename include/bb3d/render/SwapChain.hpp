@@ -29,6 +29,8 @@ public:
     uint32_t acquireNextImage(vk::Semaphore semaphore, vk::Fence fence = nullptr);
     void present(vk::Semaphore waitSemaphore, uint32_t imageIndex);
 
+    [[nodiscard]] uint32_t getCurrentImageIndex() const { return m_currentImageIndex; }
+
 private:
     void createSwapChain(int width, int height);
     void createImageViews();
@@ -50,6 +52,8 @@ private:
     VmaAllocation m_depthImageAllocation = nullptr;
     vk::ImageView m_depthImageView;
     vk::Format m_depthFormat = vk::Format::eUndefined;
+
+    uint32_t m_currentImageIndex = 0;
 };
 
 } // namespace bb3d

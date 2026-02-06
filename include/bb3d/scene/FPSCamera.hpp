@@ -14,6 +14,12 @@ public:
         updateVectors();
     }
 
+    FPSCamera(const glm::vec3& position, float fov = 45.0f, float aspect = 1.77f, float near = 0.1f, float far = 1000.0f) 
+        : Camera(fov, aspect, near, far) {
+        m_position = position;
+        updateVectors();
+    }
+
     void setRotation(float yaw, float pitch) {
         m_yaw = yaw;
         m_pitch = pitch;

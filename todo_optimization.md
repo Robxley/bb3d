@@ -11,68 +11,68 @@ Ce document liste les optimisations identifiées lors de la revue de code du mot
     *   [x] Déplacer les vecteurs en membres privés de la classe `Renderer`.
     *   [x] Utiliser `reserve()` au démarrage.
     *   [x] Appeler `clear()` à chaque début de frame au lieu de détruire l'objet.
-*   **Bénéfice :** Zéro allocation dynamique dans le "Hot Path" de rendu. (Terminé : Février 2026)
+*   **Statut :** Terminé. Les allocations dynamiques dans le "Hot Path" de rendu sont minimisées.
 
 ### 2. Gestion Dynamique des Descripteurs
-*   **Fichier :** `src/bb3d/render/Material.cpp` / `Renderer.cpp`
-*   **Problème :** Le `DescriptorPool` global a une taille fixe (2000 sets). Chaque nouveau matériel alloue un set via `vk::Device::allocateDescriptorSets` sans vérifier la capacité.
+*   **Fichier :** `src/bb3d/render/Renderer.cpp` (Méthode `createGlobalDescriptors`)
+*   **Problème :** Le `DescriptorPool` global a une taille fixe (2000 sets, hardcodé).
 *   **Action :**
     *   [ ] Créer un `DescriptorAllocator` capable de gérer plusieurs pools.
     *   [ ] Si un pool est plein, en créer un nouveau automatiquement.
     *   [ ] Reset les pools inutilisés pour éviter la fragmentation.
-*   **Bénéfice :** Évite le crash de l'application sur les scènes avec beaucoup de matériaux (>2000).
+*   **Statut :** À faire. Risque de crash sur les grosses scènes.
 
 ### 3. Réduction de l'empreinte RAM des Meshs
 *   **Fichier :** `include/bb3d/render/Mesh.hpp`
-*   **Problème :** La classe `Mesh` conserve `std::vector<Vertex> m_vertices` et `m_indices` en RAM même après l'upload sur le GPU.
+*   **Problème :** La classe `Mesh` possède déjà la méthode `releaseCPUData()`, mais elle doit être appelée manuellement.
 *   **Action :**
-    *   [ ] Ajouter une option ou une méthode `releaseCPUData()` pour libérer ces vecteurs après la création des buffers GPU.
-*   **Bénéfice :** Réduction significative de la consommation mémoire (RAM) pour les modèles complexes.
+    *   [ ] Appeler automatiquement `releaseCPUData()` après l'upload GPU pour les meshes statiques (via un flag dans `Model` ou `Mesh`).
+    *   [ ] Vérifier que cela n'impacte pas les `MeshCollider` de Jolt Physics (qui ont besoin des vertices CPU).
+*   **Statut :** Fonctionnalité existante, intégration automatique à faire.
 
 ## 🟡 Priorité : Moyenne (Gain CPU, Effort Modéré)
 
 ### 4. Vrais Uploads Asynchrones (Correction)
-*   **Fichier :** `src/bb3d/render/Buffer.cpp`
-*   **Problème :** Bien qu'un `StagingBuffer` soit alloué, `Buffer::CreateVertexBuffer` utilise `context.endSingleTimeCommands()` qui appelle **`m_graphicsQueue.waitIdle()`**. Cela bloque le CPU à chaque création de buffer (Mesh/Texture).
+*   **Fichier :** `src/bb3d/render/Buffer.cpp`, `src/bb3d/render/VulkanContext.cpp`
+*   **Problème :** `Buffer::CreateVertexBuffer` utilise `context.endSingleTimeCommands()` qui appelle **`m_graphicsQueue.waitIdle()`**. Cela bloque le CPU à chaque création de buffer.
 *   **Action :** 
     *   [x] Créer un `StagingManager` (Fait).
     *   [ ] **Remplacer** `waitIdle` par l'utilisation d'une `vk::Fence` dédiée au transfert.
-    *   [ ] Ou utiliser un `TransferQueue` dédié si disponible.
-*   **Bénéfice :** Suppression des blocages CPU lors du chargement de scène (100 meshes = 100 attentes GPU).
+    *   [ ] Implémenter une `TransferQueue` dédiée (si disponible sur le GPU) pour ne pas bloquer la Graphics Queue.
+*   **Statut :** À faire. Bloquant pour le streaming d'assets.
 
 ### 5. Parallélisation du Culling & Tri
 *   **Fichier :** `src/bb3d/render/Renderer.cpp`
-*   **Problème :** Le culling Frustum et le tri des commandes sont faits sur un seul thread.
+*   **Problème :** Le culling Frustum et le tri des commandes (`std::sort`) sont faits sur le thread principal dans `drawScene`.
 *   **Action :** 
-    *   [x] Utiliser `JobSystem::dispatch` pour paralléliser le test d'intersection AABB/Frustum.
-    *   [ ] Utiliser `std::sort` parallèle si possible ou trier par blocs.
-*   **Bénéfice :** Meilleure utilisation des processeurs multi-cœurs sur les scènes chargées. (Partiellement Fait)
+    *   [ ] Utiliser `JobSystem::dispatch` pour paralléliser le test d'intersection AABB/Frustum.
+    *   [ ] Utiliser `std::execution::par` avec `std::sort` (si supporté par le compilateur) ou un tri par blocs.
+*   **Statut :** À faire. Le Culling est actuellement séquentiel.
 
-### 6. Optimisation TinyObjLoader
+### 6. Optimisation Chargement Modèles
 *   **Fichier :** `src/bb3d/render/Model.cpp`
-*   **Problème :** `tinyobjloader` est lent pour les gros fichiers OBJ (parsing texte).
+*   **Problème :** `tinyobjloader` est lent (parsing texte). Le chargement des textures dans `loadOBJ` est synchrone et séquentiel.
 *   **Action :**
-    *   [ ] Privilégier GLTF/GLB (déjà supporté via `fastgltf`).
-    *   [ ] Convertir les assets OBJ en GLB lors de l'import ou utiliser un parser binaire custom.
-*   **Bénéfice :** Réduction drastique du temps de chargement des modèles.
+    *   [ ] Privilégier GLTF/GLB (`fastgltf` déjà intégré).
+    *   [ ] Charger les textures en parallèle via `JobSystem` lors du chargement du modèle.
+*   **Statut :** À faire.
 
 ## 🔴 Priorité : Basse / Recherche (Expertise requise)
 
 ### 7. Affinage des barrières de synchronisation Vulkan
-*   **Fichier :** `src/bb3d/render/Renderer.cpp` / `SwapChain.cpp`
-*   **Problème :** Usage fréquent de `TOP_OF_PIPE` et `BOTTOM_OF_PIPE`.
+*   **Fichier :** `src/bb3d/render/Renderer.cpp` (Méthode `compositeToSwapchain`)
+*   **Problème :** Usage de `vk::PipelineStageFlagBits::eTopOfPipe` et `vk::PipelineStageFlagBits::eBottomOfPipe`.
 *   **Action :** 
     *   [ ] Remplacer par des stages précis (ex: `COLOR_ATTACHMENT_OUTPUT` -> `FRAGMENT_SHADER`).
     *   [ ] Utiliser `vk::DependencyInfo` (Vulkan 1.3) pour simplifier la syntaxe.
-*   **Bénéfice :** Réduction des temps d'attente "bulles" du GPU.
+*   **Statut :** À faire. Optimisation GPU (réduction des bulles).
 
-### 8. GPU-Driven Rendering (Indirect Draw & GPU Culling)
-*   **Problème :** Trop de draw calls côté CPU et culling CPU limitant pour les scènes massives.
+### 8. GPU-Driven Rendering
+*   **Problème :** Trop de draw calls côté CPU.
 *   **Action :** 
-    *   [ ] Implémenter un SSBO pour les matrices d'objets.
-    *   [ ] Utiliser `vkCmdDrawIndexedIndirect` pour envoyer les commandes de dessin groupées.
-    *   [ ] Implémenter un Compute Shader pour le culling Frustum.
-*   **Bénéfice :** Décharge totale du CPU pour la visibilité et la soumission des commandes de dessin.
+    *   [ ] Implémenter `vkCmdDrawIndexedIndirect`.
+    *   [ ] Culling GPU (Compute Shader).
+*   **Statut :** Recherche.
 
 ---
-*Note : Document mis à jour par l'agent Gemini CLI le 06 Février 2026.*
+*Dernière mise à jour : 06 Février 2026 (Revue de Code)*
