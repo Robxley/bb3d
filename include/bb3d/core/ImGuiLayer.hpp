@@ -37,12 +37,19 @@ public:
     /** @brief Ajoute une texture au système ImGui et retourne son ID. */
     ImTextureID addTexture(vk::Sampler sampler, vk::ImageView view, vk::ImageLayout layout);
 
+    ImFont* getFontRoboto() { return m_fontRoboto; }
+    ImFont* getFontAwesome() { return m_fontAwesome; }
+    ImFont* getFontSegoe() { return m_fontSegoe; }
+    ImFont* getFontNoto() { return m_fontNoto; }
+
 private:
     void initFonts();
 
     VulkanContext& m_context;
     Window& m_window;
     vk::DescriptorPool m_descriptorPool;
+
+    ImFont *m_fontRoboto = nullptr, *m_fontAwesome = nullptr, *m_fontSegoe = nullptr, *m_fontNoto = nullptr;
 };
 
 } // namespace bb3d

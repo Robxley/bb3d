@@ -155,6 +155,10 @@ void Engine::Shutdown() {
         m_ActiveScene->getRegistry().clear();
     }
     m_ActiveScene.reset();
+
+#if defined(BB3D_ENABLE_EDITOR)
+    m_ImGuiLayer.reset();
+#endif
     
     // 4. Renderer
     // IMPORTANT : On détruit le Renderer avant le Context et le Window.
