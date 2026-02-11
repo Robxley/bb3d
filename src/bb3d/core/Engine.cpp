@@ -254,6 +254,13 @@ void Engine::Run() {
     BB_CORE_INFO("Engine: Main loop exited.");
 }
 
+void Engine::setPhysicsPaused(bool paused) {
+    if (m_PhysicsPaused != paused) {
+        m_PhysicsPaused = paused;
+        BB_CORE_INFO("Engine: Physics simulation {}", paused ? "PAUSED" : "RESUMED");
+    }
+}
+
 void Engine::Stop() {
     m_Running = false;
 }
@@ -274,12 +281,29 @@ void Engine::Update(float deltaTime) {
 
     if (m_ActiveScene) {
         // 1. Physique (La vérité master sur le Transform)
-        if (m_PhysicsWorld && m_Config.modules.enablePhysics) {
+        if (m_PhysicsWorld && m_Config.modules.enablePhysics && !m_PhysicsPaused) {
             m_PhysicsWorld->update(deltaTime, *m_ActiveScene);
         }
 
         // 2. Caméras & Logique
         m_ActiveScene->onUpdate(deltaTime);
+    }
+}
+
+void Engine::resetScene() {
+    if (!m_ActiveScene) return;
+
+    BB_CORE_INFO("Engine: Resetting scene...");
+
+    // 1. Restaurer tous les transforms à leur état d'initialisation
+    auto transformView = m_ActiveScene->getRegistry().view<TransformComponent>();
+    for (auto entity : transformView) {
+        transformView.get<TransformComponent>(entity).resetToInitial();
+    }
+
+    // 2. Réinitialiser les corps physiques (vitesses à zéro, téléportation)
+    if (m_PhysicsWorld) {
+        m_PhysicsWorld->resetAllBodies(*m_ActiveScene);
     }
 }
 
@@ -311,11 +335,26 @@ void Engine::exportScene(const std::string& filepath) {
 }
 
 void Engine::importScene(const std::string& filepath) {
-    auto scene = CreateRef<Scene>();
+    auto scene = CreateScene();
+    
+    // Pause de la physique durant le chargement
+    bool wasPaused = m_PhysicsPaused;
+    m_PhysicsPaused = true;
+
     SceneSerializer serializer(scene);
     if (serializer.deserialize(filepath)) {
         m_ActiveScene = scene;
+#if defined(BB3D_ENABLE_EDITOR)
+        if (m_ImGuiLayer) {
+            m_ImGuiLayer->setSelectedEntity({});
+        }
+#endif
+        BB_CORE_INFO("Engine: Scene loaded successfully.");
+    } else {
+        BB_CORE_ERROR("Engine: Failed to load scene from {}", filepath);
     }
+
+    m_PhysicsPaused = wasPaused;
 }
 
 } // namespace bb3d

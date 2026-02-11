@@ -6,7 +6,7 @@
 namespace bb3d {
 
 /**
- * @brief GÃ¨re un pipeline de calcul (Compute Pipeline).
+ * @brief Gère un pipeline de calcul (Compute Pipeline).
  */
 class ComputePipeline {
 public:

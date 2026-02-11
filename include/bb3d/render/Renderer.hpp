@@ -8,6 +8,7 @@
 #include "bb3d/scene/Scene.hpp"
 #include "bb3d/render/Material.hpp"
 #include "bb3d/render/Mesh.hpp"
+#include "bb3d/scene/Components.hpp"
 #include "bb3d/render/RenderTarget.hpp"
 #include "bb3d/core/JobSystem.hpp"
 #include <glm/glm.hpp>
@@ -113,6 +114,7 @@ private:
     // Frames
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 3;
     uint32_t m_currentFrame = 0;
+    bool m_frameStarted = false;
 
     vk::CommandPool m_commandPool;
     std::vector<vk::CommandBuffer> m_commandBuffers;

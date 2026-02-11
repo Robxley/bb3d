@@ -4,9 +4,9 @@
 namespace bb3d {
 
 /**
- * @brief ReprÃ©sente un buffer de stockage (Shader Storage Buffer Object - SSBO).
+ * @brief Représente un buffer de stockage (Shader Storage Buffer Object - SSBO).
  * 
- * Permet de stocker de grandes quantitÃ©s de donnÃ©es accessibles par les shaders (lecture/Ã©criture).
+ * Permet de stocker de grandes quantités de données accessibles par les shaders (lecture/écriture).
  */
 class StorageBuffer : public Buffer {
 public:

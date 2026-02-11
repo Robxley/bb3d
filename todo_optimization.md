@@ -75,4 +75,75 @@ Ce document liste les optimisations identifiées lors de la revue de code du mot
 *   **Statut :** Recherche.
 
 ---
-*Dernière mise à jour : 06 Février 2026 (Revue de Code)*
+
+*Dernière mise à jour : 11 Février 2026 (Revue de Code)*
+
+
+
+## 🔵 Nouvelles Optimisations Identifiées (Revue Globale)
+
+
+
+### 9. Paramètres de Matériaux et Frames in Flight
+
+*   **Problème :** Les classes `Material` (`PBRMaterial`, etc.) possèdent un seul `m_paramBuffer` et un seul `m_set` partagés par toutes les frames. Si on modifie un paramètre (ex: couleur) alors qu'une frame précédente est encore en cours de rendu sur le GPU, cela crée une condition de course (Race Condition).
+
+*   **Action :** 
+
+    *   [ ] Décupler `m_paramBuffer` et `m_set` pour avoir une instance par frame (MAX_FRAMES_IN_FLIGHT).
+
+    *   [ ] Alternativement, utiliser des Push Constants pour les petits paramètres (couleur, rugosité).
+
+
+
+### 10. Initialisation Réactive de la Physique
+
+*   **Fichier :** `src/bb3d/physics/PhysicsWorld.cpp`
+
+*   **Problème :** `PhysicsWorld::update` parcourt toutes les entités avec un `RigidBodyComponent` à chaque frame pour détecter les nouveaux corps (ID == 0xFFFFFFFF).
+
+*   **Action :** 
+
+    *   [ ] Utiliser les `OnComponentAdded` observers d'EnTT pour créer le corps Jolt dès l'ajout du composant.
+
+    *   [ ] Supprimer le scan séquentiel dans l'update.
+
+
+
+### 11. Chargement Parallèle des Textures dans les Modèles
+
+*   **Fichier :** `src/bb3d/render/Model.cpp`
+
+*   **Problème :** Les textures des modèles GLTF et OBJ sont chargées de manière séquentielle et synchrone.
+
+*   **Action :** 
+
+    *   [ ] Utiliser `JobSystem::execute` pour charger chaque texture en parallèle.
+
+    *   [ ] Utiliser des "Futures" ou un compteur atomique pour savoir quand le modèle est prêt.
+
+
+
+### 12. Limitation du SSBO d'Instancing
+
+*   **Fichier :** `src/bb3d/render/Renderer.cpp`
+
+*   **Problème :** `MAX_INSTANCES` est une limite fixe. Si on a trop d'instances, les objets ne sont plus dessinés.
+
+*   **Action :** 
+
+    *   [ ] Gérer dynamiquement l'offset dans le SSBO ou utiliser plusieurs SSBO si nécessaire.
+
+    *   [ ] Ajouter un warning ou une erreur explicite en cas de dépassement.
+
+
+
+### 13. Optimisation des Transitions de Pipeline (Barrières)
+
+*   **Fichier :** `src/bb3d/render/Renderer.cpp`
+
+*   **Problème :** Usage de `eTopOfPipe` et `eBottomOfPipe` dans `compositeToSwapchain` et `submitAndPresent`.
+
+*   **Action :** 
+
+    *   [ ] Remplacer par des stages précis comme `COLOR_ATTACHMENT_OUTPUT`.

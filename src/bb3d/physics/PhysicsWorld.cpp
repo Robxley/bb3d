@@ -206,6 +206,57 @@ namespace bb3d {
         }
     }
 
+    void PhysicsWorld::updateBodyTransform(Entity entity) {
+        if (!m_impl->initialized || !entity.has<RigidBodyComponent>() || !entity.has<TransformComponent>()) return;
+
+        auto& rb = entity.get<RigidBodyComponent>();
+        auto& tf = entity.get<TransformComponent>();
+        if (rb.bodyID == 0xFFFFFFFF) return;
+
+        auto& bodyInterface = m_impl->physicsSystem->GetBodyInterface();
+        JPH::BodyID id(rb.bodyID);
+        
+        bodyInterface.SetPositionAndRotation(id, toJPH(tf.translation), toJPH(glm::quat(tf.rotation)), JPH::EActivation::Activate);
+    }
+
+    void PhysicsWorld::resetBody(Entity entity) {
+        if (!m_impl->initialized || !entity.has<RigidBodyComponent>()) return;
+
+        auto& rb = entity.get<RigidBodyComponent>();
+        if (rb.bodyID == 0xFFFFFFFF) return;
+
+        auto& bodyInterface = m_impl->physicsSystem->GetBodyInterface();
+        JPH::BodyID id(rb.bodyID);
+
+        bodyInterface.SetLinearVelocity(id, toJPH(rb.initialLinearVelocity));
+        bodyInterface.SetAngularVelocity(id, JPH::Vec3::sZero());
+        
+        if (entity.has<TransformComponent>()) {
+            auto& tf = entity.get<TransformComponent>();
+            bodyInterface.SetPositionAndRotation(id, toJPH(tf.translation), toJPH(glm::quat(tf.rotation)), JPH::EActivation::Activate);
+        }
+    }
+
+    void PhysicsWorld::resetAllBodies(Scene& scene) {
+        if (!m_impl->initialized) return;
+
+        auto view = scene.getRegistry().view<RigidBodyComponent>();
+        for (auto entityHandle : view) {
+            resetBody(Entity(entityHandle, scene));
+        }
+
+        // Reset des CharacterControllers
+        for (auto& [handle, charV] : m_impl->characters) {
+            entt::entity entHandle = static_cast<entt::entity>(handle);
+            if (scene.getRegistry().all_of<TransformComponent>(entHandle)) {
+                auto& tf = scene.getRegistry().get<TransformComponent>(entHandle);
+                charV->SetPosition(toJPH(tf.translation));
+                charV->SetRotation(toJPH(glm::quat(tf.rotation)));
+                charV->SetLinearVelocity(JPH::Vec3::sZero());
+            }
+        }
+    }
+
     void PhysicsWorld::createRigidBody(Entity entity) {
         if (!m_impl->initialized || !entity.has<RigidBodyComponent>()) return;
 

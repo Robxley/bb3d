@@ -8,6 +8,7 @@
 #include "bb3d/core/Engine.hpp"
 #include "bb3d/render/MeshGenerator.hpp"
 #include "bb3d/render/TextureGenerator.hpp"
+#include "bb3d/physics/PhysicsWorld.hpp"
 
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_vulkan.h>
@@ -294,12 +295,30 @@ void ImGuiLayer::showInspector() {
         if (m_selectedEntity.has<TransformComponent>()) {
             if (ImGui::CollapsingHeader(ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT " Transform", ImGuiTreeNodeFlags_DefaultOpen)) {
                 auto& tc = m_selectedEntity.get<TransformComponent>();
-                ImGui::DragFloat3("Position", &tc.translation.x, 0.1f);
+                bool changed = false;
+                if (ImGui::DragFloat3("Position", &tc.translation.x, 0.1f)) changed = true;
                 glm::vec3 rotationDeg = glm::degrees(tc.rotation);
                 if (ImGui::DragFloat3("Rotation", &rotationDeg.x, 0.1f)) {
                     tc.rotation = glm::radians(rotationDeg);
+                    changed = true;
                 }
-                ImGui::DragFloat3("Scale", &tc.scale.x, 0.1f);
+                if (ImGui::DragFloat3("Scale", &tc.scale.x, 0.1f)) changed = true;
+
+                if (changed && m_selectedEntity.has<RigidBodyComponent>()) {
+                    Engine::Get().physics().updateBodyTransform(m_selectedEntity);
+                }
+
+                ImGui::Spacing();
+                if (ImGui::Button(ICON_FA_ARROW_ROTATE_LEFT " Reset to Initial")) {
+                    tc.resetToInitial();
+                    if (m_selectedEntity.has<RigidBodyComponent>()) {
+                        Engine::Get().physics().resetBody(m_selectedEntity);
+                    }
+                }
+                ImGui::SameLine();
+                if (ImGui::Button(ICON_FA_FLOPPY_DISK " Save as Initial")) {
+                    tc.saveInitialState();
+                }
             }
         }
 
@@ -459,14 +478,27 @@ void ImGuiLayer::showInspector() {
                     if (tag.find("Floor") != std::string::npos || tag.find("Plane") != std::string::npos) {
                         rb.type = BodyType::Static; // Sol statique par défaut
                         auto& box = m_selectedEntity.get<BoxColliderComponent>();
-                        box.halfExtents = {10.0f, 0.1f, 10.0f}; // Taille par défaut pour le sol
+                        // On utilise un collider très fin pour que le haut du sol (Y=0.005) 
+                        // soit presque confondu avec le visuel (Y=0).
+                        box.halfExtents = {10.0f, 0.005f, 10.0f}; 
                     }
                 } else if (tag.find("Sphere") != std::string::npos) {
                     m_selectedEntity.add<SphereColliderComponent>();
-                } else if (m_selectedEntity.has<MeshComponent>()) {
+                } else if (m_selectedEntity.has<MeshComponent>() || m_selectedEntity.has<ModelComponent>()) {
                     // Pour les meshs arbitraires
                     m_selectedEntity.add<MeshColliderComponent>();
-                    m_selectedEntity.get<MeshColliderComponent>().mesh = m_selectedEntity.get<MeshComponent>().mesh;
+                    auto& mc = m_selectedEntity.get<MeshColliderComponent>();
+                    if (m_selectedEntity.has<MeshComponent>()) {
+                        auto& meshComp = m_selectedEntity.get<MeshComponent>();
+                        mc.mesh = meshComp.mesh;
+                        mc.assetPath = meshComp.assetPath;
+                    } else {
+                        auto& modelComp = m_selectedEntity.get<ModelComponent>();
+                        if (modelComp.model && !modelComp.model->getMeshes().empty()) {
+                            mc.mesh = modelComp.model->getMeshes()[0];
+                            mc.assetPath = modelComp.assetPath;
+                        }
+                    }
                     rb.type = BodyType::Static; // Mesh collider est souvent statique (pour le décor)
                 }
             }
@@ -482,7 +514,14 @@ void ImGuiLayer::showInspector() {
                     std::string path = selection[0];
                     if (m_selectedEntity.has<MeshComponent>()) m_selectedEntity.remove<MeshComponent>();
                     if (m_selectedEntity.has<ModelComponent>()) m_selectedEntity.remove<ModelComponent>();
+                    
                     auto model = Engine::Get().assets().load<Model>(path);
+                    
+                    // Centrage automatique : On centre les maillages et on déplace l'entité
+                    // Cela permet d'avoir l'origine physique au centre visuel de l'objet.
+                    glm::vec3 center = model->normalize(model->getBounds().size());
+                    m_selectedEntity.get<TransformComponent>().translation += center;
+
                     m_selectedEntity.add<ModelComponent>(model, path);
                 } catch (const std::exception& e) {
                     BB_CORE_ERROR("Editor: Failed to load asset: {}", e.what());
@@ -493,7 +532,70 @@ void ImGuiLayer::showInspector() {
         ImGui::TextDisabled("No entity selected in hierarchy.");
     }
 
+        ImGui::End();
+
+    }
+
+    
+
+    void ImGuiLayer::showMainMenu() {
+        if (ImGui::BeginMainMenuBar()) {
+            if (ImGui::BeginMenu("File")) {
+                auto& engine = Engine::Get();
+                if (ImGui::MenuItem(ICON_FA_FLOPPY_DISK " Save Scene", "Ctrl+S")) {
+                    auto res = pfd::save_file("Save Scene", "scene.json", { "Scene Files", "*.json" }).result();
+                    if (!res.empty()) {
+                        engine.exportScene(res);
+                    }
+                }
+                if (ImGui::MenuItem(ICON_FA_FOLDER_OPEN " Load Scene", "Ctrl+O")) {
+                    auto res = pfd::open_file("Load Scene", ".", { "Scene Files", "*.json" }).result();
+                    if (!res.empty()) {
+                        engine.importScene(res[0]);
+                    }
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem(ICON_FA_XMARK " Exit", "Alt+F4")) {
+                    engine.Stop();
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMainMenuBar();
+        }
+    }
+    
+void ImGuiLayer::showToolbar() {
+    ImGuiViewport* viewport = ImGui::GetMainViewport();
+    // Toolbar initial position below main menu bar
+    ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x + (viewport->Size.x - 200) * 0.5f, viewport->Pos.y + 30), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(200, 40), ImGuiCond_FirstUseEver);
+    
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | 
+                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | 
+                             ImGuiWindowFlags_NoNav;
+
+    if (ImGui::Begin("Toolbar", nullptr, flags)) {
+        auto& engine = Engine::Get();
+        bool paused = engine.isPhysicsPaused();
+
+        if (paused) {
+            if (ImGui::Button(ICON_FA_PLAY " Play")) {
+                engine.setPhysicsPaused(false);
+            }
+        } else {
+            if (ImGui::Button(ICON_FA_PAUSE " Pause")) {
+                engine.setPhysicsPaused(true);
+            }
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button(ICON_FA_ARROW_ROTATE_LEFT " Reset Scene")) {
+            engine.resetScene();
+            engine.setPhysicsPaused(true);
+        }
+    }
     ImGui::End();
 }
-
-} // namespace bb3d
+    
+    } // namespace bb3d
+        

@@ -45,7 +45,7 @@ void Buffer::upload(const void* data, vk::DeviceSize size, vk::DeviceSize offset
 }
 
 Scope<Buffer> Buffer::CreateVertexBuffer(VulkanContext& context, const void* data, vk::DeviceSize size) {
-    // 1. RÃ©server dans le Staging Buffer central
+    // 1. Réserver dans le Staging Buffer central
     auto stagingAlloc = context.getStagingBuffer().allocate(size);
     std::memcpy(stagingAlloc.mappedData, data, static_cast<size_t>(size));
 

@@ -38,8 +38,9 @@ public:
      * @brief Modifie les coordonnées des sommets pour que le modèle soit centré 
      * et tienne dans un cube de dimensions spécifiées.
      * @param targetSize Taille de destination (ex: glm::vec3(1.0f) pour tenir dans 1m cube).
+     * @return Le décalage du centre appliqué (pour compenser le transform).
      */
-    void normalize(const glm::vec3& targetSize = glm::vec3(1.0f));
+    glm::vec3 normalize(const glm::vec3& targetSize = glm::vec3(1.0f));
 
     /** @brief Récupère les limites spatiales du modèle. */
     const AABB& getBounds() const { return m_bounds; }
@@ -48,7 +49,7 @@ public:
     Ref<Texture> getTexture(size_t index) const { return index < m_textures.size() ? m_textures[index] : nullptr; }
 
     /** @brief Liste des maillages internes du modèle. */
-    const std::vector<Scope<Mesh>>& getMeshes() const { return m_meshes; }
+    const std::vector<Ref<Mesh>>& getMeshes() const { return m_meshes; }
 
     /** @brief Libère la RAM pour tous les maillages de ce modèle. */
     void releaseCPUData() {
@@ -61,7 +62,7 @@ private:
 
     VulkanContext& m_context;
     ResourceManager& m_resourceManager;
-    std::vector<Scope<Mesh>> m_meshes;
+    std::vector<Ref<Mesh>> m_meshes;
     std::vector<Ref<Texture>> m_textures;
     AABB m_bounds;
 };

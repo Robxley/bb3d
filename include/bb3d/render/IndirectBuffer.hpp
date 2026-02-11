@@ -4,7 +4,7 @@
 namespace bb3d {
 
 /**
- * @brief Buffer spÃ©cialisÃ© pour stocker des commandes de dessin indirect (Indirect Draw Commands).
+ * @brief Buffer spécialisé pour stocker des commandes de dessin indirect (Indirect Draw Commands).
  */
 class IndirectBuffer : public Buffer {
 public:

@@ -26,6 +26,8 @@ View<OrbitControllerComponent> Scene::createOrbitCamera(const std::string& name,
     // 1. Camera (Optique)
     auto camera = CreateRef<Camera>(fov, aspect, 0.1f, 1000.0f);
     entity.add<CameraComponent>(camera);
+    auto& cc = entity.get<CameraComponent>();
+    cc.fov = fov; cc.aspect = aspect; cc.nearPlane = 0.1f; cc.farPlane = 1000.0f;
 
     // 2. Controller (Logique)
     entity.add<OrbitControllerComponent>();
@@ -43,6 +45,8 @@ View<FPSControllerComponent> Scene::createFPSCamera(const std::string& name, flo
     // 1. Camera (Optique)
     auto camera = CreateRef<Camera>(fov, aspect, 0.1f, 1000.0f);
     entity.add<CameraComponent>(camera);
+    auto& cc = entity.get<CameraComponent>();
+    cc.fov = fov; cc.aspect = aspect; cc.nearPlane = 0.1f; cc.farPlane = 1000.0f;
 
     // 2. Controller (Logique)
     entity.add<FPSControllerComponent>();
@@ -116,6 +120,7 @@ View<SkySphereComponent> Scene::createSkySphere(const std::string& name, const s
         entity.add<SkySphereComponent>();
         auto& comp = entity.get<SkySphereComponent>();
         comp.texture = texture;
+        comp.assetPath = texturePath;
     } catch (const std::exception& e) {
         BB_CORE_ERROR("Scene: Failed to load skysphere texture '{0}': {1}", texturePath, e.what());
         destroyEntity(entity);
@@ -227,5 +232,15 @@ void Scene::onUpdate(float deltaTime) {
         }
     }
 }
+
+void Scene::clear() {
+
+    m_registry.clear();
+
+    BB_CORE_INFO("Scene: All entities destroyed.");
+
+}
+
+
 
 } // namespace bb3d

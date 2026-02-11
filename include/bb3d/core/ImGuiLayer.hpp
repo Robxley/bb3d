@@ -64,10 +64,10 @@ public:
     ImFont* getFontNoto() { return m_fontNoto; }
     /** @} */
 
-    /** 
-     * @brief Affiche le panneau de hiérarchie de la scène.
-     * @param scene La scène à inspecter.
-     */
+    /** @brief Affiche la barre de menu principale (Fichier, Édition, etc.). */
+    void showMainMenu();
+
+    /** @brief Affiche la hiérarchie de la scène. */
     void showSceneHierarchy(class Scene& scene);
     
     /** @brief Affiche le panneau de configuration de la scène (vue, debug, etc.). */
@@ -75,6 +75,9 @@ public:
     
     /** @brief Affiche l'inspecteur de l'entité sélectionnée. */
     void showInspector();
+
+    /** @brief Affiche la barre d'outils (Play/Pause, Reset). */
+    void showToolbar();
 
     /** @name Gestion de la Sélection
      * @{

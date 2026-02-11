@@ -70,8 +70,8 @@ void Model::draw(vk::CommandBuffer commandBuffer) {
     }
 }
 
-void Model::normalize(const glm::vec3& targetSize) {
-    if (m_meshes.empty()) return;
+glm::vec3 Model::normalize(const glm::vec3& targetSize) {
+    if (m_meshes.empty()) return glm::vec3(0.0f);
 
     AABB globalBounds;
     for (const auto& mesh : m_meshes) globalBounds.extend(mesh->getBounds());
@@ -94,6 +94,8 @@ void Model::normalize(const glm::vec3& targetSize) {
     m_bounds = AABB();
     for (const auto& mesh : m_meshes) m_bounds.extend(mesh->getBounds());
     BB_CORE_INFO("Model: Normalized (Scale: {}, Center Offset: {}, {}, {})", scale, center.x, center.y, center.z);
+    
+    return center;
 }
 
 void Model::loadOBJ(std::string_view path) {
@@ -152,7 +154,7 @@ void Model::loadOBJ(std::string_view path) {
             indices.push_back(uniqueVertices[vertex]);
         }
 
-        auto mesh = CreateScope<Mesh>(m_context, vertices, indices);
+        auto mesh = CreateRef<Mesh>(m_context, vertices, indices);
         
         if (!shape.mesh.material_ids.empty() && shape.mesh.material_ids[0] >= 0) {
             size_t matId = static_cast<size_t>(shape.mesh.material_ids[0]);
@@ -232,9 +234,8 @@ void Model::loadGLTF(std::string_view path) {
                 fastgltf::iterateAccessorWithIndex<glm::vec2>(gltf, gltf.accessors[uvAttr->accessorIndex], [&](glm::vec2 uv, size_t i) { vertices[i].uv = uv; });
             }
 
-            auto newMesh = CreateScope<Mesh>(m_context, vertices, indices);
-            
-            if (primitive.materialIndex.has_value()) {
+                            auto newMesh = CreateRef<Mesh>(m_context, vertices, indices);
+                        if (primitive.materialIndex.has_value()) {
                 const auto& material = gltf.materials[primitive.materialIndex.value()];
                 auto pbrMat = CreateRef<PBRMaterial>(m_context);
                 PBRParameters params;

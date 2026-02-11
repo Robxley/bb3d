@@ -88,7 +88,7 @@ int main() {
     cubeMesh->setMaterial(physMat);
     sphereMesh->setMaterial(physMat);
 
-    // 3 Cubes qui tombent automatiquement au dÃ©but
+    // 3 Cubes qui tombent automatiquement au début
     for (int i = 0; i < 3; ++i) {
         auto ent = scene->createEntity("AutoFallingCube");
         ent.at({(float)i * 2.0f - 2.0f, 25.0f, 5.0f});

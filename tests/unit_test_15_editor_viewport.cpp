@@ -56,11 +56,13 @@ int main() {
             auto& editor = engine->editor();
             editor.beginFrame();
 
+            editor.showMainMenu();
             ImGui::DockSpaceOverViewport(0, ImGui::GetMainViewport());
 
             editor.showSceneHierarchy(*engine->GetActiveScene());
             editor.showSceneSettings(*engine->GetActiveScene());
             editor.showInspector();
+            editor.showToolbar();
 
             // --- VIEWPORT WINDOW ---
             ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0)); 
@@ -127,30 +129,33 @@ int main() {
 
             if (engine->input().isKeyJustPressed(Key::C)) {
                 isOrbit = !isOrbit;
-                auto view = scene->getRegistry().view<CameraComponent>();
-                for (auto entity : view) {
-                    Entity e(entity, *scene);
-                    if (isOrbit) {
-                        e.remove<FPSControllerComponent>();
-                        e.add<OrbitControllerComponent>();
-                        auto& orbit = e.get<OrbitControllerComponent>();
-                        orbit.target = glm::vec3(0, 0, 0);
-                        orbit.distance = 15.0f;
-                        orbit.pitch = 45.0f; // Angle plus prononcé
-                        orbit.yaw = 45.0f;
-                        BB_CORE_INFO("Switched to Orbit Camera");
-                    } else {
-                        e.remove<OrbitControllerComponent>();
-                        e.add<FPSControllerComponent>();
-                        e.get<TransformComponent>().translation = glm::vec3(0, 2, 8);
-                        BB_CORE_INFO("Switched to FPS Camera");
+                auto activeScene = engine->GetActiveScene();
+                if (activeScene) {
+                    auto view = activeScene->getRegistry().view<CameraComponent>();
+                    for (auto entity : view) {
+                        Entity e(entity, *activeScene);
+                        if (isOrbit) {
+                            e.remove<FPSControllerComponent>();
+                            e.add<OrbitControllerComponent>();
+                            auto& orbit = e.get<OrbitControllerComponent>();
+                            orbit.target = glm::vec3(0, 0, 0);
+                            orbit.distance = 15.0f;
+                            orbit.pitch = 45.0f; // Angle plus prononcé
+                            orbit.yaw = 45.0f;
+                            BB_CORE_INFO("Switched to Orbit Camera");
+                        } else {
+                            e.remove<OrbitControllerComponent>();
+                            e.add<FPSControllerComponent>();
+                            e.get<TransformComponent>().translation = glm::vec3(0, 2, 8);
+                            BB_CORE_INFO("Switched to FPS Camera");
+                        }
                     }
                 }
             }
 
             // --- UPDATE LOGIC ---
             if (engine->GetActiveScene()) {
-                if (engine->GetPhysicsWorld()) {
+                if (engine->GetPhysicsWorld() && !engine->isPhysicsPaused()) {
                     engine->GetPhysicsWorld()->update(deltaTime, *engine->GetActiveScene());
                 }
                 

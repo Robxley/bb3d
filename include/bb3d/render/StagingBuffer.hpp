@@ -9,9 +9,9 @@ namespace bb3d {
 class VulkanContext; // Forward declaration
 
 /**
- * @brief GÃ¨re un buffer de staging persistant pour optimiser les transferts CPU -> GPU.
+ * @brief Gère un buffer de staging persistant pour optimiser les transferts CPU -> GPU.
  * 
- * Utilise un buffer circulaire pour Ã©viter les rÃ©allocations et permet de batcher
+ * Utilise un buffer circulaire pour éviter les réallocations et permet de batcher
  * les commandes de transfert.
  */
 class StagingBuffer {
@@ -19,7 +19,7 @@ public:
     StagingBuffer(VulkanContext& context, vk::DeviceSize size = 64 * 1024 * 1024);
     ~StagingBuffer();
 
-    /** @brief RÃ©serve une zone dans le buffer de staging. */
+    /** @brief Réserve une zone dans le buffer de staging. */
     struct Allocation {
         vk::Buffer buffer;
         vk::DeviceSize offset;
@@ -28,7 +28,7 @@ public:
 
     Allocation allocate(vk::DeviceSize size);
 
-    /** @brief Soumet une commande de transfert immÃ©diate (bloquante pour l'instant, mais rÃ©utilisable). */
+    /** @brief Soumet une commande de transfert immédiate (bloquante pour l'instant, mais réutilisable). */
     void submitCopy(const std::function<void(vk::CommandBuffer, vk::Buffer stagingBuffer, vk::DeviceSize offset)>& copyFunc);
 
 private:

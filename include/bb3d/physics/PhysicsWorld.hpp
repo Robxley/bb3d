@@ -46,6 +46,15 @@ namespace bb3d {
         /** @brief Copie les positions de Jolt vers les TransformComponents de la scène. */
         void syncTransforms(Scene& scene);
 
+        /** @brief Met à jour la position/rotation d'un corps Jolt depuis son TransformComponent (Utile pour l'éditeur). */
+        void updateBodyTransform(Entity entity);
+
+        /** @brief Réinitialise les forces et vitesses d'un corps physique. */
+        void resetBody(Entity entity);
+
+        /** @brief Réinitialise tous les corps physiques de la scène. */
+        void resetAllBodies(Scene& scene);
+
         /** 
          * @brief Crée un corps physique Jolt pour une entité possédant un RigidBodyComponent. 
          * @warning Pour les MeshColliders, cette méthode doit être appelée AVANT Mesh::releaseCPUData().

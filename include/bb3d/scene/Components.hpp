@@ -79,9 +79,28 @@ struct TransformComponent {
     glm::vec3 rotation = { 0.0f, 0.0f, 0.0f }; ///< Angles d'Euler en radians (X:Pitch, Y:Yaw, Z:Roll).
     glm::vec3 scale = { 1.0f, 1.0f, 1.0f };
 
+    // État d'initialisation pour le reset de scène
+    glm::vec3 initialTranslation = { 0.0f, 0.0f, 0.0f };
+    glm::vec3 initialRotation = { 0.0f, 0.0f, 0.0f };
+    glm::vec3 initialScale = { 1.0f, 1.0f, 1.0f };
+
     TransformComponent() = default;
     TransformComponent(const glm::vec3& t, const glm::vec3& r = {0,0,0}, const glm::vec3& s = {1,1,1}) 
-        : translation(t), rotation(r), scale(s) {}
+        : translation(t), rotation(r), scale(s), initialTranslation(t), initialRotation(r), initialScale(s) {}
+
+    /** @brief Sauvegarde l'état actuel comme état d'initialisation. */
+    void saveInitialState() {
+        initialTranslation = translation;
+        initialRotation = rotation;
+        initialScale = scale;
+    }
+
+    /** @brief Restaure l'état à partir de la sauvegarde d'initialisation. */
+    void resetToInitial() {
+        translation = initialTranslation;
+        rotation = initialRotation;
+        scale = initialScale;
+    }
 
     /** @brief Calcule la matrice de transformation 4x4 (Model Matrix). */
     [[nodiscard]] inline glm::mat4 getTransform() const {
@@ -101,12 +120,21 @@ struct TransformComponent {
         j["translation"] = translation;
         j["rotation"] = rotation;
         j["scale"] = scale;
+        j["initialTranslation"] = initialTranslation;
+        j["initialRotation"] = initialRotation;
+        j["initialScale"] = initialScale;
     }
 
     void deserialize(const json& j) {
         if (j.contains("translation")) j.at("translation").get_to(translation);
         if (j.contains("rotation")) j.at("rotation").get_to(rotation);
         if (j.contains("scale")) j.at("scale").get_to(scale);
+        if (j.contains("initialTranslation")) j.at("initialTranslation").get_to(initialTranslation);
+        else initialTranslation = translation;
+        if (j.contains("initialRotation")) j.at("initialRotation").get_to(initialRotation);
+        else initialRotation = rotation;
+        if (j.contains("initialScale")) j.at("initialScale").get_to(initialScale);
+        else initialScale = scale;
     }
 };
 
@@ -157,23 +185,30 @@ struct ModelComponent {
 struct CameraComponent {
     Ref<Camera> camera;
     bool active = true;
+    float fov = 45.0f;
+    float aspect = 1.77f;
+    float nearPlane = 0.1f;
+    float farPlane = 1000.0f;
 
     CameraComponent() = default;
-    CameraComponent(Ref<Camera> c) : camera(c) {}
+    CameraComponent(Ref<Camera> c) : camera(c) {
+        // Idéalement on récupèrerait les valeurs de l'objet camera ici
+    }
 
     void serialize(json& j) const {
         j["active"] = active;
-        if (camera) {
-            // On sauvegarde juste les propriétés optiques de base si besoin
-            // Pour l'instant, on suppose que le type de contrôleur gère la "logique"
-            // et que la CameraComponent est juste le "rendu".
-        }
+        j["fov"] = fov;
+        j["aspect"] = aspect;
+        j["nearPlane"] = nearPlane;
+        j["farPlane"] = farPlane;
     }
 
     void deserialize(const json& j) {
         if (j.contains("active")) j.at("active").get_to(active);
-        // Note: La création de la caméra (Perspective/Ortho) doit être gérée lors de l'ajout du composant
-        // ou via un système de sérialisation plus complet de la classe Camera elle-même.
+        if (j.contains("fov")) j.at("fov").get_to(fov);
+        if (j.contains("aspect")) j.at("aspect").get_to(aspect);
+        if (j.contains("nearPlane")) j.at("nearPlane").get_to(nearPlane);
+        if (j.contains("farPlane")) j.at("farPlane").get_to(farPlane);
     }
 };
 
@@ -312,8 +347,13 @@ struct CapsuleColliderComponent {
 struct MeshColliderComponent {
     Ref<Mesh> mesh;
     bool convex = false;
-    void serialize(json&) const {}
-    void deserialize(const json&) {}
+    std::string assetPath; // Chemin du mesh utilisé comme collider
+
+    void serialize(json& j) const { j["convex"] = convex; j["assetPath"] = assetPath; }
+    void deserialize(const json& j) { 
+        if (j.contains("convex")) j.at("convex").get_to(convex);
+        if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath);
+    }
 };
 
 struct CharacterControllerComponent {
@@ -400,15 +440,17 @@ struct ParticleSystemComponent {
 /** @brief Composant Skybox (Cubemap). */
 struct SkyboxComponent {
     Ref<Texture> cubemap;
-    void serialize(json&) const {}
-    void deserialize(const json&) {}
+    std::string assetPath;
+    void serialize(json& j) const { j["assetPath"] = assetPath; }
+    void deserialize(const json& j) { if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath); }
 };
 
 /** @brief Composant SkySphere (Texture 2D équirectangulaire). */
 struct SkySphereComponent {
     Ref<Texture> texture;
-    void serialize(json&) const {}
-    void deserialize(const json&) {}
+    std::string assetPath;
+    void serialize(json& j) const { j["assetPath"] = assetPath; }
+    void deserialize(const json& j) { if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath); }
 };
 
 /** @brief Composant pour attacher un comportement (script C++) à une entité. */

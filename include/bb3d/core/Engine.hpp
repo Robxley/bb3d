@@ -121,6 +121,14 @@ public:
     void exportScene(const std::string& filepath);
     void importScene(const std::string& filepath);
 
+    /** @brief Met en pause ou relance la simulation physique. */
+    void setPhysicsPaused(bool paused);
+    /** @brief Indique si la simulation physique est en pause. */
+    bool isPhysicsPaused() const { return m_PhysicsPaused; }
+
+    /** @brief Réinitialise la scène actuelle (position des objets, physique). */
+    void resetScene();
+
 private:
     void Init();
     void Update(float deltaTime);
@@ -144,5 +152,6 @@ private:
     Ref<Scene> m_ActiveScene;
 
     bool m_Running = false;
+    bool m_PhysicsPaused = false;
 };
 } // namespace bb3d

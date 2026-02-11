@@ -80,6 +80,9 @@ public:
     /** @brief Supprime une entité et ses composants du registre. */
     void destroyEntity(Entity entity);
 
+    /** @brief Supprime toutes les entités de la scène. */
+    void clear();
+
     /** @brief Accès direct au registre EnTT (pour les systèmes internes avancés). */
     [[nodiscard]] inline entt::registry& getRegistry() { return m_registry; }
 

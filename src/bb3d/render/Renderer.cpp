@@ -169,6 +169,7 @@ Ref<Material> Renderer::getMaterialForTexture(Ref<Texture> texture) {
 }
 
 void Renderer::renderUI(const std::function<void(vk::CommandBuffer)>& func) {
+    if (!m_frameStarted) return;
     auto& cb = m_commandBuffers[m_currentFrame];
     uint32_t imageIndex = m_swapChain->getCurrentImageIndex();
     vk::ImageView view = m_swapChain->getImageViews()[imageIndex];
@@ -202,6 +203,7 @@ void Renderer::onResize(int width, int height) {
 
 void Renderer::render(Scene& scene) {
     if (m_window.GetWidth() == 0 || m_window.GetHeight() == 0) return;
+    m_frameStarted = false;
     auto dev = m_context.getDevice();
     (void)dev.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
 
@@ -237,6 +239,7 @@ void Renderer::render(Scene& scene) {
 
     auto& cb = m_commandBuffers[m_currentFrame];
     cb.reset({}); cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+    m_frameStarted = true;
 
     if (m_config.graphics.enableOffscreenRendering) {
         vk::Image rtImage = m_renderTarget->getColorImage();
@@ -265,6 +268,8 @@ void Renderer::render(Scene& scene) {
 }
 
 void Renderer::submitAndPresent() {
+    if (!m_frameStarted) return;
+    m_frameStarted = false;
     auto& cb = m_commandBuffers[m_currentFrame];
     uint32_t imageIndex = m_swapChain->getCurrentImageIndex();
     vk::Image swImage = m_swapChain->getImage(imageIndex);
@@ -294,27 +299,76 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
     cb.setScissor(0, vk::Rect2D({0, 0}, extent));
     renderSkybox(cb, scene);
     m_renderCommands.clear();
+
+    // 1. Collect Entities
+    std::vector<entt::entity> meshEntities;
     auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
-    for (auto entity : meshView) {
-        auto& meshComp = meshView.get<MeshComponent>(entity); 
-        if (!meshComp.mesh || !meshComp.visible) continue;
-        glm::mat4 transform = meshView.get<TransformComponent>(entity).getTransform();
-        if (m_config.graphics.enableFrustumCulling) { AABB worldBox = meshComp.mesh->getBounds().transform(transform); if (!m_frustum.intersects(worldBox)) continue; }
-        Material* mat = meshComp.mesh->getMaterial().get(); if (!mat) mat = m_fallbackMaterial.get();
-        m_renderCommands.push_back({ mat->getType(), mat, meshComp.mesh.get(), transform });
-    }
+    meshEntities.assign(meshView.begin(), meshView.end());
+
+    std::vector<entt::entity> modelEntities;
     auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
-    for (auto entity : modelView) {
-        auto& modelComp = modelView.get<ModelComponent>(entity); 
-        if (!modelComp.model || !modelComp.visible) continue;
-        glm::mat4 transform = modelView.get<TransformComponent>(entity).getTransform();
-        if (m_config.graphics.enableFrustumCulling) { AABB worldBox = modelComp.model->getBounds().transform(transform); if (!m_frustum.intersects(worldBox)) continue; }
-        for (const auto& mesh : modelComp.model->getMeshes()) {
-            Material* mat = mesh->getMaterial().get(); if (!mat) { Ref<Texture> tex = mesh->getTexture(); mat = tex ? getMaterialForTexture(tex).get() : nullptr; }
-            if (!mat) mat = m_fallbackMaterial.get();
-            m_renderCommands.push_back({ mat->getType(), mat, mesh.get(), transform });
-        }
+    modelEntities.assign(modelView.begin(), modelView.end());
+
+    // 2. Parallel Culling for Meshes
+    if (!meshEntities.empty()) {
+        m_jobSystem.dispatch((uint32_t)meshEntities.size(), 64, [&](uint32_t index, uint32_t count) {
+            std::vector<RenderCommand> localCommands;
+            for (uint32_t i = index; i < index + count; ++i) {
+                entt::entity entity = meshEntities[i];
+                auto& meshComp = meshView.get<MeshComponent>(entity);
+                if (!meshComp.mesh || !meshComp.visible) continue;
+
+                glm::mat4 transform = meshView.get<TransformComponent>(entity).getTransform();
+                if (m_config.graphics.enableFrustumCulling) {
+                    AABB worldBox = meshComp.mesh->getBounds().transform(transform);
+                    if (!m_frustum.intersects(worldBox)) continue;
+                }
+
+                Material* mat = meshComp.mesh->getMaterial().get();
+                if (!mat) mat = m_fallbackMaterial.get();
+                localCommands.push_back({ mat->getType(), mat, meshComp.mesh.get(), transform });
+            }
+
+            if (!localCommands.empty()) {
+                std::lock_guard<std::mutex> lock(m_commandMutex);
+                m_renderCommands.insert(m_renderCommands.end(), localCommands.begin(), localCommands.end());
+            }
+        });
     }
+
+    // 3. Parallel Culling for Models
+    if (!modelEntities.empty()) {
+        m_jobSystem.dispatch((uint32_t)modelEntities.size(), 32, [&](uint32_t index, uint32_t count) {
+            std::vector<RenderCommand> localCommands;
+            for (uint32_t i = index; i < index + count; ++i) {
+                entt::entity entity = modelEntities[i];
+                auto& modelComp = modelView.get<ModelComponent>(entity);
+                if (!modelComp.model || !modelComp.visible) continue;
+
+                glm::mat4 transform = modelView.get<TransformComponent>(entity).getTransform();
+                if (m_config.graphics.enableFrustumCulling) {
+                    AABB worldBox = modelComp.model->getBounds().transform(transform);
+                    if (!m_frustum.intersects(worldBox)) continue;
+                }
+
+                for (const auto& mesh : modelComp.model->getMeshes()) {
+                    Material* mat = mesh->getMaterial().get();
+                    if (!mat) {
+                        Ref<Texture> tex = mesh->getTexture();
+                        mat = tex ? getMaterialForTexture(tex).get() : nullptr;
+                    }
+                    if (!mat) mat = m_fallbackMaterial.get();
+                    localCommands.push_back({ mat->getType(), mat, mesh.get(), transform });
+                }
+            }
+
+            if (!localCommands.empty()) {
+                std::lock_guard<std::mutex> lock(m_commandMutex);
+                m_renderCommands.insert(m_renderCommands.end(), localCommands.begin(), localCommands.end());
+            }
+        });
+    }
+
     std::sort(m_renderCommands.begin(), m_renderCommands.end());
     GraphicsPipeline* lastPipeline = nullptr; Material* lastMaterial = nullptr; Mesh* lastMesh = nullptr;
     m_instanceTransforms.clear();
