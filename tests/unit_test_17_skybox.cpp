@@ -52,7 +52,7 @@ int main() {
 
     scene->createEntity("RedSphere")
         .at({0, 0, 0})
-        .add<bb3d::MeshComponent>(sphereMesh);
+        .add<bb3d::MeshComponent>(sphereMesh, "", bb3d::PrimitiveType::Sphere);
 
     // 3. Lumière
     scene->createEntity("Sun").add<bb3d::LightComponent>(bb3d::LightType::Directional, glm::vec3(1,1,1), 10.0f);

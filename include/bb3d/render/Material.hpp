@@ -49,8 +49,14 @@ public:
     /** @brief Libère les ressources statiques (textures par défaut). */
     static void Cleanup(); 
 
+    /** @brief Définit l'index de la frame actuelle pour le buffering des descripteurs. */
+    static void SetCurrentFrame(uint32_t frame) { s_currentFrame = frame; }
+
 protected:
     VulkanContext& m_context;
+    static inline uint32_t s_currentFrame = 0;
+    static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 3;
+
     // Textures de fallback partagées pour éviter les erreurs si une map est manquante.
     static Ref<Texture> s_defaultWhite;
     static Ref<Texture> s_defaultBlack;
@@ -71,21 +77,21 @@ public:
     MaterialType getType() const override { return MaterialType::PBR; }
 
     /** @brief Définit la texture de couleur (Albedo). */
-    void setAlbedoMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultWhite; if (m_albedoMap != t) { m_albedoMap = t; m_dirty = true; } }
+    void setAlbedoMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultWhite; if (m_albedoMap != t) { m_albedoMap = t; m_dirty.fill(true); } }
     
     /** @brief Définit la texture de normales. */
-    void setNormalMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultNormal; if (m_normalMap != t) { m_normalMap = t; m_dirty = true; } }
+    void setNormalMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultNormal; if (m_normalMap != t) { m_normalMap = t; m_dirty.fill(true); } }
     
     /** @brief Définit la texture ORM (R: Occlusion, G: Roughness, B: Metallic). */
-    void setORMMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultWhite; if (m_ormMap != t) { m_ormMap = t; m_dirty = true; } }
+    void setORMMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultWhite; if (m_ormMap != t) { m_ormMap = t; m_dirty.fill(true); } }
     
-    void setEmissiveMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultBlack; if (m_emissiveMap != t) { m_emissiveMap = t; m_dirty = true; } }
+    void setEmissiveMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultBlack; if (m_emissiveMap != t) { m_emissiveMap = t; m_dirty.fill(true); } }
     
     /** @brief Définit les facteurs scalaires PBR. */
-    void setParameters(const PBRParameters& params) { m_parameters = params; m_dirty = true; }
+    void setParameters(const PBRParameters& params) { m_parameters = params; m_dirty.fill(true); }
     [[nodiscard]] const PBRParameters& getParameters() const { return m_parameters; }
 
-    void setColor(const glm::vec3& color) { m_parameters.baseColorFactor = glm::vec4(color, 1.0f); m_dirty = true; }
+    void setColor(const glm::vec3& color) { m_parameters.baseColorFactor = glm::vec4(color, 1.0f); m_dirty.fill(true); }
     [[nodiscard]] glm::vec3 getColor() const { return glm::vec3(m_parameters.baseColorFactor); }
     
     vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
@@ -94,12 +100,12 @@ public:
     static vk::DescriptorSetLayout CreateLayout(vk::Device device);
 
 private:
-    void updateDescriptorSet();
+    void updateDescriptorSet(uint32_t frame);
     Ref<Texture> m_albedoMap, m_normalMap, m_ormMap, m_emissiveMap;
     PBRParameters m_parameters;
     Scope<UniformBuffer> m_paramBuffer; ///< Buffer CPU->GPU pour les facteurs scalaires.
-    vk::DescriptorSet m_set = nullptr;
-    bool m_dirty = true;
+    std::array<vk::DescriptorSet, MAX_FRAMES_IN_FLIGHT> m_sets = {nullptr, nullptr, nullptr};
+    std::array<bool, MAX_FRAMES_IN_FLIGHT> m_dirty = {true, true, true};
 };
 
 class UnlitMaterial : public Material {
@@ -107,17 +113,17 @@ public:
     UnlitMaterial(VulkanContext& context);
     ~UnlitMaterial() override;
     MaterialType getType() const override { return MaterialType::Unlit; }
-    void setBaseMap(Ref<Texture> texture) { if (m_baseMap != texture) { m_baseMap = texture; m_dirty = true; } }
-    void setColor(const glm::vec3& color) { m_parameters.color = glm::vec4(color, 1.0f); m_dirty = true; }
+    void setBaseMap(Ref<Texture> texture) { if (m_baseMap != texture) { m_baseMap = texture; m_dirty.fill(true); } }
+    void setColor(const glm::vec3& color) { m_parameters.color = glm::vec4(color, 1.0f); m_dirty.fill(true); }
     vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
     static vk::DescriptorSetLayout CreateLayout(vk::Device device);
 private:
-    void updateDescriptorSet();
+    void updateDescriptorSet(uint32_t frame);
     Ref<Texture> m_baseMap;
     UnlitParameters m_parameters;
     Scope<UniformBuffer> m_paramBuffer;
-    vk::DescriptorSet m_set = nullptr;
-    bool m_dirty = true;
+    std::array<vk::DescriptorSet, MAX_FRAMES_IN_FLIGHT> m_sets = {nullptr, nullptr, nullptr};
+    std::array<bool, MAX_FRAMES_IN_FLIGHT> m_dirty = {true, true, true};
 };
 
 class ToonMaterial : public Material {
@@ -125,16 +131,16 @@ public:
     ToonMaterial(VulkanContext& context);
     ~ToonMaterial() override;
     MaterialType getType() const override { return MaterialType::Toon; }
-    void setBaseMap(Ref<Texture> texture) { if (m_baseMap != texture) { m_baseMap = texture; m_dirty = true; } }
+    void setBaseMap(Ref<Texture> texture) { if (m_baseMap != texture) { m_baseMap = texture; m_dirty.fill(true); } }
     vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
     static vk::DescriptorSetLayout CreateLayout(vk::Device device);
 private:
-    void updateDescriptorSet();
+    void updateDescriptorSet(uint32_t frame);
     Ref<Texture> m_baseMap;
     ToonParameters m_parameters;
     Scope<UniformBuffer> m_paramBuffer;
-    vk::DescriptorSet m_set = nullptr;
-    bool m_dirty = true;
+    std::array<vk::DescriptorSet, MAX_FRAMES_IN_FLIGHT> m_sets = {nullptr, nullptr, nullptr};
+    std::array<bool, MAX_FRAMES_IN_FLIGHT> m_dirty = {true, true, true};
 };
 
 class SkyboxMaterial : public Material {
@@ -142,14 +148,14 @@ public:
     SkyboxMaterial(VulkanContext& context);
     ~SkyboxMaterial() override;
     MaterialType getType() const override { return MaterialType::Skybox; }
-    void setCubemap(Ref<Texture> texture) { if (m_cubemap != texture) { m_cubemap = texture; m_dirty = true; } }
+    void setCubemap(Ref<Texture> texture) { if (m_cubemap != texture) { m_cubemap = texture; m_dirty.fill(true); } }
     vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
     static vk::DescriptorSetLayout CreateLayout(vk::Device device);
 private:
-    void updateDescriptorSet();
+    void updateDescriptorSet(uint32_t frame);
     Ref<Texture> m_cubemap;
-    vk::DescriptorSet m_set = nullptr;
-    bool m_dirty = true;
+    std::array<vk::DescriptorSet, MAX_FRAMES_IN_FLIGHT> m_sets = {nullptr, nullptr, nullptr};
+    std::array<bool, MAX_FRAMES_IN_FLIGHT> m_dirty = {true, true, true};
 };
 
 class SkySphereMaterial : public Material {
@@ -157,14 +163,14 @@ public:
     SkySphereMaterial(VulkanContext& context);
     ~SkySphereMaterial() override;
     MaterialType getType() const override { return MaterialType::SkySphere; }
-    void setTexture(Ref<Texture> texture) { if (m_texture != texture) { m_texture = texture; m_dirty = true; } }
+    void setTexture(Ref<Texture> texture) { if (m_texture != texture) { m_texture = texture; m_dirty.fill(true); } }
     vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
     static vk::DescriptorSetLayout CreateLayout(vk::Device device);
 private:
-    void updateDescriptorSet();
+    void updateDescriptorSet(uint32_t frame);
     Ref<Texture> m_texture;
-    vk::DescriptorSet m_set = nullptr;
-    bool m_dirty = true;
+    std::array<vk::DescriptorSet, MAX_FRAMES_IN_FLIGHT> m_sets = {nullptr, nullptr, nullptr};
+    std::array<bool, MAX_FRAMES_IN_FLIGHT> m_dirty = {true, true, true};
 };
 
 } // namespace bb3d

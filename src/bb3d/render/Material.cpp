@@ -47,11 +47,18 @@ vk::DescriptorSetLayout PBRMaterial::CreateLayout(vk::Device device) {
     return device.createDescriptorSetLayout({ {}, (uint32_t)b.size(), b.data() });
 }
 vk::DescriptorSet PBRMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
-    if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
-    if (m_dirty) { updateDescriptorSet(); m_dirty = false; }
-    return m_set;
+    uint32_t frame = s_currentFrame;
+    if (!m_sets[frame]) { 
+        m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
+        m_dirty[frame] = true; 
+    }
+    if (m_dirty[frame]) { 
+        updateDescriptorSet(frame); 
+        m_dirty[frame] = false; 
+    }
+    return m_sets[frame];
 }
-void PBRMaterial::updateDescriptorSet() {
+void PBRMaterial::updateDescriptorSet(uint32_t frame) {
     m_paramBuffer->update(&m_parameters, sizeof(PBRParameters));
     vk::DescriptorBufferInfo bInfo(m_paramBuffer->getHandle(), 0, sizeof(PBRParameters));
     std::vector<vk::DescriptorImageInfo> iInfos = {
@@ -61,8 +68,8 @@ void PBRMaterial::updateDescriptorSet() {
         {m_emissiveMap->getSampler(), m_emissiveMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal}
     };
     std::vector<vk::WriteDescriptorSet> writes;
-    writes.push_back({ m_set, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo });
-    for(int i=0; i<4; ++i) writes.push_back({ m_set, (uint32_t)i+1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfos[i] });
+    writes.push_back({ m_sets[frame], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo });
+    for(int i=0; i<4; ++i) writes.push_back({ m_sets[frame], (uint32_t)i+1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfos[i] });
     m_context.getDevice().updateDescriptorSets(writes, {});
 }
 
@@ -80,17 +87,21 @@ vk::DescriptorSetLayout UnlitMaterial::CreateLayout(vk::Device device) {
     return device.createDescriptorSetLayout({ {}, (uint32_t)b.size(), b.data() });
 }
 vk::DescriptorSet UnlitMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
-    if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
-    if (m_dirty) { updateDescriptorSet(); m_dirty = false; }
-    return m_set;
+    uint32_t frame = s_currentFrame;
+    if (!m_sets[frame]) { 
+        m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
+        m_dirty[frame] = true; 
+    }
+    if (m_dirty[frame]) { updateDescriptorSet(frame); m_dirty[frame] = false; }
+    return m_sets[frame];
 }
-void UnlitMaterial::updateDescriptorSet() {
+void UnlitMaterial::updateDescriptorSet(uint32_t frame) {
     m_paramBuffer->update(&m_parameters, sizeof(UnlitParameters));
     vk::DescriptorBufferInfo bInfo(m_paramBuffer->getHandle(), 0, sizeof(UnlitParameters));
     vk::DescriptorImageInfo iInfo(m_baseMap->getSampler(), m_baseMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
     std::vector<vk::WriteDescriptorSet> writes = {
-        { m_set, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo },
-        { m_set, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfo }
+        { m_sets[frame], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo },
+        { m_sets[frame], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfo }
     };
     m_context.getDevice().updateDescriptorSets(writes, {});
 }
@@ -109,17 +120,21 @@ vk::DescriptorSetLayout ToonMaterial::CreateLayout(vk::Device device) {
     return device.createDescriptorSetLayout({ {}, (uint32_t)b.size(), b.data() });
 }
 vk::DescriptorSet ToonMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
-    if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
-    if (m_dirty) { updateDescriptorSet(); m_dirty = false; }
-    return m_set;
+    uint32_t frame = s_currentFrame;
+    if (!m_sets[frame]) { 
+        m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
+        m_dirty[frame] = true; 
+    }
+    if (m_dirty[frame]) { updateDescriptorSet(frame); m_dirty[frame] = false; }
+    return m_sets[frame];
 }
-void ToonMaterial::updateDescriptorSet() {
+void ToonMaterial::updateDescriptorSet(uint32_t frame) {
     m_paramBuffer->update(&m_parameters, sizeof(ToonParameters));
     vk::DescriptorBufferInfo bInfo(m_paramBuffer->getHandle(), 0, sizeof(ToonParameters));
     vk::DescriptorImageInfo iInfo(m_baseMap->getSampler(), m_baseMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
     std::vector<vk::WriteDescriptorSet> writes = {
-        { m_set, 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo },
-        { m_set, 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfo }
+        { m_sets[frame], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo },
+        { m_sets[frame], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfo }
     };
     m_context.getDevice().updateDescriptorSets(writes, {});
 }
@@ -132,14 +147,18 @@ vk::DescriptorSetLayout SkyboxMaterial::CreateLayout(vk::Device device) {
     return device.createDescriptorSetLayout({ {}, 1, &b });
 }
 vk::DescriptorSet SkyboxMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
-    if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
-    if (m_dirty) { updateDescriptorSet(); m_dirty = false; }
-    return m_set;
+    uint32_t frame = s_currentFrame;
+    if (!m_sets[frame]) { 
+        m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
+        m_dirty[frame] = true; 
+    }
+    if (m_dirty[frame]) { updateDescriptorSet(frame); m_dirty[frame] = false; }
+    return m_sets[frame];
 }
-void SkyboxMaterial::updateDescriptorSet() {
+void SkyboxMaterial::updateDescriptorSet(uint32_t frame) {
     if (!m_cubemap) return;
     vk::DescriptorImageInfo i(m_cubemap->getSampler(), m_cubemap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-    vk::WriteDescriptorSet w(m_set, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &i);
+    vk::WriteDescriptorSet w(m_sets[frame], 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &i);
     m_context.getDevice().updateDescriptorSets(1, &w, 0, nullptr);
 }
 
@@ -151,13 +170,17 @@ vk::DescriptorSetLayout SkySphereMaterial::CreateLayout(vk::Device device) {
     return device.createDescriptorSetLayout({ {}, 1, &b });
 }
 vk::DescriptorSet SkySphereMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
-    if (!m_set) { m_set = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; m_dirty = true; }
-    if (m_dirty) { updateDescriptorSet(); m_dirty = false; }
-    return m_set;
+    uint32_t frame = s_currentFrame;
+    if (!m_sets[frame]) { 
+        m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
+        m_dirty[frame] = true; 
+    }
+    if (m_dirty[frame]) { updateDescriptorSet(frame); m_dirty[frame] = false; }
+    return m_sets[frame];
 }
-void SkySphereMaterial::updateDescriptorSet() {
+void SkySphereMaterial::updateDescriptorSet(uint32_t frame) {
     vk::DescriptorImageInfo i(m_texture->getSampler(), m_texture->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-    vk::WriteDescriptorSet w(m_set, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &i);
+    vk::WriteDescriptorSet w(m_sets[frame], 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &i);
     m_context.getDevice().updateDescriptorSets(1, &w, 0, nullptr);
 }
 

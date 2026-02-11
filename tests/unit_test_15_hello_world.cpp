@@ -63,7 +63,7 @@ int main() {
     auto cubeMesh = bb3d::Ref<bb3d::Mesh>(bb3d::MeshGenerator::createCube(engine->graphics(), 1.0f, {1, 0, 0}).release());
     scene->createEntity("RedCube")
         .at({0, 0.5f, 0})
-        .add<bb3d::MeshComponent>(cubeMesh);
+        .add<bb3d::MeshComponent>(cubeMesh, "", bb3d::PrimitiveType::Cube);
 
     // La Maison (OBJ) - Normalisée (taille ~1)
     scene->createEntity("House")
@@ -78,7 +78,7 @@ int main() {
     // Le Sol
     auto floorMesh = bb3d::Ref<bb3d::Mesh>(bb3d::MeshGenerator::createCheckerboardPlane(engine->graphics(), 50.0f, 50).release());
     scene->createEntity("Floor")
-        .add<bb3d::MeshComponent>(floorMesh);
+        .add<bb3d::MeshComponent>(floorMesh, "", bb3d::PrimitiveType::Plane);
 
     BB_CORE_INFO("Scène Hello World complétée avec OBJ et GLTF !");
 

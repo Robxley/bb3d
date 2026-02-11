@@ -69,7 +69,7 @@ int main() {
     meshPBR->setMaterial(matPBR);
     scene->createEntity("SpherePBR")
         .at({0, 0, 0})
-        .add<bb3d::MeshComponent>(meshPBR)
+        .add<bb3d::MeshComponent>(meshPBR, "", bb3d::PrimitiveType::Sphere)
         .add<bb3d::NativeScriptComponent>(rotationScript);
 
     // --- 2. Unlit Sphere (Gauche) ---
@@ -80,7 +80,7 @@ int main() {
     meshUnlit->setMaterial(matUnlit);
     scene->createEntity("SphereUnlit")
         .at({-2.5f, 0, 0})
-        .add<bb3d::MeshComponent>(meshUnlit)
+        .add<bb3d::MeshComponent>(meshUnlit, "", bb3d::PrimitiveType::Sphere)
         .add<bb3d::NativeScriptComponent>(rotationScript);
 
     // --- 3. Toon Sphere (Droite) ---
@@ -91,7 +91,7 @@ int main() {
     meshToon->setMaterial(matToon);
     scene->createEntity("SphereToon")
         .at({2.5f, 0, 0})
-        .add<bb3d::MeshComponent>(meshToon)
+        .add<bb3d::MeshComponent>(meshToon, "", bb3d::PrimitiveType::Sphere)
         .add<bb3d::NativeScriptComponent>(rotationScript);
 
     BB_CORE_INFO("Scene Materials Ready: Left=Unlit, Center=PBR, Right=Toon");

@@ -325,6 +325,8 @@ void Engine::Render() {
             });
         }
 #endif
+        // 3. Soumission et Présentation (ENVOI AU GPU)
+        m_Renderer->submitAndPresent();
     }
 }
 

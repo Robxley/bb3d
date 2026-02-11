@@ -30,7 +30,7 @@ int main() {
     auto ground = scene->createEntity("Ground");
     ground.at({0, 0, 0});
     auto groundMesh = Ref<Mesh>(MeshGenerator::createCheckerboardPlane(engine->graphics(), 50.0f, 10).release());
-    ground.add<MeshComponent>(groundMesh);
+    ground.add<MeshComponent>(groundMesh, "", PrimitiveType::Plane);
     
     // Physique du sol
     ground.add<RigidBodyComponent>();
@@ -50,7 +50,7 @@ int main() {
     for (int i = 0; i < 5; ++i) {
         auto cube = scene->createEntity("FallingCube");
         cube.at({0.0f, 10.0f + i * 2.0f, 0.0f});
-        cube.add<MeshComponent>(cubeMesh);
+        cube.add<MeshComponent>(cubeMesh, "", PrimitiveType::Cube);
         
         cube.add<RigidBodyComponent>();
         auto& rb = cube.get<RigidBodyComponent>();

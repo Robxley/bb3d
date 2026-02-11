@@ -203,6 +203,10 @@ void Renderer::onResize(int width, int height) {
 
 void Renderer::render(Scene& scene) {
     if (m_window.GetWidth() == 0 || m_window.GetHeight() == 0) return;
+    
+    // Synchronisation du buffering des descripteurs de matériaux
+    Material::SetCurrentFrame(m_currentFrame);
+
     m_frameStarted = false;
     auto dev = m_context.getDevice();
     (void)dev.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);

@@ -67,6 +67,7 @@ int main() {
             bb3d::ResourceManager resources(context, jobSystem);
 
             auto model = resources.load<bb3d::Model>("assets/models/ant.glb");
+            model->normalize(); // Normalise à une taille de 1.0 par défaut
             auto texture = model->getTexture(0);
             if (!texture) {
                 BB_CORE_WARN("Texture manquante dans le modèle GLTF, chargement d'une texture par défaut...");
@@ -139,7 +140,7 @@ int main() {
                 GlobalUBO uboData{ camera.getViewMatrix(), camera.getProjectionMatrix() };
                 ubo.update(&uboData, sizeof(uboData));
 
-                    glm::mat4 modelMat = glm::rotate(glm::mat4(1.0f), t*0.5f, {0,1,0}) * glm::scale(glm::mat4(1.0f), {0.05f, 0.05f, 0.05f});
+                    glm::mat4 modelMat = glm::rotate(glm::mat4(1.0f), t*0.5f, {0,1,0});
 
                     (void)device.waitForFences(1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
                     (void)device.resetFences(1, &inFlightFences[currentFrame]);

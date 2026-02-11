@@ -59,7 +59,7 @@ int main() {
     ground.at({0, -1, 0});
     auto groundMesh = Ref<Mesh>(MeshGenerator::createCheckerboardPlane(engine->graphics(), 100.0f, 20).release());
     groundMesh->setMaterial(matFloor);
-    ground.add<MeshComponent>(groundMesh);
+    ground.add<MeshComponent>(groundMesh, "", PrimitiveType::Plane);
     
     auto& groundRB = ground.add<RigidBodyComponent>().get<RigidBodyComponent>();
     groundRB.type = BodyType::Static;
@@ -85,7 +85,7 @@ int main() {
                 float posZ = (z * (boxSize + spacing)) + offset - (baseSize * boxSize * 0.5f);
                 
                 cube.at({posX, posY, posZ});
-                cube.add<MeshComponent>(cubeMesh);
+                cube.add<MeshComponent>(cubeMesh, "", PrimitiveType::Cube);
                 
                 auto& rb = cube.add<RigidBodyComponent>().get<RigidBodyComponent>();
                 rb.type = BodyType::Dynamic;
@@ -131,7 +131,7 @@ int main() {
 
             auto ball = pScene->createEntity("Projectile");
             ball.at(spawnPos);
-            ball.add<MeshComponent>(ballMeshes[meshIdx]);
+            ball.add<MeshComponent>(ballMeshes[meshIdx], "", PrimitiveType::Sphere);
             
             auto& rb = ball.add<RigidBodyComponent>().get<RigidBodyComponent>();
             rb.type = BodyType::Dynamic;
