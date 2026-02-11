@@ -48,8 +48,10 @@ public:
     [[nodiscard]] inline vk::Device getDevice() const { return m_device; }
     [[nodiscard]] inline vk::Queue getGraphicsQueue() const { return m_graphicsQueue; }
     [[nodiscard]] inline vk::Queue getPresentQueue() const { return m_presentQueue; }
+    [[nodiscard]] inline vk::Queue getTransferQueue() const { return m_transferQueue; }
     [[nodiscard]] inline uint32_t getGraphicsQueueFamily() const { return m_graphicsQueueFamily; }
     [[nodiscard]] inline uint32_t getPresentQueueFamily() const { return m_presentQueueFamily; }
+    [[nodiscard]] inline uint32_t getTransferQueueFamily() const { return m_transferQueueFamily; }
     /** @} */
 
     /** @brief Récupère l'allocateur VMA pour la création de buffers/images. */
@@ -63,12 +65,25 @@ public:
 
     /** 
      * @brief Démarre un command buffer temporaire pour un transfert unique (CPU->GPU).
-     * @note Utilise une pool de commandes dédiée aux tâches courtes.
+     * @note Utilise une pool de commandes dédiée aux tâches courtes sur la queue graphique.
      */
     vk::CommandBuffer beginSingleTimeCommands();
 
     /** @brief Soumet et termine un command buffer de transfert, puis attend la fin de l'exécution (bloquant). */
     void endSingleTimeCommands(vk::CommandBuffer commandBuffer);
+
+    /** 
+     * @brief Démarre un command buffer sur la file de transfert (si dispo) ou graphique.
+     * Idéal pour les uploads de textures en arrière-plan.
+     */
+    vk::CommandBuffer beginTransferCommands();
+
+    /** 
+     * @brief Soumet les commandes de transfert et retourne une Fence signalée à la fin.
+     * @param commandBuffer Le buffer à soumettre.
+     * @return vk::Fence La fence à surveiller (doit être détruite par l'appelant ou gérée).
+     */
+    vk::Fence endTransferCommandsAsync(vk::CommandBuffer commandBuffer);
 
 private:
     vk::Instance m_instance;
@@ -79,11 +94,14 @@ private:
     
     vk::Queue m_graphicsQueue;
     vk::Queue m_presentQueue;
+    vk::Queue m_transferQueue;
     uint32_t m_graphicsQueueFamily = 0;
     uint32_t m_presentQueueFamily = 0;
+    uint32_t m_transferQueueFamily = 0;
 
     VmaAllocator m_allocator = nullptr;
     vk::CommandPool m_shortLivedCommandPool;
+    vk::CommandPool m_transferCommandPool;
     Scope<class StagingBuffer> m_stagingBuffer;
     std::string m_deviceName;
 };

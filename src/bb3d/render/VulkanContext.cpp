@@ -82,19 +82,23 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     for (const auto& device : physicalDevices) {
         auto props = device.getProperties();
         auto queueFamilies = device.getQueueFamilyProperties();
-        int gIdx = -1, pIdx = -1;
+        int gIdx = -1, pIdx = -1, tIdx = -1;
+        
         for (uint32_t i = 0; i < queueFamilies.size(); ++i) {
             if (queueFamilies[i].queueFlags & vk::QueueFlagBits::eGraphics) gIdx = i;
             if (m_surface) { if (device.getSurfaceSupportKHR(i, m_surface)) pIdx = i; } else pIdx = gIdx;
             if (gIdx != -1 && pIdx != -1) break;
         }
+
         if (gIdx != -1 && pIdx != -1) {
-            m_physicalDevice = device; m_graphicsQueueFamily = gIdx; m_presentQueueFamily = pIdx; m_deviceName = props.deviceName.data();
+            m_physicalDevice = device; 
+            m_graphicsQueueFamily = gIdx; m_presentQueueFamily = pIdx; m_transferQueueFamily = gIdx; // Utilise la file graphique pour plus de compatibilité (Blit/Shaders)
+            m_deviceName = props.deviceName.data();
             if (props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) break;
         }
     }
 
-    std::set<uint32_t> uniqueQueueFamilies = { m_graphicsQueueFamily, m_presentQueueFamily };
+    std::set<uint32_t> uniqueQueueFamilies = { m_graphicsQueueFamily, m_presentQueueFamily, m_transferQueueFamily };
     std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
     float queuePriority = 1.0f;
     for (uint32_t family : uniqueQueueFamilies) queueCreateInfos.push_back({ {}, family, 1, &queuePriority });
@@ -110,6 +114,7 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
 
     m_graphicsQueue = m_device.getQueue(m_graphicsQueueFamily, 0);
     m_presentQueue = m_device.getQueue(m_presentQueueFamily, 0);
+    m_transferQueue = m_device.getQueue(m_transferQueueFamily, 0);
 
     // VMA avec pointeurs de fonctions explicites pour le Dispatch Dynamique
     VmaVulkanFunctions vmaVulkanFunctions = {};
@@ -125,6 +130,7 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     vmaCreateAllocator(&allocatorInfo, &m_allocator);
 
     m_shortLivedCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_graphicsQueueFamily });
+    m_transferCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_transferQueueFamily });
     m_stagingBuffer = CreateScope<StagingBuffer>(*this);
     BB_CORE_INFO("VulkanContext initialized (VMA with dynamic dispatch).");
 }
@@ -135,6 +141,9 @@ void VulkanContext::cleanup() {
         m_stagingBuffer.reset();
         if (m_shortLivedCommandPool) {
             m_device.destroyCommandPool(m_shortLivedCommandPool);
+        }
+        if (m_transferCommandPool) {
+            m_device.destroyCommandPool(m_transferCommandPool);
         }
         if (m_allocator) {
             vmaDestroyAllocator(m_allocator);
@@ -156,11 +165,61 @@ vk::CommandBuffer VulkanContext::beginSingleTimeCommands() {
 }
 
 void VulkanContext::endSingleTimeCommands(vk::CommandBuffer commandBuffer) {
+
     commandBuffer.end();
+
     vk::SubmitInfo submitInfo(0, nullptr, nullptr, 1, &commandBuffer);
+
     m_graphicsQueue.submit(submitInfo, nullptr);
+
     m_graphicsQueue.waitIdle();
+
     m_device.freeCommandBuffers(m_shortLivedCommandPool, commandBuffer);
+
 }
+
+
+
+vk::CommandBuffer VulkanContext::beginTransferCommands() {
+
+    vk::CommandBufferAllocateInfo allocInfo(m_transferCommandPool, vk::CommandBufferLevel::ePrimary, 1);
+
+    vk::CommandBuffer commandBuffer = m_device.allocateCommandBuffers(allocInfo)[0];
+
+    commandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+
+    return commandBuffer;
+
+}
+
+
+
+vk::Fence VulkanContext::endTransferCommandsAsync(vk::CommandBuffer commandBuffer) {
+
+    commandBuffer.end();
+
+    
+
+    vk::Fence fence = m_device.createFence({});
+
+    vk::SubmitInfo submitInfo(0, nullptr, nullptr, 1, &commandBuffer);
+
+    m_transferQueue.submit(submitInfo, fence);
+
+    
+
+    // Note: Le CommandBuffer doit être libéré APRES que la fence soit signalée.
+
+    // Pour simplifier l'API initiale, on laisse la responsabilité de la destruction de la fence
+
+    // et de la libération du CB (si nécessaire) à un gestionnaire plus haut niveau ou on l'attend plus tard.
+
+    
+
+    return fence;
+
+}
+
+
 
 } // namespace bb3d
