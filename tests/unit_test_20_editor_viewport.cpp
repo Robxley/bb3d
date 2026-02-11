@@ -29,7 +29,7 @@ int main() {
         
         // Sol physique
         auto floor = scene->createEntity("Floor");
-        floor.add<MeshComponent>(MeshGenerator::createCheckerboardPlane(engine->graphics(), 20.0f, 20));
+        floor.add<MeshComponent>(MeshGenerator::createCheckerboardPlane(engine->graphics(), 20.0f, 20), "", PrimitiveType::Plane);
         floor.add<RigidBodyComponent>();
         floor.get<RigidBodyComponent>().type = BodyType::Static;
         floor.add<BoxColliderComponent>();

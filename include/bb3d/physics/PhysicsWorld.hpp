@@ -43,6 +43,9 @@ namespace bb3d {
         /** @brief Arrête le moteur physique et libère la mémoire. */
         void shutdown();
 
+        /** @brief Supprime tous les corps physiques et contrôleurs de la scène. */
+        void clear();
+
         /** @brief Copie les positions de Jolt vers les TransformComponents de la scène. */
         void syncTransforms(Scene& scene);
 

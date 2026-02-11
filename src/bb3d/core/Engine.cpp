@@ -335,10 +335,11 @@ void Engine::exportScene(const std::string& filepath) {
 }
 
 void Engine::importScene(const std::string& filepath) {
+    if (m_VulkanContext) m_VulkanContext->getDevice().waitIdle();
+
     auto scene = CreateScene();
     
-    // Pause de la physique durant le chargement
-    bool wasPaused = m_PhysicsPaused;
+    // Pause de la physique par défaut lors du chargement
     m_PhysicsPaused = true;
 
     SceneSerializer serializer(scene);
@@ -349,12 +350,13 @@ void Engine::importScene(const std::string& filepath) {
             m_ImGuiLayer->setSelectedEntity({});
         }
 #endif
-        BB_CORE_INFO("Engine: Scene loaded successfully.");
+        // Reset automatique pour appliquer les états initiaux et synchroniser la physique
+        resetScene();
+        
+        BB_CORE_INFO("Engine: Scene loaded successfully and physics PAUSED.");
     } else {
         BB_CORE_ERROR("Engine: Failed to load scene from {}", filepath);
     }
-
-    m_PhysicsPaused = wasPaused;
 }
 
 } // namespace bb3d

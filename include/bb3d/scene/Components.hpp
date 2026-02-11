@@ -27,6 +27,7 @@ using json = nlohmann::json;
 // --- Enums ---
 enum class BodyType { Static, Dynamic, Kinematic, Character };
 enum class LightType { Directional, Point, Spot };
+enum class PrimitiveType { None = 0, Cube, Sphere, Plane };
 
 /** @brief Identifiant unique déterministe et thread-safe pour les entités. */
 struct IDComponent {
@@ -142,20 +143,23 @@ struct TransformComponent {
 struct MeshComponent {
     Ref<Mesh> mesh;
     std::string assetPath; ///< Path used for serialization and hot-reloading.
+    PrimitiveType primitiveType = PrimitiveType::None;
     glm::vec3 color = {1.0f, 1.0f, 1.0f};
     bool visible = true; ///< If false, the mesh is skipped during the rendering pass.
 
     MeshComponent() = default;
-    MeshComponent(Ref<Mesh> m, const std::string& path = "") : mesh(m), assetPath(path) {}
+    MeshComponent(Ref<Mesh> m, const std::string& path = "", PrimitiveType type = PrimitiveType::None) : mesh(m), assetPath(path), primitiveType(type) {}
 
     void serialize(json& j) const {
         j["assetPath"] = assetPath;
+        j["primitiveType"] = static_cast<int>(primitiveType);
         j["color"] = color;
         j["visible"] = visible;
     }
 
     void deserialize(const json& j) {
         if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath);
+        if (j.contains("primitiveType")) primitiveType = static_cast<PrimitiveType>(j.at("primitiveType").get<int>());
         if (j.contains("color")) j.at("color").get_to(color);
         if (j.contains("visible")) j.at("visible").get_to(visible);
     }

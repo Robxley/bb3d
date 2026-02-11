@@ -3,6 +3,7 @@
 #include "bb3d/scene/Components.hpp"
 #include "bb3d/scene/Camera.hpp"
 #include "bb3d/core/Engine.hpp"
+#include "bb3d/physics/PhysicsWorld.hpp"
 #include <algorithm>
 
 namespace bb3d {
@@ -234,11 +235,12 @@ void Scene::onUpdate(float deltaTime) {
 }
 
 void Scene::clear() {
+    if (m_EngineContext) {
+        m_EngineContext->physics().clear();
+    }
 
     m_registry.clear();
-
     BB_CORE_INFO("Scene: All entities destroyed.");
-
 }
 
 

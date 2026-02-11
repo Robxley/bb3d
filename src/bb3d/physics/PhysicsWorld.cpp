@@ -353,6 +353,29 @@ namespace bb3d {
         return res;
     }
 
+    void PhysicsWorld::clear() {
+        if (!m_impl || !m_impl->initialized) return;
+
+        auto& bodyInterface = m_impl->physicsSystem->GetBodyInterface();
+        
+        // Supprimer tous les corps
+        JPH::BodyIDVector allBodies;
+        m_impl->physicsSystem->GetBodies(allBodies);
+        
+        if (!allBodies.empty()) {
+            bodyInterface.RemoveBodies(allBodies.data(), (int)allBodies.size());
+            bodyInterface.DestroyBodies(allBodies.data(), (int)allBodies.size());
+        }
+
+        // Supprimer tous les personnages
+        for (auto& [id, character] : m_impl->characters) {
+            delete character;
+        }
+        m_impl->characters.clear();
+
+        BB_CORE_INFO("PhysicsWorld: All bodies and characters destroyed.");
+    }
+
     void PhysicsWorld::shutdown() {
         if (!m_impl->initialized) return;
         BB_CORE_INFO("PhysicsWorld: Shutting down Jolt Physics...");

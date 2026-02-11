@@ -6,6 +6,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin)
+
 set(CMAKE_UNITY_BUILD OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
@@ -84,13 +88,29 @@ if(BB3D_ENABLE_PROFILING)
     target_link_libraries(biobazard3d PUBLIC TracyClient)
 endif()
 
-add_executable(unit_test_15_editor_viewport tests/unit_test_15_editor_viewport.cpp)
-target_link_libraries(unit_test_15_editor_viewport PRIVATE biobazard3d)
-add_custom_target(DeployAssets DEPENDS CompileShaders)
-add_custom_command(TARGET DeployAssets POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/assets/shaders $<TARGET_FILE_DIR:unit_test_15_editor_viewport>/assets/shaders)
-add_custom_command(TARGET DeployAssets POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:unit_test_15_editor_viewport>/assets)
-add_dependencies(unit_test_15_editor_viewport DeployAssets)
-
+# --- Tests ---
 enable_testing()
-add_test(NAME EditorViewport COMMAND unit_test_15_editor_viewport)
-set_tests_properties(EditorViewport PROPERTIES WORKING_DIRECTORY $<TARGET_FILE_DIR:unit_test_15_editor_viewport>)
+
+# Global asset deployment to the common bin directory
+add_custom_target(DeployAssets ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/assets/shaders ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/assets ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+    DEPENDS CompileShaders
+    COMMENT "Deploying all assets to common binary directory"
+)
+
+file(GLOB TEST_SOURCES "tests/unit_test_*.cpp")
+
+foreach(TEST_SOURCE ${TEST_SOURCES})
+    get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
+    
+    add_executable(${TEST_NAME} ${TEST_SOURCE})
+    target_link_libraries(${TEST_NAME} PRIVATE biobazard3d)
+    
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+    
+    # All tests run from the common bin directory (where assets/ is deployed)
+    set_tests_properties(${TEST_NAME} PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+    
+    add_dependencies(${TEST_NAME} DeployAssets)
+endforeach()

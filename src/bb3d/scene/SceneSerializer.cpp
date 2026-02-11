@@ -1,4 +1,5 @@
 #include "bb3d/scene/SceneSerializer.hpp"
+#include "bb3d/render/MeshGenerator.hpp"
 #include "bb3d/scene/Entity.hpp"
 #include "bb3d/scene/Components.hpp"
 #include "bb3d/core/Engine.hpp"
@@ -123,6 +124,16 @@ namespace bb3d {
                 mc.deserialize(e["MeshComponent"]);
                 if (!mc.assetPath.empty()) {
                     try { mc.mesh = engine->assets().load<Mesh>(mc.assetPath); } catch(...) {}
+                } else if (mc.primitiveType != PrimitiveType::None) {
+                    // Reconstruction des primitives
+                    if (mc.primitiveType == PrimitiveType::Cube) mc.mesh = MeshGenerator::createCube(engine->graphics(), 1.0f, mc.color);
+                    else if (mc.primitiveType == PrimitiveType::Sphere) mc.mesh = MeshGenerator::createSphere(engine->graphics(), 0.5f, 32, mc.color);
+                    else if (mc.primitiveType == PrimitiveType::Plane) mc.mesh = MeshGenerator::createCheckerboardPlane(engine->graphics(), 10.0f);
+                    
+                    // Si on a recréé un mesh, on lui remet aussi un matériau PBR avec la bonne couleur
+                    auto pbr = CreateRef<PBRMaterial>(engine->graphics());
+                    pbr->setColor(mc.color);
+                    mc.mesh->setMaterial(pbr);
                 }
             }
 

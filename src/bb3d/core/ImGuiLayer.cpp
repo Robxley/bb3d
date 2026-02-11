@@ -173,17 +173,17 @@ void ImGuiLayer::showSceneHierarchy(Scene& scene) {
 
             if (ImGui::MenuItem("Cube")) {
                 auto e = scene.createEntity("Cube " + std::to_string(entityCount++));
-                e.add<MeshComponent>(MeshGenerator::createCube(m_context, 1.0f));
+                e.add<MeshComponent>(MeshGenerator::createCube(m_context, 1.0f), "", PrimitiveType::Cube);
                 assignDefaultMat(e);
             }
             if (ImGui::MenuItem("Sphere")) {
                 auto e = scene.createEntity("Sphere " + std::to_string(entityCount++));
-                e.add<MeshComponent>(MeshGenerator::createSphere(m_context, 0.5f, 32));
+                e.add<MeshComponent>(MeshGenerator::createSphere(m_context, 0.5f, 32), "", PrimitiveType::Sphere);
                 assignDefaultMat(e);
             }
             if (ImGui::MenuItem("Plane")) {
                 auto e = scene.createEntity("Plane " + std::to_string(entityCount++));
-                e.add<MeshComponent>(MeshGenerator::createCheckerboardPlane(m_context, 10.0f, 10));
+                e.add<MeshComponent>(MeshGenerator::createCheckerboardPlane(m_context, 10.0f, 10), "", PrimitiveType::Plane);
                 // Plane a déjà un material par défaut via checkerboard, on le laisse ou on le remplace si on veut éditer
                 // MeshGenerator::createCheckerboardPlane ne met pas de material PBR standard mais utilise des couleurs vertex.
                 // Pour l'éditer, on force un PBR blanc.
@@ -331,6 +331,10 @@ void ImGuiLayer::showInspector() {
                     glm::vec3 color = pbrMat->getColor();
                     if (ImGui::ColorEdit3("Albedo Color", &color.x)) {
                         pbrMat->setColor(color);
+                        // Synchronisation avec MeshComponent pour l'export
+                        if (m_selectedEntity.has<MeshComponent>()) {
+                            m_selectedEntity.get<MeshComponent>().color = color;
+                        }
                     }
 
                     auto TextureSlot = [&](const char* label, std::function<void(Ref<Texture>)> setter) {
