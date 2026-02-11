@@ -27,14 +27,19 @@ public:
     [[nodiscard]] inline int getHeight() const { return m_height; }
     [[nodiscard]] inline bool isCubemap() const { return m_isCubemap; }
 
+    /** @brief Vérifie si l'upload GPU est terminé et la texture prête à l'emploi. */
+    bool isReady();
+
 private:
     void initFromPixels(const unsigned char* pixels);
     void createImage(uint32_t width, uint32_t height, uint32_t layers = 1);
     void createImageView(uint32_t layers = 1);
     void createSampler();
-    void generateMipmaps(uint32_t layers = 1);
-    void transitionLayout(vk::ImageLayout oldLayout, vk::ImageLayout newLayout, uint32_t layers = 1);
-    void copyBufferToImage(vk::Buffer buffer, uint32_t layers = 1);
+    
+    // Méthodes modifiées pour supporter un CommandBuffer externe (Async)
+    void generateMipmaps(vk::CommandBuffer cb, uint32_t layers = 1);
+    void transitionLayout(vk::CommandBuffer cb, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, uint32_t layers = 1);
+    void copyBufferToImage(vk::CommandBuffer cb, vk::Buffer buffer, uint32_t layers = 1);
 
     VulkanContext& m_context;
     int m_width = 0, m_height = 0, m_channels = 0;
@@ -46,6 +51,11 @@ private:
     VmaAllocation m_allocation = nullptr;
     vk::ImageView m_imageView;
     vk::Sampler m_sampler;
+
+    // État asynchrone
+    vk::Fence m_uploadFence = nullptr;
+    bool m_ready = false;
+    Scope<class Buffer> m_stagingBuffer; // Conservé jusqu'à la fin de l'upload
 };
 
 } // namespace bb3d

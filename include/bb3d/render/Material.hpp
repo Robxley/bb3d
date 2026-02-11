@@ -103,7 +103,7 @@ private:
     void updateDescriptorSet(uint32_t frame);
     Ref<Texture> m_albedoMap, m_normalMap, m_ormMap, m_emissiveMap;
     PBRParameters m_parameters;
-    Scope<UniformBuffer> m_paramBuffer; ///< Buffer CPU->GPU pour les facteurs scalaires.
+    std::array<Scope<UniformBuffer>, MAX_FRAMES_IN_FLIGHT> m_paramBuffers;
     std::array<vk::DescriptorSet, MAX_FRAMES_IN_FLIGHT> m_sets = {nullptr, nullptr, nullptr};
     std::array<bool, MAX_FRAMES_IN_FLIGHT> m_dirty = {true, true, true};
 };
@@ -121,7 +121,7 @@ private:
     void updateDescriptorSet(uint32_t frame);
     Ref<Texture> m_baseMap;
     UnlitParameters m_parameters;
-    Scope<UniformBuffer> m_paramBuffer;
+    std::array<Scope<UniformBuffer>, MAX_FRAMES_IN_FLIGHT> m_paramBuffers;
     std::array<vk::DescriptorSet, MAX_FRAMES_IN_FLIGHT> m_sets = {nullptr, nullptr, nullptr};
     std::array<bool, MAX_FRAMES_IN_FLIGHT> m_dirty = {true, true, true};
 };
@@ -138,7 +138,7 @@ private:
     void updateDescriptorSet(uint32_t frame);
     Ref<Texture> m_baseMap;
     ToonParameters m_parameters;
-    Scope<UniformBuffer> m_paramBuffer;
+    std::array<Scope<UniformBuffer>, MAX_FRAMES_IN_FLIGHT> m_paramBuffers;
     std::array<vk::DescriptorSet, MAX_FRAMES_IN_FLIGHT> m_sets = {nullptr, nullptr, nullptr};
     std::array<bool, MAX_FRAMES_IN_FLIGHT> m_dirty = {true, true, true};
 };

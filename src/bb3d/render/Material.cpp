@@ -33,9 +33,13 @@ PBRMaterial::PBRMaterial(VulkanContext& context) : Material(context) {
     m_albedoMap = s_defaultWhite; m_normalMap = s_defaultNormal;
     m_ormMap = s_defaultWhite; // Occlusion (R)=1, Roughness (G)=1, Metallic (B)=1
     m_emissiveMap = s_defaultBlack;
-    m_paramBuffer = CreateScope<UniformBuffer>(context, sizeof(PBRParameters));
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        m_paramBuffers[i] = CreateScope<UniformBuffer>(context, sizeof(PBRParameters));
+    }
 }
-PBRMaterial::~PBRMaterial() { m_paramBuffer.reset(); }
+PBRMaterial::~PBRMaterial() { 
+    for (auto& buffer : m_paramBuffers) buffer.reset(); 
+}
 vk::DescriptorSetLayout PBRMaterial::CreateLayout(vk::Device device) {
     std::vector<vk::DescriptorSetLayoutBinding> b = {
         {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment},
@@ -52,6 +56,15 @@ vk::DescriptorSet PBRMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::Des
         m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
         m_dirty[frame] = true; 
     }
+
+    // Si une des textures n'est pas prête, on reste en dirty pour réessayer la frame suivante
+    if ((m_albedoMap && !m_albedoMap->isReady()) || 
+        (m_normalMap && !m_normalMap->isReady()) || 
+        (m_ormMap && !m_ormMap->isReady()) || 
+        (m_emissiveMap && !m_emissiveMap->isReady())) {
+        m_dirty[frame] = true;
+    }
+
     if (m_dirty[frame]) { 
         updateDescriptorSet(frame); 
         m_dirty[frame] = false; 
@@ -59,13 +72,18 @@ vk::DescriptorSet PBRMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::Des
     return m_sets[frame];
 }
 void PBRMaterial::updateDescriptorSet(uint32_t frame) {
-    m_paramBuffer->update(&m_parameters, sizeof(PBRParameters));
-    vk::DescriptorBufferInfo bInfo(m_paramBuffer->getHandle(), 0, sizeof(PBRParameters));
+    m_paramBuffers[frame]->update(&m_parameters, sizeof(PBRParameters));
+    vk::DescriptorBufferInfo bInfo(m_paramBuffers[frame]->getHandle(), 0, sizeof(PBRParameters));
+    
+    auto getReadyTexture = [](Ref<Texture> tex, Ref<Texture> fallback) {
+        return (tex && tex->isReady()) ? tex : fallback;
+    };
+
     std::vector<vk::DescriptorImageInfo> iInfos = {
-        {m_albedoMap->getSampler(), m_albedoMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
-        {m_normalMap->getSampler(), m_normalMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
-        {m_ormMap->getSampler(), m_ormMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
-        {m_emissiveMap->getSampler(), m_emissiveMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal}
+        {getReadyTexture(m_albedoMap, s_defaultWhite)->getSampler(), getReadyTexture(m_albedoMap, s_defaultWhite)->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
+        {getReadyTexture(m_normalMap, s_defaultNormal)->getSampler(), getReadyTexture(m_normalMap, s_defaultNormal)->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
+        {getReadyTexture(m_ormMap, s_defaultWhite)->getSampler(), getReadyTexture(m_ormMap, s_defaultWhite)->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal},
+        {getReadyTexture(m_emissiveMap, s_defaultBlack)->getSampler(), getReadyTexture(m_emissiveMap, s_defaultBlack)->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal}
     };
     std::vector<vk::WriteDescriptorSet> writes;
     writes.push_back({ m_sets[frame], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo });
@@ -76,9 +94,13 @@ void PBRMaterial::updateDescriptorSet(uint32_t frame) {
 // --- UnlitMaterial ---
 UnlitMaterial::UnlitMaterial(VulkanContext& context) : Material(context) { 
     InitDefaults(context); m_baseMap = s_defaultWhite; 
-    m_paramBuffer = CreateScope<UniformBuffer>(context, sizeof(UnlitParameters));
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        m_paramBuffers[i] = CreateScope<UniformBuffer>(context, sizeof(UnlitParameters));
+    }
 }
-UnlitMaterial::~UnlitMaterial() { m_paramBuffer.reset(); }
+UnlitMaterial::~UnlitMaterial() { 
+    for (auto& buffer : m_paramBuffers) buffer.reset(); 
+}
 vk::DescriptorSetLayout UnlitMaterial::CreateLayout(vk::Device device) {
     std::vector<vk::DescriptorSetLayoutBinding> b = {
         {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment},
@@ -92,13 +114,20 @@ vk::DescriptorSet UnlitMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::D
         m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
         m_dirty[frame] = true; 
     }
+    
+    // Si la texture n'est pas prête, on reste en dirty pour réessayer plus tard sans bloquer
+    if (m_baseMap && !m_baseMap->isReady()) m_dirty[frame] = true;
+
     if (m_dirty[frame]) { updateDescriptorSet(frame); m_dirty[frame] = false; }
     return m_sets[frame];
 }
 void UnlitMaterial::updateDescriptorSet(uint32_t frame) {
-    m_paramBuffer->update(&m_parameters, sizeof(UnlitParameters));
-    vk::DescriptorBufferInfo bInfo(m_paramBuffer->getHandle(), 0, sizeof(UnlitParameters));
-    vk::DescriptorImageInfo iInfo(m_baseMap->getSampler(), m_baseMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    m_paramBuffers[frame]->update(&m_parameters, sizeof(UnlitParameters));
+    vk::DescriptorBufferInfo bInfo(m_paramBuffers[frame]->getHandle(), 0, sizeof(UnlitParameters));
+    
+    Ref<Texture> tex = (m_baseMap && m_baseMap->isReady()) ? m_baseMap : s_defaultWhite;
+    vk::DescriptorImageInfo iInfo(tex->getSampler(), tex->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    
     std::vector<vk::WriteDescriptorSet> writes = {
         { m_sets[frame], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo },
         { m_sets[frame], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfo }
@@ -109,9 +138,13 @@ void UnlitMaterial::updateDescriptorSet(uint32_t frame) {
 // --- ToonMaterial ---
 ToonMaterial::ToonMaterial(VulkanContext& context) : Material(context) { 
     InitDefaults(context); m_baseMap = s_defaultWhite; 
-    m_paramBuffer = CreateScope<UniformBuffer>(context, sizeof(ToonParameters));
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        m_paramBuffers[i] = CreateScope<UniformBuffer>(context, sizeof(ToonParameters));
+    }
 }
-ToonMaterial::~ToonMaterial() { m_paramBuffer.reset(); }
+ToonMaterial::~ToonMaterial() { 
+    for (auto& buffer : m_paramBuffers) buffer.reset(); 
+}
 vk::DescriptorSetLayout ToonMaterial::CreateLayout(vk::Device device) {
     std::vector<vk::DescriptorSetLayoutBinding> b = {
         {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment},
@@ -125,13 +158,19 @@ vk::DescriptorSet ToonMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::De
         m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
         m_dirty[frame] = true; 
     }
+
+    if (m_baseMap && !m_baseMap->isReady()) m_dirty[frame] = true;
+
     if (m_dirty[frame]) { updateDescriptorSet(frame); m_dirty[frame] = false; }
     return m_sets[frame];
 }
 void ToonMaterial::updateDescriptorSet(uint32_t frame) {
-    m_paramBuffer->update(&m_parameters, sizeof(ToonParameters));
-    vk::DescriptorBufferInfo bInfo(m_paramBuffer->getHandle(), 0, sizeof(ToonParameters));
-    vk::DescriptorImageInfo iInfo(m_baseMap->getSampler(), m_baseMap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    m_paramBuffers[frame]->update(&m_parameters, sizeof(ToonParameters));
+    vk::DescriptorBufferInfo bInfo(m_paramBuffers[frame]->getHandle(), 0, sizeof(ToonParameters));
+    
+    Ref<Texture> tex = (m_baseMap && m_baseMap->isReady()) ? m_baseMap : s_defaultWhite;
+    vk::DescriptorImageInfo iInfo(tex->getSampler(), tex->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    
     std::vector<vk::WriteDescriptorSet> writes = {
         { m_sets[frame], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo },
         { m_sets[frame], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfo }
@@ -152,12 +191,16 @@ vk::DescriptorSet SkyboxMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::
         m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
         m_dirty[frame] = true; 
     }
+
+    if (m_cubemap && !m_cubemap->isReady()) m_dirty[frame] = true;
+
     if (m_dirty[frame]) { updateDescriptorSet(frame); m_dirty[frame] = false; }
     return m_sets[frame];
 }
 void SkyboxMaterial::updateDescriptorSet(uint32_t frame) {
     if (!m_cubemap) return;
-    vk::DescriptorImageInfo i(m_cubemap->getSampler(), m_cubemap->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    Ref<Texture> tex = m_cubemap->isReady() ? m_cubemap : s_defaultWhite;
+    vk::DescriptorImageInfo i(tex->getSampler(), tex->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
     vk::WriteDescriptorSet w(m_sets[frame], 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &i);
     m_context.getDevice().updateDescriptorSets(1, &w, 0, nullptr);
 }
@@ -175,11 +218,15 @@ vk::DescriptorSet SkySphereMaterial::getDescriptorSet(vk::DescriptorPool pool, v
         m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
         m_dirty[frame] = true; 
     }
+
+    if (m_texture && !m_texture->isReady()) m_dirty[frame] = true;
+
     if (m_dirty[frame]) { updateDescriptorSet(frame); m_dirty[frame] = false; }
     return m_sets[frame];
 }
 void SkySphereMaterial::updateDescriptorSet(uint32_t frame) {
-    vk::DescriptorImageInfo i(m_texture->getSampler(), m_texture->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    Ref<Texture> tex = (m_texture && m_texture->isReady()) ? m_texture : s_defaultWhite;
+    vk::DescriptorImageInfo i(tex->getSampler(), tex->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
     vk::WriteDescriptorSet w(m_sets[frame], 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &i);
     m_context.getDevice().updateDescriptorSets(1, &w, 0, nullptr);
 }

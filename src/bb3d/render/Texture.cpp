@@ -92,22 +92,26 @@ Texture::Texture(VulkanContext& context, const std::array<std::string, 6>& filep
         }
     } catch (...) {}
 
-    Buffer stagingBuffer(m_context, totalSize, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    m_stagingBuffer = CreateScope<Buffer>(m_context, totalSize, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
     
     for (int i = 0; i < 6; ++i) {
-        stagingBuffer.upload(all_pixels[i], faceSize, faceSize * i);
+        m_stagingBuffer->upload(all_pixels[i], faceSize, faceSize * i);
         stbi_image_free(all_pixels[i]);
     }
 
     createImage(m_width, m_height, 6);
-    transitionLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, 6);
-    copyBufferToImage(stagingBuffer.getHandle(), 6);
+    
+    vk::CommandBuffer cb = m_context.beginTransferCommands();
+    transitionLayout(cb, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, 6);
+    copyBufferToImage(cb, m_stagingBuffer->getHandle(), 6);
     
     if (m_mipLevels > 1) {
-        generateMipmaps(6);
+        generateMipmaps(cb, 6);
     } else {
-        transitionLayout(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, 6);
+        transitionLayout(cb, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, 6);
     }
+
+    m_uploadFence = m_context.endTransferCommandsAsync(cb);
 
     createImageView(6);
     createSampler();
@@ -132,18 +136,22 @@ Texture::Texture(VulkanContext& context, std::span<const std::byte> data, int wi
         }
     } catch (...) {}
 
-    Buffer stagingBuffer(m_context, totalSize, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
-    stagingBuffer.upload(data.data(), totalSize);
+    m_stagingBuffer = CreateScope<Buffer>(m_context, totalSize, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    m_stagingBuffer->upload(data.data(), totalSize);
 
     createImage(width, height, layers);
-    transitionLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, layers);
-    copyBufferToImage(stagingBuffer.getHandle(), layers);
+    
+    vk::CommandBuffer cb = m_context.beginTransferCommands();
+    transitionLayout(cb, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, layers);
+    copyBufferToImage(cb, m_stagingBuffer->getHandle(), layers);
     
     if (m_mipLevels > 1) {
-        generateMipmaps(layers);
+        generateMipmaps(cb, layers);
     } else {
-        transitionLayout(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, layers);
+        transitionLayout(cb, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, layers);
     }
+
+    m_uploadFence = m_context.endTransferCommandsAsync(cb);
 
     createImageView(layers);
     createSampler();
@@ -159,28 +167,62 @@ void Texture::initFromPixels(const unsigned char* pixels) {
         if (Engine::Get().GetConfig().graphics.enableMipmapping) {
             m_mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(m_width, m_height)))) + 1;
         }
-    } catch (...) {} // Fallback if Engine is not initialized (e.g. unit tests)
+    } catch (...) {}
 
-    Buffer stagingBuffer(m_context, imageSize, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
-    stagingBuffer.upload(pixels, imageSize);
+    // Conservation du staging buffer jusqu'à la fin de l'upload asynchrone
+    m_stagingBuffer = CreateScope<Buffer>(m_context, imageSize, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+    m_stagingBuffer->upload(pixels, imageSize);
 
     createImage(static_cast<uint32_t>(m_width), static_cast<uint32_t>(m_height), 1);
-    transitionLayout(vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, 1);
-    copyBufferToImage(stagingBuffer.getHandle(), 1);
+
+    // Démarrage des commandes de transfert asynchrones
+    vk::CommandBuffer cb = m_context.beginTransferCommands();
+
+    transitionLayout(cb, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, 1);
+    copyBufferToImage(cb, m_stagingBuffer->getHandle(), 1);
     
     if (m_mipLevels > 1) {
-        generateMipmaps(1);
+        generateMipmaps(cb, 1);
     } else {
-        transitionLayout(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, 1);
+        transitionLayout(cb, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, 1);
     }
+
+    m_uploadFence = m_context.endTransferCommandsAsync(cb);
 
     createImageView(1);
     createSampler();
+    
+    // Note: m_ready reste false jusqu'à ce que isReady() ou un wait explicite soit appelé.
+}
+
+bool Texture::isReady() {
+    if (m_ready) return true;
+    if (!m_uploadFence) return true; 
+
+    // Protection contre les appels concurrents (multi-frames)
+    auto result = m_context.getDevice().getFenceStatus(m_uploadFence);
+    if (result == vk::Result::eSuccess) {
+        // Double vérification pour éviter la destruction multiple
+        if (m_uploadFence) {
+            m_context.getDevice().destroyFence(m_uploadFence);
+            m_uploadFence = nullptr;
+            m_stagingBuffer.reset();
+            m_ready = true;
+            BB_CORE_TRACE("Texture: Upload complete and resources released.");
+        }
+        return true;
+    }
+    return false;
 }
 
 Texture::~Texture() {
     auto device = m_context.getDevice();
     BB_CORE_TRACE("Texture: Destroying texture image ({}x{})", m_width, m_height);
+    
+    if (m_uploadFence) {
+        device.destroyFence(m_uploadFence);
+    }
+
     if (m_sampler) {
         device.destroySampler(m_sampler);
     }
@@ -225,9 +267,7 @@ void Texture::createSampler() {
     m_sampler = m_context.getDevice().createSampler(samplerInfo);
 }
 
-void Texture::generateMipmaps(uint32_t layers) {
-    vk::CommandBuffer commandBuffer = m_context.beginSingleTimeCommands();
-
+void Texture::generateMipmaps(vk::CommandBuffer commandBuffer, uint32_t layers) {
     vk::ImageMemoryBarrier barrier({}, {}, vk::ImageLayout::eUndefined, vk::ImageLayout::eUndefined, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, m_image, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, layers });
 
     int32_t mipWidth = m_width;
@@ -270,13 +310,9 @@ void Texture::generateMipmaps(uint32_t layers) {
     barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
 
     commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, barrier);
-
-    m_context.endSingleTimeCommands(commandBuffer);
 }
 
-void Texture::transitionLayout(vk::ImageLayout oldLayout, vk::ImageLayout newLayout, uint32_t layers) {
-    vk::CommandBuffer commandBuffer = m_context.beginSingleTimeCommands();
-
+void Texture::transitionLayout(vk::CommandBuffer commandBuffer, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, uint32_t layers) {
     vk::ImageMemoryBarrier barrier({}, {}, oldLayout, newLayout, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, m_image, { vk::ImageAspectFlagBits::eColor, 0, m_mipLevels, 0, layers });
 
     vk::PipelineStageFlags sourceStage;
@@ -297,18 +333,11 @@ void Texture::transitionLayout(vk::ImageLayout oldLayout, vk::ImageLayout newLay
     }
 
     commandBuffer.pipelineBarrier(sourceStage, destinationStage, {}, nullptr, nullptr, barrier);
-
-    m_context.endSingleTimeCommands(commandBuffer);
 }
 
-void Texture::copyBufferToImage(vk::Buffer buffer, uint32_t layers) {
-    vk::CommandBuffer commandBuffer = m_context.beginSingleTimeCommands();
-
+void Texture::copyBufferToImage(vk::CommandBuffer commandBuffer, vk::Buffer buffer, uint32_t layers) {
     vk::BufferImageCopy region(0, 0, 0, { vk::ImageAspectFlagBits::eColor, 0, 0, layers }, { 0, 0, 0 }, { static_cast<uint32_t>(m_width), static_cast<uint32_t>(m_height), 1 });
-
     commandBuffer.copyBufferToImage(buffer, m_image, vk::ImageLayout::eTransferDstOptimal, region);
-
-    m_context.endSingleTimeCommands(commandBuffer);
 }
 
 } // namespace bb3d

@@ -5,18 +5,20 @@ Ce document suit l'évolution du moteur biobazard3d. Les tâches terminées sont
 ## ✅ Terminé (Archive des Features)
 - [x] 🏗️ **Core Architecture** : Singleton Engine, Windowing (SDL3), Logging (spdlog), Profiling (Tracy).
 - [x] 🎨 **Vulkan Backend** : Initialisation Vulkan 1.3, Dynamic Rendering (sans RenderPass legacy), VMA.
+- [x] 💎 **Descriptor Management** : Implémentation du **Triple Buffering** pour les Descriptor Sets des matériaux (élimination des freezes et erreurs de synchronisation).
 - [x] 📦 **Asset Loading** : Chargeur OBJ (tinyobjloader) et glTF 2.0 (fastgltf) avec support des matériaux.
 - [x] 💎 **PBR Rendering** : Modèle Cook-Torrance complet (Albedo, Normal, ORM, Emissive).
 - [x] ⚡ **GPU Instancing** : Batching automatique via SSBO pour dessiner des milliers d'objets en un seul Draw Call.
 - [x] 💡 **Multi-Lights** : Support de 10 lumières simultanées (Directional & Point) avec atténuation physique.
 - [x] ✨ **Cel-Shading** : Rendu cartoon avec quantification des couleurs et Outlines (contours).
-- [x] 📂 **Serialization** : Système de sauvegarde/chargement de scène au format JSON.
+- [x] 📂 **Serialization 2.0** : Système de sauvegarde/chargement JSON amélioré avec reconstruction des primitives (Cube, Sphère, Plan) et persistance des couleurs.
 - [x] 🧵 **JobSystem** : Thread Pool multi-coeur pour les tâches asynchrones.
 - [x] 📐 **Maths & Camera** : Intégration GLM, Caméras FPS et Orbitale interactives.
-- [x] 🧹 **Harmonisation Assets** : Standardisation des noms de fichiers et structures de dossiers pour les modèles.
+- [x] 🧹 **Test System Harmonization** : Collecte automatique des tests, renommage cohérent, et correction du déploiement des assets (zéro conflit).
 - [x] 🪟 **Window Resizing** : Gestion robuste du redimensionnement et de la minimisation (Swapchain recreation).
 - [x] 🧩 **ECS & View Architecture** : Refonte vers un ECS pur (Composants de contrôle séparés) et introduction de `View<T>` pour un accès typé sans overhead.
 - [x] 🌍 **Intégration Jolt Physics** : Simulation réelle avec RigidBodies, Colliders, Raycasting et Character Controller.
+- [x] 🧹 **Physics Cleanup** : Correction des "objets fantômes" via un `PhysicsWorld::clear()` lors du rechargement de scène.
 
 ## ⚡ Optimisations (Priorité Haute)
 - [x] 🕵️ **Frustum Culling (CPU side)** : Ne pas envoyer au GPU les objets hors du champ de vision de la caméra (utilisation des AABB).

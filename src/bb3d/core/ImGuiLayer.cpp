@@ -337,13 +337,13 @@ void ImGuiLayer::showInspector() {
                         }
                     }
 
-                    auto TextureSlot = [&](const char* label, std::function<void(Ref<Texture>)> setter) {
+                    auto TextureSlot = [&](const char* label, bool isColor, std::function<void(Ref<Texture>)> setter) {
                         ImGui::PushID(label);
                         if (ImGui::Button(ICON_FA_FOLDER_OPEN)) {
                             auto selection = pfd::open_file("Load Texture", ".", { "Image Files", "*.png *.jpg *.jpeg *.tga *.bmp" }).result();
                             if (!selection.empty()) {
                                 try {
-                                    auto tex = Engine::Get().assets().load<Texture>(selection[0]);
+                                    auto tex = Engine::Get().assets().load<Texture>(selection[0], isColor);
                                     setter(tex);
                                 } catch (const std::exception& e) { BB_CORE_ERROR("Failed to load texture: {}", e.what()); }
                             }
@@ -352,10 +352,10 @@ void ImGuiLayer::showInspector() {
                         ImGui::PopID();
                     };
 
-                    TextureSlot("Albedo Map", [&](Ref<Texture> t){ pbrMat->setAlbedoMap(t); });
-                    TextureSlot("Normal Map", [&](Ref<Texture> t){ pbrMat->setNormalMap(t); });
-                    TextureSlot("ORM Map", [&](Ref<Texture> t){ pbrMat->setORMMap(t); });
-                    TextureSlot("Emissive Map", [&](Ref<Texture> t){ pbrMat->setEmissiveMap(t); });
+                    TextureSlot("Albedo Map", true, [&](Ref<Texture> t){ pbrMat->setAlbedoMap(t); });
+                    TextureSlot("Normal Map", false, [&](Ref<Texture> t){ pbrMat->setNormalMap(t); });
+                    TextureSlot("ORM Map", false, [&](Ref<Texture> t){ pbrMat->setORMMap(t); });
+                    TextureSlot("Emissive Map", true, [&](Ref<Texture> t){ pbrMat->setEmissiveMap(t); });
 
                     if (ImGui::TreeNode("ORM Map Generator (Combine Maps)")) {
                         static std::string aoPath, roughPath, metalPath;
@@ -592,14 +592,25 @@ void ImGuiLayer::showToolbar() {
             }
         }
 
-        ImGui::SameLine();
-        if (ImGui::Button(ICON_FA_ARROW_ROTATE_LEFT " Reset Scene")) {
-            engine.resetScene();
-            engine.setPhysicsPaused(true);
-        }
-    }
-    ImGui::End();
-}
-    
-    } // namespace bb3d
+                        ImGui::SameLine();
+
+                        if (ImGui::Button(ICON_FA_ARROW_ROTATE_LEFT " Reset Scene")) {
+
+                            engine.resetScene();
+
+                            engine.setPhysicsPaused(true);
+
+                        }
+
+                    }
+
+                    ImGui::End();
+
+                }
+
+                
+
+                } // namespace bb3d
+
+                
         
