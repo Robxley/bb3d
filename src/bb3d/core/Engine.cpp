@@ -59,6 +59,12 @@ Engine::~Engine() {
 void Engine::Init() {
     BB_PROFILE_SCOPE("Engine::Init");
 
+    BB_CORE_INFO("Engine: Module Status:");
+    BB_CORE_INFO(" - JobSystem: {}", m_Config.modules.enableJobSystem ? "ENABLED" : "DISABLED");
+    BB_CORE_INFO(" - Physics:   {}", m_Config.modules.enablePhysics ? "ENABLED" : "DISABLED");
+    BB_CORE_INFO(" - Audio:     {}", m_Config.modules.enableAudio ? "ENABLED" : "DISABLED");
+    BB_CORE_INFO(" - Editor:    {}", m_Config.modules.enableEditor ? "ENABLED" : "DISABLED");
+
     // 1. Job System (Initialisé en premier pour être dispo pour les chargements asynchrones)
     if (m_Config.modules.enableJobSystem) {
         m_JobSystem = CreateScope<JobSystem>();
@@ -88,6 +94,8 @@ void Engine::Init() {
             int h = e.window.data2;
             if (w > 0 && h > 0 && m_Renderer) {
                 m_Renderer->onResize(w, h);
+            } else if (w == 0 || h == 0) {
+                BB_CORE_WARN("Engine::HandleEvent: Window resized to invalid dimensions ({}x{}). Ignoring.", w, h);
             }
         }
     });
@@ -103,7 +111,9 @@ void Engine::Init() {
 
     // 6.5 ImGui Layer (Editor UI)
 #if defined(BB3D_ENABLE_EDITOR)
-    m_ImGuiLayer = CreateScope<ImGuiLayer>(*m_VulkanContext, *m_Window);
+    if (m_Config.modules.enableEditor) {
+        m_ImGuiLayer = CreateScope<ImGuiLayer>(*m_VulkanContext, *m_Window, m_Renderer->getSwapChain());
+    }
 #endif
 
     // 7. Resource Manager (Textures, Models, Shaders)
@@ -150,7 +160,6 @@ void Engine::Shutdown() {
     }
 
     // 3. Scène active (Détruit les Entités, Components, Scripts)
-    // IMPORTANT : On vide le registre AVANT le renderer
     if (m_ActiveScene) {
         m_ActiveScene->getRegistry().clear();
     }
@@ -161,29 +170,21 @@ void Engine::Shutdown() {
 #endif
     
     // 4. Renderer
-    // IMPORTANT : On détruit le Renderer avant le Context et le Window.
-    // Il contient la SwapChain et les Framebuffers qui dépendent de la Surface.
     m_Renderer.reset(); 
 
-    // Deuxième waitIdle par sécurité après destruction du renderer
-    if (m_VulkanContext && m_VulkanContext->getDevice()) {
-        try {
-            m_VulkanContext->getDevice().waitIdle();
-        } catch(...) {}
-    }
+    // Libérer les ressources statiques de Material (ex: sampler blanc) AVANT le contexte
+    Material::Cleanup();
 
-    // 5. Ressources
-    // On vide le cache des textures/modèles. Note : Les textures Vulkan dépendent de l'allocator (VMA)
-    // qui est géré par le VulkanContext. Elles doivent être libérées AVANT le contexte.
+    // 5. Ressources (Cache de textures/modèles)
     if (m_ResourceManager) {
         m_ResourceManager->clearCache();
         m_ResourceManager.reset();
     }
 
-    // Libérer les ressources statiques de Material avant de détruire l'allocateur
-    Material::Cleanup();
-
-    // 6. Contexte Graphique
+    // 6. Contexte Graphique (Contient l'allocateur VMA)
+    if (m_VulkanContext && m_VulkanContext->getDevice()) {
+        try { m_VulkanContext->getDevice().waitIdle(); } catch(...) {}
+    }
     m_VulkanContext.reset();
 
     // 7. Fenêtre
@@ -226,8 +227,15 @@ void Engine::Run() {
         // 1. Événements système (Fenêtre, Input)
         m_Window->PollEvents();
         
+        // Si la fenêtre est minimisée (taille 0), on saute le rendu et la logique pour éviter de faire ramer le CPU
+        // et de causer des erreurs Vulkan/ImGui.
+        if (m_Window->GetWidth() == 0 || m_Window->GetHeight() == 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
+        }
+        
 #if defined(BB3D_ENABLE_EDITOR)
-        if (m_ImGuiLayer) m_ImGuiLayer->beginFrame();
+        if (m_Config.modules.enableEditor && m_ImGuiLayer) m_ImGuiLayer->beginFrame();
 #endif
 
         // Mise à jour de l'état des entrées (reset deltas)
@@ -236,7 +244,7 @@ void Engine::Run() {
             bool captureMouse = false;
             bool captureKeyboard = false;
 #if defined(BB3D_ENABLE_EDITOR)
-            if (m_ImGuiLayer) {
+            if (m_Config.modules.enableEditor && m_ImGuiLayer) {
                 captureMouse = m_ImGuiLayer->wantCaptureMouse();
                 captureKeyboard = m_ImGuiLayer->wantCaptureKeyboard();
             }
@@ -306,25 +314,64 @@ void Engine::resetScene() {
         m_PhysicsWorld->resetAllBodies(*m_ActiveScene);
     }
 }
-
 void Engine::Render() {
     BB_PROFILE_SCOPE("Engine::Render");
-    
-    if (m_ActiveScene && m_Renderer) {
-        // 1. Rendu de la scène
-        m_Renderer->render(*m_ActiveScene);
+
+    if (!m_Renderer) return;
 
 #if defined(BB3D_ENABLE_EDITOR)
-        // 2. Rendu de l'UI (ImGui) par dessus
-        if (m_ImGuiLayer) {
-            // On récupère le command buffer courant du renderer pour injecter l'UI
-            // Note: Renderer::render() termine sa passe de rendu interne.
-            // On a besoin d'une méthode pour dessiner l'UI dans le swapchain.
+    // 0. Gestion du resize différé du viewport demandé par ImGui à la frame précédente
+    if (m_Config.modules.enableEditor && m_ImGuiLayer && m_ImGuiLayer->hasViewportSizeChanged()) {
+        glm::uvec2 size = m_ImGuiLayer->getViewportSize();
+        if (size.x > 0 && size.y > 0) {
+            auto rt = m_Renderer->getRenderTarget();
+            if (rt) {
+                rt->resize(size.x, size.y);
+
+                // Mise à jour caméra
+                if (m_ActiveScene) {
+                    auto view = m_ActiveScene->getRegistry().view<CameraComponent>();
+                    for (auto entity : view) {
+                        auto& cc = view.get<CameraComponent>(entity);
+                        if (cc.active && cc.camera) cc.camera->setAspectRatio((float)size.x / (float)size.y);
+                    }
+                }
+                BB_CORE_TRACE("Engine: Viewport RenderTarget resized to {}x{}", size.x, size.y);
+            }
+        }
+        m_ImGuiLayer->clearViewportSizeChanged();
+    }
+#endif
+
+    bool frameStarted = false;
+    if (m_Renderer && m_ActiveScene) {
+        // 1. Rendu de la scène
+        frameStarted = m_Renderer->render(*m_ActiveScene);
+    }
+#if defined(BB3D_ENABLE_EDITOR)
+    // 2. Rendu de l'UI (ImGui) par dessus
+    if (m_Config.modules.enableEditor && m_ImGuiLayer) {
+        m_ImGuiLayer->showViewport(m_Renderer->getRenderTarget(), *m_ActiveScene);
+        m_ImGuiLayer->showMainMenu();
+        m_ImGuiLayer->showSceneHierarchy(*m_ActiveScene);
+        m_ImGuiLayer->showSceneSettings(*m_ActiveScene);
+        m_ImGuiLayer->showInspector();
+        m_ImGuiLayer->showToolbar();
+
+        if (frameStarted && m_Renderer) {
+            // On a un command buffer, on peut dessiner ImGui normalement
             m_Renderer->renderUI([this](vk::CommandBuffer cb) {
                 m_ImGuiLayer->endFrame(cb);
             });
+        } else {
+            // Pas de rendu ce coup-ci (ou pas de renderer/scène), 
+            // on finit juste la frame ImGui pour l'état interne
+            m_ImGuiLayer->endFrame();
         }
+    }
 #endif
+
+    if (frameStarted && m_Renderer) {
         // 3. Soumission et Présentation (ENVOI AU GPU)
         m_Renderer->submitAndPresent();
     }

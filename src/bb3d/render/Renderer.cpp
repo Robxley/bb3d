@@ -40,18 +40,21 @@ Renderer::~Renderer() {
     auto dev = m_context.getDevice();
     if (dev) {
         try { dev.waitIdle(); } catch(...) {}
-        
+
         m_renderCommands.clear();
         m_instanceTransforms.clear();
         m_defaultMaterials.clear();
         m_pipelines.clear();
         m_shaders.clear();
-        
+
         m_internalSkyboxMat.reset();
         m_internalSkySphereMat.reset();
         m_fallbackMaterial.reset();
         m_skyboxCube.reset();
+
+        for (auto& ubo : m_cameraUbos) ubo.reset();
         m_cameraUbos.clear();
+        for (auto& buf : m_instanceBuffers) buf.reset();
         m_instanceBuffers.clear();
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -59,7 +62,8 @@ Renderer::~Renderer() {
             if (m_inFlightFences[i]) dev.destroyFence(m_inFlightFences[i]);
         }
         for (auto semaphore : m_renderFinishedSemaphores) if (semaphore) dev.destroySemaphore(semaphore);
-        
+        m_renderFinishedSemaphores.clear();
+
         if (m_descriptorPool) dev.destroyDescriptorPool(m_descriptorPool);
         if (m_globalDescriptorLayout) dev.destroyDescriptorSetLayout(m_globalDescriptorLayout);
         if (m_copyLayout) dev.destroyDescriptorSetLayout(m_copyLayout);
@@ -80,7 +84,7 @@ void Renderer::createSyncObjects() {
     for (size_t i = 0; i < m_renderFinishedSemaphores.size(); i++) m_renderFinishedSemaphores[i] = dev.createSemaphore({});
     m_commandPool = dev.createCommandPool({ vk::CommandPoolCreateFlagBits::eResetCommandBuffer, m_context.getGraphicsQueueFamily() });
     m_commandBuffers = dev.allocateCommandBuffers({ m_commandPool, vk::CommandBufferLevel::ePrimary, MAX_FRAMES_IN_FLIGHT });
-    m_imagesInUseFences.resize(m_swapChain->getImageCount(), nullptr);
+    m_imagesInUseFences.assign(m_swapChain->getImageCount(), nullptr);
 }
 
 void Renderer::createGlobalDescriptors() {
@@ -148,15 +152,28 @@ void Renderer::createPipelines(const EngineConfig& config) {
 
 void Renderer::createCopyPipeline() {
     if (!m_config.graphics.enableOffscreenRendering) return;
-    vk::DescriptorSetLayoutBinding binding{0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment};
-    m_copyLayout = m_context.getDevice().createDescriptorSetLayout({{}, 1, &binding});
-    EngineConfig copyConfig = m_config; copyConfig.rasterizer.setCullMode("None");
-    m_copyPipeline = CreateScope<GraphicsPipeline>(m_context, m_swapChain->getImageFormat(), vk::Format::eUndefined, *m_shaders["fullscreen.vert"], *m_shaders["copy.frag"], copyConfig, std::vector<vk::DescriptorSetLayout>{m_copyLayout}, std::vector<vk::PushConstantRange>{}, false, false); 
-    vk::DescriptorSetAllocateInfo allocInfo(m_descriptorPool, 1, &m_copyLayout);
-    m_copyDescriptorSet = m_context.getDevice().allocateDescriptorSets(allocInfo)[0];
-    vk::DescriptorImageInfo imgInfo(m_renderTarget->getSampler(), m_renderTarget->getColorImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-    vk::WriteDescriptorSet write(m_copyDescriptorSet, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &imgInfo, nullptr, nullptr);
-    m_context.getDevice().updateDescriptorSets(1, &write, 0, nullptr);
+    auto device = m_context.getDevice();
+    if (!m_copyLayout) {
+        vk::DescriptorSetLayoutBinding binding{0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment};
+        m_copyLayout = device.createDescriptorSetLayout({{}, 1, &binding});
+    }
+    if (!m_copyPipeline) {
+        EngineConfig copyConfig = m_config; copyConfig.rasterizer.setCullMode("None");
+        m_copyPipeline = CreateScope<GraphicsPipeline>(m_context, m_swapChain->getImageFormat(), vk::Format::eUndefined, *m_shaders["fullscreen.vert"], *m_shaders["copy.frag"], copyConfig, std::vector<vk::DescriptorSetLayout>{m_copyLayout}, std::vector<vk::PushConstantRange>{}, false, false); 
+    }
+    if (m_copyDescriptorSets.empty() || m_copyDescriptorSets.size() != MAX_FRAMES_IN_FLIGHT) {
+        m_copyDescriptorSets.clear();
+        std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, m_copyLayout);
+        m_copyDescriptorSets = device.allocateDescriptorSets({ m_descriptorPool, MAX_FRAMES_IN_FLIGHT, layouts.data() });
+        BB_CORE_TRACE("Renderer: Allocated {0} copy descriptor sets.", m_copyDescriptorSets.size());
+    }
+    if (m_renderTarget && !m_copyDescriptorSets.empty()) {
+        for (uint32_t i = 0; i < m_copyDescriptorSets.size(); i++) {
+            vk::DescriptorImageInfo imgInfo(m_renderTarget->getSampler(), m_renderTarget->getColorImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+            vk::WriteDescriptorSet write(m_copyDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &imgInfo, nullptr, nullptr);
+            device.updateDescriptorSets(write, nullptr);
+        }
+    }
 }
 
 Ref<Material> Renderer::getMaterialForTexture(Ref<Texture> texture) {
@@ -169,7 +186,7 @@ Ref<Material> Renderer::getMaterialForTexture(Ref<Texture> texture) {
 }
 
 void Renderer::renderUI(const std::function<void(vk::CommandBuffer)>& func) {
-    if (!m_frameStarted) return;
+    if (!m_frameStarted || !m_config.modules.enableEditor) return;
     auto& cb = m_commandBuffers[m_currentFrame];
     uint32_t imageIndex = m_swapChain->getCurrentImageIndex();
     vk::ImageView view = m_swapChain->getImageViews()[imageIndex];
@@ -179,46 +196,72 @@ void Renderer::renderUI(const std::function<void(vk::CommandBuffer)>& func) {
     func(cb);
     cb.endRendering();
 }
-
 void Renderer::onResize(int width, int height) {
     if (width == 0 || height == 0) return;
-    m_swapChain->recreate(width, height);
-    m_imagesInUseFences.resize(m_swapChain->getImageCount(), nullptr);
-    if (m_renderFinishedSemaphores.size() != m_swapChain->getImageCount()) {
-        auto dev = m_context.getDevice();
-        for (auto s : m_renderFinishedSemaphores) if (s) dev.destroySemaphore(s);
-        m_renderFinishedSemaphores.clear(); m_renderFinishedSemaphores.resize(m_swapChain->getImageCount());
-        for (size_t i = 0; i < m_renderFinishedSemaphores.size(); i++) m_renderFinishedSemaphores[i] = dev.createSemaphore({});
-    }
-    if (m_renderTarget) {
-        uint32_t w = static_cast<uint32_t>(width * m_config.graphics.renderScale);
-        uint32_t h = static_cast<uint32_t>(height * m_config.graphics.renderScale);
-        w = std::max(1u, w); h = std::max(1u, h);
-        m_renderTarget->resize(w, h);
-        vk::DescriptorImageInfo imgInfo(m_renderTarget->getSampler(), m_renderTarget->getColorImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-        vk::WriteDescriptorSet write(m_copyDescriptorSet, 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &imgInfo, nullptr, nullptr);
-        m_context.getDevice().updateDescriptorSets(1, &write, 0, nullptr);
-    }
+    m_resizeRequested = true;
+    m_pendingWidth = width;
+    m_pendingHeight = height;
+    BB_CORE_TRACE("Renderer: Resize requested to {}x{}", width, height);
 }
 
-void Renderer::render(Scene& scene) {
-    if (m_window.GetWidth() == 0 || m_window.GetHeight() == 0) return;
-    
-    // Synchronisation du buffering des descripteurs de matériaux
+bool Renderer::render(Scene& scene) {
+    if (m_window.GetWidth() == 0 || m_window.GetHeight() == 0) {
+        BB_CORE_WARN("Renderer::render: Skipping render due to invalid window dimensions.");
+        return false;
+    }
+    if (m_resizeRequested) {
+        m_resizeRequested = false;
+        try {
+            auto capabilities = m_context.getPhysicalDevice().getSurfaceCapabilitiesKHR(m_context.getSurface());
+            if (capabilities.currentExtent.width > 0 && capabilities.currentExtent.height > 0) {
+                m_context.getDevice().waitIdle();
+                m_swapChain->recreate(m_pendingWidth, m_pendingHeight);
+                m_imagesInUseFences.assign(m_swapChain->getImageCount(), nullptr);
+                auto dev = m_context.getDevice();
+                for (auto s : m_renderFinishedSemaphores) if (s) dev.destroySemaphore(s);
+                m_renderFinishedSemaphores.clear(); 
+                m_renderFinishedSemaphores.resize(m_swapChain->getImageCount());
+                for (size_t i = 0; i < m_renderFinishedSemaphores.size(); i++) 
+                    m_renderFinishedSemaphores[i] = dev.createSemaphore({});
+                if (m_config.graphics.enableOffscreenRendering) {
+                    if (!m_renderTarget) {
+                        uint32_t w = static_cast<uint32_t>(m_pendingWidth * m_config.graphics.renderScale);
+                        uint32_t h = static_cast<uint32_t>(m_pendingHeight * m_config.graphics.renderScale);
+                        w = std::max(1u, w); h = std::max(1u, h);
+                        m_renderTarget = CreateScope<RenderTarget>(m_context, w, h);
+                    } else {
+                        uint32_t w = static_cast<uint32_t>(m_pendingWidth * m_config.graphics.renderScale);
+                        uint32_t h = static_cast<uint32_t>(m_pendingHeight * m_config.graphics.renderScale);
+                        w = std::max(1u, w); h = std::max(1u, h);
+                        m_renderTarget->resize(w, h);
+                    }
+                    if (m_copyDescriptorSets.size() != MAX_FRAMES_IN_FLIGHT) {
+                        createCopyPipeline();
+                    } else {
+                        for (uint32_t i = 0; i < m_copyDescriptorSets.size(); i++) {
+                            vk::DescriptorImageInfo imgInfo(m_renderTarget->getSampler(), m_renderTarget->getColorImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+                            vk::WriteDescriptorSet write(m_copyDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &imgInfo, nullptr, nullptr);
+                            dev.updateDescriptorSets(write, nullptr);
+                        }
+                    }
+                }
+                BB_CORE_INFO("Renderer: Deferred resize applied ({}x{})", m_pendingWidth, m_pendingHeight);
+            }
+        } catch (const std::exception& e) {
+            BB_CORE_ERROR("Renderer: Failed to apply deferred resize: {}", e.what());
+            return false;
+        }
+    }
     Material::SetCurrentFrame(m_currentFrame);
-
     m_frameStarted = false;
     auto dev = m_context.getDevice();
     (void)dev.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
-
     Camera* activeCamera = nullptr;
     auto camView = scene.getRegistry().view<CameraComponent>();
     for (auto entity : camView) { if (camView.get<CameraComponent>(entity).active) { activeCamera = camView.get<CameraComponent>(entity).camera.get(); break; } }
-    if (!activeCamera) return;
-
+    if (!activeCamera) return false;
     GlobalUBO uboData; uboData.view = activeCamera->getViewMatrix(); uboData.proj = activeCamera->getProjectionMatrix(); uboData.camPos = glm::vec4(glm::vec3(glm::inverse(uboData.view)[3]), 0.0f);
     if (m_config.graphics.enableFrustumCulling) m_frustum.update(uboData.proj * uboData.view);
-    
     int numLights = 0;
     auto lightView = scene.getRegistry().view<LightComponent>();
     for (auto entity : lightView) {
@@ -232,19 +275,15 @@ void Renderer::render(Scene& scene) {
     }
     uboData.globalParams = glm::vec4((float)numLights, 0.0f, 0.0f, 0.0f);
     m_cameraUbos[m_currentFrame]->update(&uboData, sizeof(uboData));
-
     uint32_t imageIndex;
     try { imageIndex = m_swapChain->acquireNextImage(m_imageAvailableSemaphores[m_currentFrame]); } 
-    catch (...) { onResize(m_window.GetWidth(), m_window.GetHeight()); return; }
-
+    catch (...) { onResize(m_window.GetWidth(), m_window.GetHeight()); return false; }
     if (m_imagesInUseFences[imageIndex]) (void)dev.waitForFences(1, &m_imagesInUseFences[imageIndex], VK_TRUE, UINT64_MAX);
     m_imagesInUseFences[imageIndex] = m_inFlightFences[m_currentFrame];
     (void)dev.resetFences(1, &m_inFlightFences[m_currentFrame]);
-
     auto& cb = m_commandBuffers[m_currentFrame];
     cb.reset({}); cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
     m_frameStarted = true;
-
     if (m_config.graphics.enableOffscreenRendering) {
         vk::Image rtImage = m_renderTarget->getColorImage();
         vk::ImageMemoryBarrier rtBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
@@ -253,9 +292,17 @@ void Renderer::render(Scene& scene) {
         vk::ImageMemoryBarrier dBarrier({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, dImage, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
         drawScene(cb, scene, m_renderTarget->getColorImageView(), m_renderTarget->getDepthImageView(), m_renderTarget->getExtent());
-        compositeToSwapchain(cb, imageIndex);
-
-        // Transition pour que ImGui puisse lire la texture du RenderTarget
+        bool editorActive = false;
+#if defined(BB3D_ENABLE_EDITOR)
+        editorActive = m_config.modules.enableEditor;
+#endif
+        if (!editorActive) {
+            compositeToSwapchain(cb, imageIndex);
+        } else {
+            vk::Image swapImage = m_swapChain->getImage(imageIndex);
+            vk::ImageMemoryBarrier swBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
+            cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, swBarrier);
+        }
         vk::ImageMemoryBarrier rtReadBarrier(vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eShaderRead, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, rtReadBarrier);
     } else {
@@ -267,8 +314,7 @@ void Renderer::render(Scene& scene) {
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
         drawScene(cb, scene, m_swapChain->getImageViews()[imageIndex], m_swapChain->getDepthImageView(), m_swapChain->getExtent());
     }
-    
-    // Le CB reste ouvert pour renderUI si besoin
+    return true;
 }
 
 void Renderer::submitAndPresent() {
@@ -277,21 +323,15 @@ void Renderer::submitAndPresent() {
     auto& cb = m_commandBuffers[m_currentFrame];
     uint32_t imageIndex = m_swapChain->getCurrentImageIndex();
     vk::Image swImage = m_swapChain->getImage(imageIndex);
-
-    // Transition finale pour présentation
     vk::ImageMemoryBarrier presentBarrier(vk::AccessFlagBits::eColorAttachmentWrite, {}, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
     cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe, {}, nullptr, nullptr, presentBarrier);
-
     cb.end();
-
     vk::PipelineStageFlags waitStages[] = { vk::PipelineStageFlagBits::eColorAttachmentOutput };
     vk::SubmitInfo submitInfo(1, &m_imageAvailableSemaphores[m_currentFrame], waitStages, 1, &cb, 1, &m_renderFinishedSemaphores[imageIndex]);
-    
     try {
         m_context.getGraphicsQueue().submit(submitInfo, m_inFlightFences[m_currentFrame]);
         m_swapChain->present(m_renderFinishedSemaphores[imageIndex], imageIndex);
     } catch (...) { onResize(m_window.GetWidth(), m_window.GetHeight()); }
-
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
@@ -303,17 +343,12 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
     cb.setScissor(0, vk::Rect2D({0, 0}, extent));
     renderSkybox(cb, scene);
     m_renderCommands.clear();
-
-    // 1. Collect Entities
     std::vector<entt::entity> meshEntities;
     auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
     meshEntities.assign(meshView.begin(), meshView.end());
-
     std::vector<entt::entity> modelEntities;
     auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
     modelEntities.assign(modelView.begin(), modelView.end());
-
-    // 2. Parallel Culling for Meshes
     if (!meshEntities.empty()) {
         m_jobSystem.dispatch((uint32_t)meshEntities.size(), 64, [&](uint32_t index, uint32_t count) {
             std::vector<RenderCommand> localCommands;
@@ -321,26 +356,21 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
                 entt::entity entity = meshEntities[i];
                 auto& meshComp = meshView.get<MeshComponent>(entity);
                 if (!meshComp.mesh || !meshComp.visible) continue;
-
                 glm::mat4 transform = meshView.get<TransformComponent>(entity).getTransform();
                 if (m_config.graphics.enableFrustumCulling) {
                     AABB worldBox = meshComp.mesh->getBounds().transform(transform);
                     if (!m_frustum.intersects(worldBox)) continue;
                 }
-
                 Material* mat = meshComp.mesh->getMaterial().get();
                 if (!mat) mat = m_fallbackMaterial.get();
                 localCommands.push_back({ mat->getType(), mat, meshComp.mesh.get(), transform });
             }
-
             if (!localCommands.empty()) {
                 std::lock_guard<std::mutex> lock(m_commandMutex);
                 m_renderCommands.insert(m_renderCommands.end(), localCommands.begin(), localCommands.end());
             }
         });
     }
-
-    // 3. Parallel Culling for Models
     if (!modelEntities.empty()) {
         m_jobSystem.dispatch((uint32_t)modelEntities.size(), 32, [&](uint32_t index, uint32_t count) {
             std::vector<RenderCommand> localCommands;
@@ -348,13 +378,11 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
                 entt::entity entity = modelEntities[i];
                 auto& modelComp = modelView.get<ModelComponent>(entity);
                 if (!modelComp.model || !modelComp.visible) continue;
-
                 glm::mat4 transform = modelView.get<TransformComponent>(entity).getTransform();
                 if (m_config.graphics.enableFrustumCulling) {
                     AABB worldBox = modelComp.model->getBounds().transform(transform);
                     if (!m_frustum.intersects(worldBox)) continue;
                 }
-
                 for (const auto& mesh : modelComp.model->getMeshes()) {
                     Material* mat = mesh->getMaterial().get();
                     if (!mat) {
@@ -365,14 +393,12 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
                     localCommands.push_back({ mat->getType(), mat, mesh.get(), transform });
                 }
             }
-
             if (!localCommands.empty()) {
                 std::lock_guard<std::mutex> lock(m_commandMutex);
                 m_renderCommands.insert(m_renderCommands.end(), localCommands.begin(), localCommands.end());
             }
         });
     }
-
     std::sort(m_renderCommands.begin(), m_renderCommands.end());
     GraphicsPipeline* lastPipeline = nullptr; Material* lastMaterial = nullptr; Mesh* lastMesh = nullptr;
     m_instanceTransforms.clear();
@@ -430,7 +456,9 @@ void Renderer::compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex) {
     cb.setViewport(0, vk::Viewport(0, 0, (float)m_swapChain->getExtent().width, (float)m_swapChain->getExtent().height, 0, 1));
     cb.setScissor(0, vk::Rect2D({0, 0}, m_swapChain->getExtent()));
     m_copyPipeline->bind(cb);
-    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_copyPipeline->getLayout(), 0, 1, &m_copyDescriptorSet, 0, nullptr);
+    if (!m_copyDescriptorSets.empty() && m_copyDescriptorSets.size() > m_currentFrame) {
+        cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_copyPipeline->getLayout(), 0, 1, &m_copyDescriptorSets[m_currentFrame], 0, nullptr);
+    }
     cb.draw(3, 1, 0, 0);
     cb.endRendering();
     vk::ImageMemoryBarrier resetBarrier(vk::AccessFlagBits::eShaderRead, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });

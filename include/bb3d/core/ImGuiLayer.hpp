@@ -25,8 +25,9 @@ public:
      * @brief Initialise le contexte ImGui pour SDL3 et Vulkan.
      * @param context Contexte Vulkan pour les ressources graphiques.
      * @param window Fenêtre SDL3 pour les événements et le lien natif.
+     * @param swapChain La swapchain active pour connaître le nombre d'images.
      */
-    ImGuiLayer(VulkanContext& context, Window& window);
+    ImGuiLayer(VulkanContext& context, Window& window, class SwapChain& swapChain);
     
     /** @brief Libère les ressources ImGui (Descriptor Pool, Contexte). */
     ~ImGuiLayer();
@@ -36,9 +37,9 @@ public:
     
     /** 
      * @brief Termine la frame et enregistre les commandes de dessin ImGui.
-     * @param commandBuffer Buffer de commande Vulkan actif.
+     * @param commandBuffer Buffer de commande Vulkan actif. Si nul, la frame est juste terminée pour ImGui sans rendu.
      */
-    void endFrame(vk::CommandBuffer commandBuffer);
+    void endFrame(vk::CommandBuffer commandBuffer = nullptr);
     
     /** @brief Transmet un événement SDL3 à ImGui. */
     void onEvent(const union SDL_Event& event);
@@ -48,6 +49,13 @@ public:
     
     /** @brief Indique si ImGui capture le clavier. */
     [[nodiscard]] bool wantCaptureKeyboard() const;
+
+    [[nodiscard]] glm::uvec2 getViewportSize() const { return m_viewportSize; }
+    [[nodiscard]] bool hasViewportSizeChanged() const { return m_viewportSizeChanged; }
+    void clearViewportSizeChanged() { m_viewportSizeChanged = false; }
+
+    /** @brief Affiche la vue de la scène (Viewport) dans une fenêtre ImGui. */
+    void showViewport(class RenderTarget* renderTarget, class Scene& scene);
 
     /** 
      * @brief Enregistre une texture Vulkan pour l'utiliser comme ImTextureID.
@@ -106,6 +114,13 @@ private:
     Entity m_selectedEntity;
     bool m_viewportFocused = false;
     bool m_viewportHovered = false;
+    
+    // Suivi de la taille du viewport pour resize différé
+    glm::uvec2 m_viewportSize{ 0, 0 };
+    bool m_viewportSizeChanged = false;
+
+    ImTextureID m_viewportTextureID = 0;
+    vk::ImageView m_lastViewportImageView = nullptr;
 };
 
 } // namespace bb3d

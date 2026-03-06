@@ -53,8 +53,9 @@ public:
 
     /**
      * @brief Exécute le rendu d'une scène complète.
+     * @return true si le rendu a pu démarrer (swapchain valide), false sinon.
      */
-    void render(Scene& scene);
+    bool render(Scene& scene);
 
     /** @brief Notifie le renderer d'un changement de taille de fenêtre. */
     void onResize(int width, int height);
@@ -106,7 +107,7 @@ private:
     // Pipeline de copie (Fullscreen Quad)
     Scope<GraphicsPipeline> m_copyPipeline;
     vk::DescriptorSetLayout m_copyLayout;
-    vk::DescriptorSet m_copyDescriptorSet;
+    std::vector<vk::DescriptorSet> m_copyDescriptorSets;
 
     // Shaders cache
     std::unordered_map<std::string, Scope<Shader>> m_shaders;
@@ -115,6 +116,11 @@ private:
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 3;
     uint32_t m_currentFrame = 0;
     bool m_frameStarted = false;
+
+    // Gestion du resize différé
+    bool m_resizeRequested = false;
+    int m_pendingWidth = 0;
+    int m_pendingHeight = 0;
 
     vk::CommandPool m_commandPool;
     std::vector<vk::CommandBuffer> m_commandBuffers;

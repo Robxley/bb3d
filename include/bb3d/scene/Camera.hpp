@@ -41,6 +41,9 @@ public:
     /** @brief Définit la position de la caméra. */
     virtual void setPosition(const glm::vec3& position) { m_position = position; }
 
+    /** @brief Définit le rapport d'aspect sans modifier les autres paramètres. */
+    virtual void setAspectRatio(float aspect);
+
     /** @brief Oriente la caméra vers une cible spécifique. */
     virtual void lookAt(const glm::vec3& target);
 
@@ -54,6 +57,11 @@ protected:
     glm::vec3 m_position{0.0f, 0.0f, 5.0f};
     glm::mat4 m_view{1.0f};
     glm::mat4 m_proj{1.0f};
+
+    float m_fov = 45.0f;
+    float m_aspect = 1.77f;
+    float m_near = 0.1f;
+    float m_far = 1000.0f;
 };
 
 } // namespace bb3d

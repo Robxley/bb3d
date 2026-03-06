@@ -19,7 +19,7 @@
 
 namespace bb3d {
 
-ImGuiLayer::ImGuiLayer(VulkanContext& context, Window& window)
+ImGuiLayer::ImGuiLayer(VulkanContext& context, Window& window, SwapChain& swapChain)
     : m_context(context), m_window(window) {
     
     IMGUI_CHECKVERSION();
@@ -27,6 +27,9 @@ ImGuiLayer::ImGuiLayer(VulkanContext& context, Window& window)
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    // On désactive explicitement les viewports multiples (fenêtres natives séparées) 
+    // car le renderer ne gère pas encore les swapchains multiples.
+    io.ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable;
     
     ImGui::StyleColorsDark();
 
@@ -48,7 +51,7 @@ ImGuiLayer::ImGuiLayer(VulkanContext& context, Window& window)
     initInfo.Queue = m_context.getGraphicsQueue();
     initInfo.DescriptorPool = m_descriptorPool;
     initInfo.MinImageCount = 2;
-    initInfo.ImageCount = 3; 
+    initInfo.ImageCount = swapChain.getImageCount(); 
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     initInfo.UseDynamicRendering = true;
     
@@ -113,14 +116,21 @@ void ImGuiLayer::initFonts() {
 }
 
 void ImGuiLayer::beginFrame() {
+    BB_CORE_TRACE("ImGuiLayer::beginFrame()");
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
 }
 
 void ImGuiLayer::endFrame(vk::CommandBuffer commandBuffer) {
-    ImGui::Render();
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(commandBuffer));
+    if (commandBuffer) {
+        BB_CORE_TRACE("ImGuiLayer::endFrame(with CB)");
+        ImGui::Render();
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), static_cast<VkCommandBuffer>(commandBuffer));
+    } else {
+        BB_CORE_TRACE("ImGuiLayer::endFrame(no CB)");
+        ImGui::EndFrame();
+    }
 }
 
 void ImGuiLayer::onEvent(const SDL_Event& event) {
@@ -137,6 +147,49 @@ bool ImGuiLayer::wantCaptureKeyboard() const {
 
 ImTextureID ImGuiLayer::addTexture(vk::Sampler sampler, vk::ImageView view, vk::ImageLayout layout) {
     return (ImTextureID)ImGui_ImplVulkan_AddTexture(sampler, view, static_cast<VkImageLayout>(layout));
+}
+
+void ImGuiLayer::showViewport(RenderTarget* renderTarget, Scene& scene) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
+    ImGui::Begin(ICON_FA_IMAGE " Viewport");
+
+    if (renderTarget) {
+        // Enregistrement de la texture si elle a changé (ex: resize)
+        if (renderTarget->getColorImageView() != m_lastViewportImageView) {
+            m_lastViewportImageView = renderTarget->getColorImageView();
+            m_viewportTextureID = addTexture(renderTarget->getSampler(), m_lastViewportImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
+        }
+
+        ImVec2 viewportPanelSize = ImGui::GetContentRegionAvail();
+        
+        // On enregistre la taille souhaitée pour le prochain rendu
+        uint32_t width = static_cast<uint32_t>(viewportPanelSize.x);
+        uint32_t height = static_cast<uint32_t>(viewportPanelSize.y);
+        
+        if (width > 0 && height > 0 && (width != m_viewportSize.x || height != m_viewportSize.y)) {
+            // Sécurité : on ne demande un resize QUE si c'est différent de la taille réelle actuelle du RT
+            if (width != renderTarget->getExtent().width || height != renderTarget->getExtent().height) {
+                m_viewportSize = { width, height };
+                m_viewportSizeChanged = true;
+            } else {
+                // Si la taille match déjà, on reset notre état interne sans trigger de resize
+                m_viewportSize = { width, height };
+                m_viewportSizeChanged = false;
+            }
+        }
+
+        m_viewportFocused = ImGui::IsWindowFocused();
+        m_viewportHovered = ImGui::IsWindowHovered();
+
+        if (m_viewportTextureID) {
+            ImGui::Image(m_viewportTextureID, viewportPanelSize);
+        }
+    } else {
+        ImGui::Text("No RenderTarget available (Offscreen Rendering disabled?)");
+    }
+
+    ImGui::End();
+    ImGui::PopStyleVar();
 }
 
 void ImGuiLayer::showSceneHierarchy(Scene& scene) {

@@ -45,7 +45,18 @@ void SwapChain::cleanup() {
 }
 
 void SwapChain::recreate(int width, int height) {
-    if (width == 0 || height == 0) return;
+    if (width == 0 || height == 0) {
+        BB_CORE_WARN("SwapChain::recreate: Attempted to recreate swapchain with invalid dimensions ({}x{}). Skipping.", width, height);
+        return;
+    }
+
+    // Double check with Vulkan surface capabilities (critical on Windows when minimized)
+    auto capabilities = m_context.getPhysicalDevice().getSurfaceCapabilitiesKHR(m_context.getSurface());
+    if (capabilities.currentExtent.width == 0 && capabilities.currentExtent.height == 0) {
+        BB_CORE_TRACE("SwapChain::recreate: Surface capabilities report 0x0 extent. Skipping recreation.");
+        return;
+    }
+
     m_context.getDevice().waitIdle();
     cleanup();
     createSwapChain(width, height);
@@ -151,13 +162,22 @@ vk::PresentModeKHR SwapChain::chooseSwapPresentMode(const std::vector<vk::Presen
 
 vk::Extent2D SwapChain::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities, int width, int height) {
     if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
-        return capabilities.currentExtent;
-    } else {
-        vk::Extent2D actualExtent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
-        actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-        actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
-        return actualExtent;
+        // Si Vulkan nous donne une étendue, on l'utilise, sauf si elle est nulle (minimisée)
+        if (capabilities.currentExtent.width > 0 && capabilities.currentExtent.height > 0) {
+            return capabilities.currentExtent;
+        }
     }
+
+    // Sinon on utilise les dimensions de la fenêtre SDL, clampées aux capacités du GPU
+    vk::Extent2D actualExtent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
+    actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+    actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+    
+    // Sécurité ultime : ne jamais renvoyer 0x0
+    if (actualExtent.width == 0) actualExtent.width = 1;
+    if (actualExtent.height == 0) actualExtent.height = 1;
+
+    return actualExtent;
 }
 
 void SwapChain::createDepthResources() {

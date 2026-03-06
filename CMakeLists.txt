@@ -114,3 +114,6 @@ foreach(TEST_SOURCE ${TEST_SOURCES})
     
     add_dependencies(${TEST_NAME} DeployAssets)
 endforeach()
+
+# --- Applications ---
+add_subdirectory(apps)
