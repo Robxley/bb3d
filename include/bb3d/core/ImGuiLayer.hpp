@@ -123,6 +123,7 @@ private:
     
     Entity m_selectedEntity;
     Entity m_hoveredEntity;
+    std::string m_focusedComponent;
     bool m_viewportFocused = false;
     bool m_viewportHovered = false;
     

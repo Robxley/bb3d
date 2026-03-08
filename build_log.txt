@@ -1,0 +1,17 @@
+Version MSBuild 17.14.40+3e7442088 pour .NET Framework
+
+  Checking File Globs
+  Deploying all assets to common binary directory
+  Jolt.vcxproj -> C:\dev\bb3d\build\_deps\jolt-build\Debug\Jolt.lib
+  SDL_uclibc.vcxproj -> C:\dev\bb3d\build\_deps\sdl-build\Debug\SDL_uclibc.lib
+  SDL3-shared.vcxproj -> C:\dev\bb3d\build\bin\SDL3.dll
+  TracyClient.vcxproj -> C:\dev\bb3d\build\_deps\tracy-build\Debug\TracyClient.lib
+  fastgltf.vcxproj -> C:\dev\bb3d\build\_deps\fastgltf-build\Debug\fastgltf.lib
+  freetype.vcxproj -> C:\dev\bb3d\build\_deps\freetype-build\Debug\freetyped.lib
+  glm.vcxproj -> C:\dev\bb3d\build\_deps\glm-build\glm\Debug\glm.lib
+  spdlog.vcxproj -> C:\dev\bb3d\build\_deps\spdlog-build\Debug\spdlogd.lib
+  tinyobjloader.vcxproj -> C:\dev\bb3d\build\_deps\tinyobjloader-build\Debug\tinyobjloader.lib
+  ImGuiLayer.cpp
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(58,50): warning C4267: '='┬á: conversion de 'size_t' en 'uint32_t', perte possible de donn├®es [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(224,66): warning C4100: 'scene'┬á: param├¿tre non r├®f├®renc├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(522,79): error C2065: 'ImGuiTreeNodeFlags_AllowOverlapMode'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]

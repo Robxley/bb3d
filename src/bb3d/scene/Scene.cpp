@@ -223,6 +223,62 @@ void Scene::onUpdate(float deltaTime) {
         }
     }
 
+    // --- SYSTEM: Simple Animations ---
+    auto animView = m_registry.view<SimpleAnimationComponent, TransformComponent>();
+    for (auto entityHandle : animView) {
+        auto [anim, trans] = animView.get(entityHandle);
+        if (!anim.active) continue;
+
+        anim.timeAccumulator += deltaTime;
+        Entity entity(entityHandle, *this);
+
+        bool transformChanged = false;
+
+        if (anim.type == SimpleAnimationType::Rotation) {
+            // Local Space: Relative to initial rotation
+            trans.rotation = trans.initialRotation + (anim.rotationAxis * anim.speed * anim.timeAccumulator);
+            transformChanged = true;
+        }
+        else if (anim.type == SimpleAnimationType::Translation) {
+            // Local Space: Oscillation relative to initial position
+            float phase = sin(anim.timeAccumulator * anim.speed);
+            trans.translation = trans.initialTranslation + (anim.direction * phase * anim.amplitude);
+            transformChanged = true;
+        }
+        else if (anim.type == SimpleAnimationType::Waypoints && !anim.waypoints.empty()) {
+            // World Space: Move towards waypoints
+            size_t nextIdx = (anim.currentWaypoint + 1) % anim.waypoints.size();
+            glm::vec3 start = anim.waypoints[anim.currentWaypoint];
+            glm::vec3 end = anim.waypoints[nextIdx];
+            
+            float dist = glm::distance(trans.translation, end);
+            if (dist < 0.1f) {
+                anim.currentWaypoint = (int)nextIdx;
+                // If not looping, stop at the end of the chain
+                if (!anim.loop && anim.currentWaypoint == 0) {
+                    anim.active = false;
+                }
+            } else {
+                glm::vec3 dir = glm::normalize(end - start);
+                trans.translation += dir * anim.speed * deltaTime;
+                transformChanged = true;
+            }
+        }
+
+        if (transformChanged && anim.physicsSync && entity.has<RigidBodyComponent>()) {
+            auto& rb = entity.get<RigidBodyComponent>();
+            // Force Kinematic by default if animating to ensure collision works correctly (pushing player)
+            if (!anim.initialized) {
+                if (rb.type != BodyType::Kinematic) {
+                    rb.type = BodyType::Kinematic;
+                    m_EngineContext->physics().resetBody(entity);
+                }
+                anim.initialized = true;
+            }
+            m_EngineContext->physics().updateBodyTransform(entity);
+        }
+    }
+
     // --- SYSTEM: Native Scripts ---
     auto scriptView = m_registry.view<NativeScriptComponent>();
     for (auto entityHandle : scriptView) {

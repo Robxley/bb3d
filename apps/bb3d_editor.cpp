@@ -63,10 +63,7 @@ int main() {
         "assets/models/planes/Plane02/Plane02.obj"
     };
 
-    auto rotScript = [](Entity ent, float dt) {
-        auto& t = ent.get<TransformComponent>();
-        t.rotation.y += dt * 0.2f;
-    };
+    // SimpleAnimationComponent will be used instead of rotation scripts for the demo
 
     auto firstModel = engine->assets().load<Model>(planePaths[0]);
     if (firstModel) {
@@ -76,13 +73,13 @@ int main() {
             float z = (float)(i / 5) * 15.0f + 10.0f;
             auto e = scene->createEntity("Instanced Plane");
             e.at({x, 10.0f, z}).add<ModelComponent>(firstModel, planePaths[0]);
-            e.add<NativeScriptComponent>(rotScript);
+            e.add<SimpleAnimationComponent>().get<SimpleAnimationComponent>().speed = 0.2f;
         }
     }
 
     // Fourmi Géante (glTF)
     auto ant = scene->createModelEntity("Giant Ant (glTF)", "assets/models/ant.glb", {0, 2, -40}, {15.0f, 15.0f, 15.0f}); 
-    if (ant) ant.add<NativeScriptComponent>(rotScript);
+    if (ant) ant.add<SimpleAnimationComponent>().get<SimpleAnimationComponent>().speed = 0.2f;
 
     // --- 5. Objets Physiques Dynamiques ---
     auto cubeMesh = Ref<Mesh>(MeshGenerator::createCube(engine->graphics(), 1.0f).release());

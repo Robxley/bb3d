@@ -83,9 +83,7 @@ int main() {
             float z = (float)(i / 10) * 12.0f + 15.0f;
             auto e = scene->createEntity("Instanced Plane");
             e.at({x, 15.0f, z}).add<ModelComponent>(model);
-            e.add<NativeScriptComponent>([](Entity ent, float dt) {
-                ent.get<TransformComponent>().rotation.y += dt * 0.3f;
-            });
+            e.add<SimpleAnimationComponent>().get<SimpleAnimationComponent>().speed = 0.3f;
         }
     }
 
@@ -98,9 +96,7 @@ int main() {
 
         auto ant = scene->createEntity("Giant Ant");
         ant.at({0.0f, yOffset, -15.0f}).add<ModelComponent>(antModel);
-        ant.add<NativeScriptComponent>([](Entity ent, float dt) {
-            ent.get<TransformComponent>().rotation.y -= dt * 0.1f;
-        });
+        ant.add<SimpleAnimationComponent>().get<SimpleAnimationComponent>().speed = 0.1f;
     }
 
     // --- 6. Showcase : Physique Interactive (Dynamic) ---

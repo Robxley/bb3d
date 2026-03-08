@@ -28,6 +28,7 @@ using json = nlohmann::json;
 enum class BodyType { Static, Dynamic, Kinematic, Character };
 enum class LightType { Directional, Point, Spot };
 enum class PrimitiveType { None = 0, Cube, Sphere, Plane };
+enum class SimpleAnimationType { Rotation = 0, Translation, Waypoints };
 
 /** @brief Unique deterministic and thread-safe identifier for entities. */
 struct IDComponent {
@@ -455,6 +456,59 @@ struct SkySphereComponent {
     std::string assetPath;
     void serialize(json& j) const { j["assetPath"] = assetPath; }
     void deserialize(const json& j) { if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath); }
+};
+
+/** @brief Component for simple procedural animations. */
+struct SimpleAnimationComponent {
+    bool active = true;
+    SimpleAnimationType type = SimpleAnimationType::Rotation;
+    float speed = 1.0f;
+    bool physicsSync = true;
+
+    // Rotation parameters (Local)
+    glm::vec3 rotationAxis = { 0.0f, 1.0f, 0.0f };
+
+    // Translation/Oscillation parameters (Local)
+    glm::vec3 direction = { 0.0f, 1.0f, 0.0f };
+    float amplitude = 1.0f;
+    bool pingPong = true;
+
+    // Waypoints parameters (World)
+    std::vector<glm::vec3> waypoints;
+    int currentWaypoint = 0;
+    bool loop = true;
+
+    // Internal state (non-serialized)
+    float timeAccumulator = 0.0f;
+    bool initialized = false;
+
+    void serialize(json& j) const {
+        j["active"] = active;
+        j["type"] = static_cast<int>(type);
+        j["speed"] = speed;
+        j["physicsSync"] = physicsSync;
+        j["rotationAxis"] = rotationAxis;
+        j["direction"] = direction;
+        j["amplitude"] = amplitude;
+        j["pingPong"] = pingPong;
+        j["waypoints"] = waypoints;
+        j["currentWaypoint"] = currentWaypoint;
+        j["loop"] = loop;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("active")) j.at("active").get_to(active);
+        if (j.contains("type")) type = static_cast<SimpleAnimationType>(j.at("type").get<int>());
+        if (j.contains("speed")) j.at("speed").get_to(speed);
+        if (j.contains("physicsSync")) j.at("physicsSync").get_to(physicsSync);
+        if (j.contains("rotationAxis")) j.at("rotationAxis").get_to(rotationAxis);
+        if (j.contains("direction")) j.at("direction").get_to(direction);
+        if (j.contains("amplitude")) j.at("amplitude").get_to(amplitude);
+        if (j.contains("pingPong")) j.at("pingPong").get_to(pingPong);
+        if (j.contains("waypoints")) j.at("waypoints").get_to(waypoints);
+        if (j.contains("currentWaypoint")) j.at("currentWaypoint").get_to(currentWaypoint);
+        if (j.contains("loop")) j.at("loop").get_to(loop);
+    }
 };
 
 /** @brief Component to attach a behavior (C++ script) to an entity. */
