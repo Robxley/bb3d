@@ -60,6 +60,12 @@ public:
     /** @brief Notifie le renderer d'un changement de taille de fenêtre. */
     void onResize(int width, int height);
     
+    /** @brief Définit la zone de surbrillance (AABB) pour l'identité sélectionnée. */
+    void setHighlightBounds(const AABB& bounds, bool active);
+
+    /** @brief Définit la zone de surbrillance pour l'identité survolée. */
+    void setHoveredBounds(const AABB& bounds, bool active);
+
     /** @brief Récupère la SwapChain actuelle. */
     SwapChain& getSwapChain() { return *m_swapChain; }
 
@@ -173,6 +179,17 @@ private:
     Ref<SkyboxMaterial> m_internalSkyboxMat;
     Ref<SkySphereMaterial> m_internalSkySphereMat;
     Ref<Material> m_fallbackMaterial;
+
+    // Highlight
+    Scope<Mesh> m_highlightCube;
+    Ref<UnlitMaterial> m_highlightMat;
+    bool m_highlightActive = false;
+    glm::mat4 m_highlightTransform = glm::mat4(1.0f);
+
+    // Hover Highlight
+    Ref<UnlitMaterial> m_hoveredMat;
+    bool m_hoveredActive = false;
+    glm::mat4 m_hoveredTransform = glm::mat4(1.0f);
 
     void renderSkybox(vk::CommandBuffer cb, Scene& scene);
     void drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView colorView, vk::ImageView depthView, vk::Extent2D extent);

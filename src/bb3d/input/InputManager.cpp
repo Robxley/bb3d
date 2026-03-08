@@ -47,6 +47,7 @@ void InputManager::update(bool captureMouse, bool captureKeyboard) {
 
     if (captureMouse) {
         m_currentMouseState = 0;
+        m_mouseScroll = {0.0f, 0.0f};
         // On garde la position de la souris pour le picking mais on bloque les boutons
     } else {
         m_currentMouseState = state;

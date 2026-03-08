@@ -352,6 +352,39 @@ void Engine::Render() {
 
     bool frameStarted = false;
     if (m_Renderer && m_ActiveScene) {
+#if defined(BB3D_ENABLE_EDITOR)
+        // Update highlight bounds
+        if (m_Config.modules.enableEditor && m_ImGuiLayer) {
+            auto getEntityBounds = [](Entity e) -> AABB {
+                glm::mat4 tform = e.has<TransformComponent>() ? e.get<TransformComponent>().getTransform() : glm::mat4(1.0f);
+                if (e.has<MeshComponent>() && e.get<MeshComponent>().mesh) {
+                    return e.get<MeshComponent>().mesh->getBounds().transform(tform);
+                } else if (e.has<ModelComponent>() && e.get<ModelComponent>().model) {
+                    return e.get<ModelComponent>().model->getBounds().transform(tform);
+                } else if (e.has<BoxColliderComponent>()) {
+                    auto& box = e.get<BoxColliderComponent>();
+                    return AABB(-box.halfExtents, box.halfExtents).transform(tform);
+                } else {
+                    return AABB(glm::vec3(-0.5f), glm::vec3(0.5f)).transform(tform); 
+                }
+            };
+
+            Entity selected = m_ImGuiLayer->getSelectedEntity();
+            if (selected) {
+                m_Renderer->setHighlightBounds(getEntityBounds(selected), true);
+            } else {
+                m_Renderer->setHighlightBounds({}, false);
+            }
+
+            Entity hovered = m_ImGuiLayer->getHoveredEntity();
+            if (hovered && hovered != selected) {
+                m_Renderer->setHoveredBounds(getEntityBounds(hovered), true);
+            } else {
+                m_Renderer->setHoveredBounds({}, false);
+            }
+        }
+#endif
+
         // 1. Scene Rendering
         frameStarted = m_Renderer->render(*m_ActiveScene);
     }

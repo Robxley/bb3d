@@ -21,6 +21,15 @@ public:
     static Scope<Mesh> createCube(VulkanContext& context, float size = 1.0f, const glm::vec3& color = {1.0f, 1.0f, 1.0f});
 
     /**
+     * @brief Generates a wireframe cube centered at the origin, with 12 edge lines.
+     * @param context Vulkan context.
+     * @param size Cube size (side length).
+     * @param color Color applied to all vertices.
+     * @return Scope<Mesh> The generated mesh for LINE_LIST rendering.
+     */
+    static Scope<Mesh> createWireframeCube(VulkanContext& context, float size = 1.0f, const glm::vec3& color = {1.0f, 1.0f, 1.0f});
+
+    /**
      * @brief Generates a UV sphere.
      * @param context Vulkan context.
      * @param radius Sphere radius.

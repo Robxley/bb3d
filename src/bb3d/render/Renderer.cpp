@@ -34,6 +34,15 @@ Renderer::Renderer(VulkanContext& context, Window& window, JobSystem& jobSystem,
     m_internalSkyboxMat = CreateRef<SkyboxMaterial>(m_context);
     m_internalSkySphereMat = CreateRef<SkySphereMaterial>(m_context);
     m_fallbackMaterial = CreateRef<PBRMaterial>(m_context);
+
+    // Highlight Box setup (Orange color)
+    m_highlightCube = MeshGenerator::createWireframeCube(m_context, 1.0f, {1.0f, 0.6f, 0.0f});
+    m_highlightMat = CreateRef<UnlitMaterial>(m_context);
+    m_highlightMat->setColor({1.0f, 0.6f, 0.0f});
+
+    // Hover setup (Light Blue color)
+    m_hoveredMat = CreateRef<UnlitMaterial>(m_context);
+    m_hoveredMat->setColor({0.3f, 0.6f, 1.0f});
 }
 
 Renderer::~Renderer() {
@@ -63,6 +72,10 @@ Renderer::~Renderer() {
         }
         for (auto semaphore : m_renderFinishedSemaphores) if (semaphore) dev.destroySemaphore(semaphore);
         m_renderFinishedSemaphores.clear();
+
+        if (m_highlightCube) m_highlightCube.reset();
+        if (m_highlightMat) m_highlightMat.reset();
+        if (m_hoveredMat) m_hoveredMat.reset();
 
         if (m_descriptorPool) dev.destroyDescriptorPool(m_descriptorPool);
         if (m_globalDescriptorLayout) dev.destroyDescriptorSetLayout(m_globalDescriptorLayout);
@@ -119,6 +132,7 @@ void Renderer::createPipelines(const EngineConfig& config) {
     m_layouts[MaterialType::Toon] = ToonMaterial::CreateLayout(dev);
     m_layouts[MaterialType::Skybox] = SkyboxMaterial::CreateLayout(dev);
     m_layouts[MaterialType::SkySphere] = SkySphereMaterial::CreateLayout(dev);
+    m_layouts[MaterialType::Highlight] = UnlitMaterial::CreateLayout(dev);
 
     m_shaders["pbr.vert"] = CreateScope<Shader>(m_context, "assets/shaders/pbr.vert.spv");
     m_shaders["pbr.frag"] = CreateScope<Shader>(m_context, "assets/shaders/pbr.frag.spv");
@@ -136,9 +150,9 @@ void Renderer::createPipelines(const EngineConfig& config) {
     vk::Format colorFmt = m_config.graphics.enableOffscreenRendering ? m_renderTarget->getColorFormat() : m_swapChain->getImageFormat();
     vk::Format depthFmt = m_config.graphics.enableOffscreenRendering ? m_renderTarget->getDepthFormat() : m_swapChain->getDepthFormat();
 
-    auto createP = [&](MaterialType t, const std::string& v, const std::string& f, const EngineConfig& cfg, bool dWrite, vk::CompareOp op, const std::vector<uint32_t>& attr = {}) {
+    auto createP = [&](MaterialType t, const std::string& v, const std::string& f, const EngineConfig& cfg, bool dWrite, vk::CompareOp op, const std::vector<uint32_t>& attr = {}, vk::PrimitiveTopology top = vk::PrimitiveTopology::eTriangleList) {
         std::vector<vk::DescriptorSetLayout> ls = { m_globalDescriptorLayout, m_layouts[t] };
-        return CreateScope<GraphicsPipeline>(m_context, colorFmt, depthFmt, *m_shaders[v], *m_shaders[f], cfg, ls, std::vector<vk::PushConstantRange>{}, true, dWrite, op, attr);
+        return CreateScope<GraphicsPipeline>(m_context, colorFmt, depthFmt, *m_shaders[v], *m_shaders[f], cfg, ls, std::vector<vk::PushConstantRange>{}, true, dWrite, op, attr, top);
     };
 
     m_pipelines[MaterialType::PBR] = createP(MaterialType::PBR, "pbr.vert", "pbr.frag", config, true, vk::CompareOp::eLess);
@@ -148,6 +162,9 @@ void Renderer::createPipelines(const EngineConfig& config) {
     std::vector<uint32_t> envAttr = { 0, 1, 2, 3, 4 };
     m_pipelines[MaterialType::Skybox] = createP(MaterialType::Skybox, "skybox.vert", "skybox.frag", envCfg, false, vk::CompareOp::eAlways, envAttr);
     m_pipelines[MaterialType::SkySphere] = createP(MaterialType::SkySphere, "skysphere.vert", "skysphere.frag", envCfg, false, vk::CompareOp::eAlways, envAttr);
+    
+    // Highlight Pipeline uses LINE_LIST topology
+    m_pipelines[MaterialType::Highlight] = createP(MaterialType::Highlight, "unlit.vert", "unlit.frag", envCfg, false, vk::CompareOp::eAlways, {}, vk::PrimitiveTopology::eLineList);
 }
 
 void Renderer::createCopyPipeline() {
@@ -196,6 +213,26 @@ void Renderer::renderUI(const std::function<void(vk::CommandBuffer)>& func) {
     func(cb);
     cb.endRendering();
 }
+void Renderer::setHighlightBounds(const AABB& bounds, bool active) {
+    m_highlightActive = active;
+    if (active) {
+        glm::vec3 center = bounds.center();
+        glm::vec3 extents = bounds.size(); // Full size of the AABB
+        
+        // Scale the 1x1 cube to the AABB extents and translate it to the center
+        m_highlightTransform = glm::translate(glm::mat4(1.0f), center) * glm::scale(glm::mat4(1.0f), extents);
+    }
+}
+
+void Renderer::setHoveredBounds(const AABB& bounds, bool active) {
+    m_hoveredActive = active;
+    if (active) {
+        glm::vec3 center = bounds.center();
+        glm::vec3 extents = bounds.size();
+        m_hoveredTransform = glm::translate(glm::mat4(1.0f), center) * glm::scale(glm::mat4(1.0f), extents);
+    }
+}
+
 void Renderer::onResize(int width, int height) {
     if (width == 0 || height == 0) return;
     m_resizeRequested = true;
@@ -410,6 +447,17 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
             }
         });
     }
+    
+    // Add Highlight as a render command so it uses the standard SSBO transform logic
+    if (m_highlightActive && m_highlightCube && m_highlightMat) {
+        m_renderCommands.push_back({ MaterialType::Highlight, m_highlightMat.get(), m_highlightCube.get(), m_highlightTransform });
+    }
+    
+    // Add Hover as a render command 
+    if (m_hoveredActive && m_highlightCube && m_hoveredMat) {
+        m_renderCommands.push_back({ MaterialType::Highlight, m_hoveredMat.get(), m_highlightCube.get(), m_hoveredTransform });
+    }
+
     std::ranges::sort(m_renderCommands, [](const RenderCommand& a, const RenderCommand& b) {
         if (a.type != b.type) return a.type < b.type;
         if (a.material != b.material) return a.material < b.material;
@@ -435,7 +483,8 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
             lastMesh = cmd.mesh; m_instanceTransforms.push_back(cmd.transform);
         }
     }
-    flushInstances(); cb.endRendering();
+    flushInstances(); 
+    cb.endRendering();
 }
 
 void Renderer::renderSkybox(vk::CommandBuffer cb, Scene& scene) {

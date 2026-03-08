@@ -270,11 +270,57 @@ void ImGuiLayer::showViewport(RenderTarget* renderTarget, Scene& scene) {
 void ImGuiLayer::showSceneHierarchy(Scene& scene) {
     ImGui::Begin(ICON_FA_SITEMAP " Hierarchy");
 
-    // Iterate through all entities in the registry.
+    m_hoveredEntity = {}; // Reset at start of frame
+
+    // Categories
+    std::vector<Entity> cameras;
+    std::vector<Entity> environment;
+    std::vector<Entity> renderables;
+    std::vector<Entity> audio;
+    std::vector<Entity> logicAndPhysics;
+    std::vector<Entity> other;
+
+    // Categorization Pass
     scene.getRegistry().view<entt::entity>().each([&](auto entityHandle) {
         Entity entity(entityHandle, scene);
-        drawEntityNode(entity);
+        
+        if (entity.has<CameraComponent>()) {
+            cameras.push_back(entity);
+        } else if (entity.has<LightComponent>() || entity.has<SkyboxComponent>() || entity.has<SkySphereComponent>() || entity.has<TerrainComponent>() || entity.has<ParticleSystemComponent>()) {
+            environment.push_back(entity);
+        } else if (entity.has<MeshComponent>() || entity.has<ModelComponent>()) {
+            renderables.push_back(entity);
+        } else if (entity.has<AudioSourceComponent>() || entity.has<AudioListenerComponent>()) {
+            audio.push_back(entity);
+        } else if (entity.has<RigidBodyComponent>() || entity.has<BoxColliderComponent>() || entity.has<NativeScriptComponent>()) {
+            logicAndPhysics.push_back(entity);
+        } else {
+            other.push_back(entity);
+        }
     });
+
+    auto drawCategory = [&](const char* title, const char* icon, const std::vector<Entity>& entities) {
+        if (entities.empty()) return;
+        
+        // Push a distinct ID for the header
+        ImGui::PushID(title);
+        ImGuiTreeNodeFlags headerFlags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
+        bool open = ImGui::CollapsingHeader(std::string(std::string(icon) + " " + title).c_str(), headerFlags);
+        if (open) {
+            for (auto e : entities) {
+                drawEntityNode(e);
+            }
+        }
+        ImGui::PopID();
+    };
+
+    // Render Categories
+    drawCategory("Cameras", ICON_FA_VIDEO, cameras);
+    drawCategory("Environment", ICON_FA_SUN, environment);
+    drawCategory("3D Objects", ICON_FA_CUBES, renderables);
+    drawCategory("Audio", ICON_FA_MUSIC, audio);
+    drawCategory("Physics & Logic", ICON_FA_BOLT, logicAndPhysics);
+    drawCategory("Other", ICON_FA_FILE, other);
 
     // Deselect if clicking on empty space.
     if (ImGui::IsMouseDown(0) && ImGui::IsWindowHovered()) {
@@ -337,11 +383,71 @@ void ImGuiLayer::drawEntityNode(Entity entity) {
     flags |= ImGuiTreeNodeFlags_SpanAvailWidth;
     flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
 
-    ImGui::TreeNodeEx("##node", flags, "%s %s", ICON_FA_CUBE, tag.c_str());
+    // Determinate Icon based on components
+    const char* icon = ICON_FA_FILE; // Default fallback
+    ImVec4 iconColor = ImVec4(1.0f, 1.0f, 1.0f, 1.0f); // Default white
+    if (entity.has<CameraComponent>()) {
+        if (entity.has<FPSControllerComponent>()) icon = ICON_FA_VIDEO;
+        else if (entity.has<OrbitControllerComponent>()) icon = ICON_FA_GLOBE;
+        else icon = ICON_FA_CAMERA;
+        iconColor = ImVec4(0.3f, 0.8f, 1.0f, 1.0f); // Light blue
+    } else if (entity.has<LightComponent>()) {
+        auto type = entity.get<LightComponent>().type;
+        if (type == LightType::Directional) icon = ICON_FA_SUN;
+        else icon = ICON_FA_LIGHTBULB;
+        iconColor = ImVec4(1.0f, 0.9f, 0.2f, 1.0f); // Yellow
+    } else if (entity.has<TerrainComponent>()) {
+        icon = ICON_FA_MOUNTAIN;
+        iconColor = ImVec4(0.2f, 0.8f, 0.3f, 1.0f); // Forest green
+    } else if (entity.has<ParticleSystemComponent>()) {
+        icon = ICON_FA_WAND_MAGIC_SPARKLES;
+        iconColor = ImVec4(1.0f, 0.4f, 0.8f, 1.0f); // Pink
+    } else if (entity.has<SkyboxComponent>() || entity.has<SkySphereComponent>()) {
+        icon = ICON_FA_CLOUD;
+        iconColor = ImVec4(0.6f, 0.8f, 0.9f, 1.0f); // Sky blue
+    } else if (entity.has<AudioListenerComponent>()) {
+        icon = ICON_FA_HEADPHONES;
+        iconColor = ImVec4(1.0f, 0.6f, 0.2f, 1.0f); // Orange
+    } else if (entity.has<AudioSourceComponent>()) {
+        icon = ICON_FA_VOLUME_HIGH;
+        iconColor = ImVec4(1.0f, 0.6f, 0.2f, 1.0f); // Orange
+    } else if (entity.has<ModelComponent>()) {
+        icon = ICON_FA_CUBES;
+        iconColor = ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
+    } else if (entity.has<MeshComponent>()) {
+        auto type = entity.get<MeshComponent>().primitiveType;
+        if (type == PrimitiveType::Cube) icon = ICON_FA_CUBE;
+        else if (type == PrimitiveType::Sphere) icon = ICON_FA_CIRCLE;
+        else if (type == PrimitiveType::Plane) icon = ICON_FA_SQUARE;
+        else icon = ICON_FA_CUBE; // default mesh
+        iconColor = ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
+    } else if (entity.has<NativeScriptComponent>()) {
+        icon = ICON_FA_CODE;
+        iconColor = ImVec4(0.6f, 0.4f, 1.0f, 1.0f); // Purple
+    } else if (entity.has<RigidBodyComponent>()) {
+        icon = ICON_FA_BOX;
+        iconColor = ImVec4(0.4f, 1.0f, 0.4f, 1.0f); // Lime
+    } else if (entity.has<BoxColliderComponent>() || entity.has<SphereColliderComponent>() || entity.has<CapsuleColliderComponent>() || entity.has<MeshColliderComponent>()) {
+        icon = ICON_FA_SHIELD_HALVED;
+        iconColor = ImVec4(0.4f, 1.0f, 0.4f, 1.0f); // Lime
+    }
+
+    // Draw the node without text so the Selection hitbox is consistent across the line
+    ImGui::TreeNodeEx("##node", flags, "");
     
+    if (ImGui::IsItemHovered()) {
+        m_hoveredEntity = entity;
+    }
+
     if (ImGui::IsItemClicked()) {
         m_selectedEntity = entity;
     }
+
+    // Now overlay the colored icon and the text
+    ImGui::SameLine();
+    ImGui::TextColored(iconColor, "%s", icon);
+    ImGui::SameLine();
+    ImGui::Text("%s", tag.c_str());
 
     bool entityDeleted = false;
     if (ImGui::BeginPopupContextItem("EntityContextMenu")) {

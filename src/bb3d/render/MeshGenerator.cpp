@@ -30,6 +30,34 @@ Scope<Mesh> MeshGenerator::createCube(VulkanContext& context, float size, const 
     return CreateScope<Mesh>(context, vertices, indices);
 }
 
+Scope<Mesh> MeshGenerator::createWireframeCube(VulkanContext& context, float size, const glm::vec3& color) {
+    float h = size * 0.5f;
+
+    // 8 corners of the cube
+    std::vector<Vertex> vertices = {
+        {{-h, -h,  h}, {0,0,0}, color, {0,0}, {0,0,0,0}}, // 0
+        {{ h, -h,  h}, {0,0,0}, color, {0,0}, {0,0,0,0}}, // 1
+        {{ h,  h,  h}, {0,0,0}, color, {0,0}, {0,0,0,0}}, // 2
+        {{-h,  h,  h}, {0,0,0}, color, {0,0}, {0,0,0,0}}, // 3
+        {{-h, -h, -h}, {0,0,0}, color, {0,0}, {0,0,0,0}}, // 4
+        {{ h, -h, -h}, {0,0,0}, color, {0,0}, {0,0,0,0}}, // 5
+        {{ h,  h, -h}, {0,0,0}, color, {0,0}, {0,0,0,0}}, // 6
+        {{-h,  h, -h}, {0,0,0}, color, {0,0}, {0,0,0,0}}  // 7
+    };
+
+    // 12 lines (24 indices)
+    std::vector<uint32_t> indices = {
+        // Front face
+        0, 1,  1, 2,  2, 3,  3, 0,
+        // Back face
+        4, 5,  5, 6,  6, 7,  7, 4,
+        // Connecting lines
+        0, 4,  1, 5,  2, 6,  3, 7
+    };
+
+    return CreateScope<Mesh>(context, vertices, indices);
+}
+
 Scope<Mesh> MeshGenerator::createSphere(VulkanContext& context, float radius, uint32_t segments, const glm::vec3& color) {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;

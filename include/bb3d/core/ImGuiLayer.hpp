@@ -100,6 +100,8 @@ public:
      */
     [[nodiscard]] Entity getSelectedEntity() const { return m_selectedEntity; }
     void setSelectedEntity(Entity entity) { m_selectedEntity = entity; }
+    /** @brief Renvoie l'entité actuellement survolée dans la hiérarchie. */
+    [[nodiscard]] Entity getHoveredEntity() const { return m_hoveredEntity; }
     /** @} */
 
     bool isViewportFocused() const { return m_viewportFocused; }
@@ -120,6 +122,7 @@ private:
     ImFont *m_fontRoboto = nullptr, *m_fontAwesome = nullptr, *m_fontSegoe = nullptr, *m_fontNoto = nullptr;
     
     Entity m_selectedEntity;
+    Entity m_hoveredEntity;
     bool m_viewportFocused = false;
     bool m_viewportHovered = false;
     

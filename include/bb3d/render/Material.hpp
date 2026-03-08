@@ -8,7 +8,7 @@
 
 namespace bb3d {
 
-enum class MaterialType { PBR, Unlit, Toon, Skybox, SkySphere };
+enum class MaterialType { PBR, Unlit, Toon, Skybox, SkySphere, Highlight };
 
 struct PBRParameters {
     glm::vec4 baseColorFactor = {1.0f, 1.0f, 1.0f, 1.0f};

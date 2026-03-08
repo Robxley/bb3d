@@ -14,14 +14,15 @@ GraphicsPipeline::GraphicsPipeline(VulkanContext& context, SwapChain& swapChain,
                                    bool useVertexInput,
                                    bool depthWrite,
                                    vk::CompareOp depthCompareOp,
-                                   const std::vector<uint32_t>& enabledAttributes)
+                                   const std::vector<uint32_t>& enabledAttributes,
+                                   vk::PrimitiveTopology topology)
     : m_context(context) {
     
     m_colorFormat = swapChain.getImageFormat();
     m_depthFormat = swapChain.getDepthFormat();
 
     createPipelineLayout(descriptorSetLayouts, pushConstantRanges);
-    createPipeline(vertShader, fragShader, config, useVertexInput, depthWrite, depthCompareOp, enabledAttributes);
+    createPipeline(vertShader, fragShader, config, useVertexInput, depthWrite, depthCompareOp, enabledAttributes, topology);
 }
 
 // Constructeur via Formats Explicites (pour RenderTarget / Offscreen)
@@ -33,11 +34,12 @@ GraphicsPipeline::GraphicsPipeline(VulkanContext& context, vk::Format colorForma
                                    bool useVertexInput,
                                    bool depthWrite,
                                    vk::CompareOp depthCompareOp,
-                                   const std::vector<uint32_t>& enabledAttributes)
+                                   const std::vector<uint32_t>& enabledAttributes,
+                                   vk::PrimitiveTopology topology)
     : m_context(context), m_colorFormat(colorFormat), m_depthFormat(depthFormat) {
 
     createPipelineLayout(descriptorSetLayouts, pushConstantRanges);
-    createPipeline(vertShader, fragShader, config, useVertexInput, depthWrite, depthCompareOp, enabledAttributes);
+    createPipeline(vertShader, fragShader, config, useVertexInput, depthWrite, depthCompareOp, enabledAttributes, topology);
 }
 
 
@@ -61,7 +63,7 @@ void GraphicsPipeline::createPipelineLayout(const std::vector<vk::DescriptorSetL
 
 void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, 
                                      bool useVertexInput, bool depthWrite, vk::CompareOp depthCompareOp, 
-                                     const std::vector<uint32_t>& enabledAttributes) {
+                                     const std::vector<uint32_t>& enabledAttributes, vk::PrimitiveTopology topology) {
     std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages = {
         vk::PipelineShaderStageCreateInfo({}, vk::ShaderStageFlagBits::eVertex, vertShader.getModule(), "main"),
         vk::PipelineShaderStageCreateInfo({}, vk::ShaderStageFlagBits::eFragment, fragShader.getModule(), "main")
@@ -84,7 +86,7 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
         vertexInputInfo.setVertexAttributeDescriptions(filteredAttributes);
     }
 
-    vk::PipelineInputAssemblyStateCreateInfo inputAssembly({}, vk::PrimitiveTopology::eTriangleList, VK_FALSE);
+    vk::PipelineInputAssemblyStateCreateInfo inputAssembly({}, topology, VK_FALSE);
     vk::PipelineViewportStateCreateInfo viewportState({}, 1, nullptr, 1, nullptr);
     std::array<vk::DynamicState, 2> dynamicStates = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
     vk::PipelineDynamicStateCreateInfo dynamicState({}, static_cast<uint32_t>(dynamicStates.size()), dynamicStates.data());

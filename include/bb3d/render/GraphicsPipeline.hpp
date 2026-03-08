@@ -17,7 +17,8 @@ public:
                      bool useVertexInput = true,
                      bool depthWrite = true,
                      vk::CompareOp depthCompareOp = vk::CompareOp::eLess,
-                     const std::vector<uint32_t>& enabledAttributes = {});
+                     const std::vector<uint32_t>& enabledAttributes = {},
+                     vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList);
 
     // Constructor using explicit formats (offscreen)
     GraphicsPipeline(VulkanContext& context, vk::Format colorFormat, vk::Format depthFormat,
@@ -28,7 +29,8 @@ public:
                      bool useVertexInput = true,
                      bool depthWrite = true,
                      vk::CompareOp depthCompareOp = vk::CompareOp::eLess,
-                     const std::vector<uint32_t>& enabledAttributes = {});
+                     const std::vector<uint32_t>& enabledAttributes = {},
+                     vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList);
 
     ~GraphicsPipeline();
 
@@ -46,7 +48,7 @@ private:
     
     void createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, 
                         bool useVertexInput, bool depthWrite, vk::CompareOp depthCompareOp, 
-                        const std::vector<uint32_t>& enabledAttributes);
+                        const std::vector<uint32_t>& enabledAttributes, vk::PrimitiveTopology topology);
 
     VulkanContext& m_context;
     
