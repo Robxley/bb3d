@@ -57,7 +57,7 @@ vk::DescriptorSet PBRMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::Des
         m_dirty[frame] = true; 
     }
 
-    // Si une des textures n'est pas prête, on reste en dirty pour réessayer la frame suivante
+    // If a texture is not ready, we stay dirty to retry next frame
     if ((m_albedoMap && !m_albedoMap->isReady()) || 
         (m_normalMap && !m_normalMap->isReady()) || 
         (m_ormMap && !m_ormMap->isReady()) || 
@@ -115,7 +115,7 @@ vk::DescriptorSet UnlitMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::D
         m_dirty[frame] = true; 
     }
     
-    // Si la texture n'est pas prête, on reste en dirty pour réessayer plus tard sans bloquer
+    // If texture is not ready, we stay dirty to retry later without blocking
     if (m_baseMap && !m_baseMap->isReady()) m_dirty[frame] = true;
 
     if (m_dirty[frame]) { updateDescriptorSet(frame); m_dirty[frame] = false; }

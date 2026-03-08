@@ -11,6 +11,7 @@ int main() {
         .title("BB3D - Multi-Materials Test (PBR, Unlit, Toon)")
         .resolution(1280, 720)
         .vsync(true)
+        .enableEditor(false)
     );
 
     auto scene = engine->CreateScene();

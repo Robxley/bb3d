@@ -15,7 +15,8 @@ Buffer::Buffer(VulkanContext& context, vk::DeviceSize size, vk::BufferUsageFlags
     allocInfo.flags = allocFlags;
 
     VkBuffer buffer;
-    vmaCreateBuffer(m_context.getAllocator(), reinterpret_cast<VkBufferCreateInfo*>(&bufferInfo), &allocInfo, &buffer, &m_allocation, nullptr);
+    VkResult res = vmaCreateBuffer(m_context.getAllocator(), reinterpret_cast<VkBufferCreateInfo*>(&bufferInfo), &allocInfo, &buffer, &m_allocation, nullptr);
+    if (res != VK_SUCCESS) throw std::runtime_error("VMA Allocation Failed for Buffer: " + vk::to_string(static_cast<vk::Result>(res)));
     m_buffer = vk::Buffer(buffer);
 
     if (allocFlags & VMA_ALLOCATION_CREATE_MAPPED_BIT) {
@@ -45,7 +46,7 @@ void Buffer::upload(const void* data, vk::DeviceSize size, vk::DeviceSize offset
 }
 
 Scope<Buffer> Buffer::CreateVertexBuffer(VulkanContext& context, const void* data, vk::DeviceSize size) {
-    // 1. Réserver dans le Staging Buffer central
+    // 1. Reserve in the central Staging Buffer
     auto stagingAlloc = context.getStagingBuffer().allocate(size);
     std::memcpy(stagingAlloc.mappedData, data, static_cast<size_t>(size));
 

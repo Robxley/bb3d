@@ -79,6 +79,7 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     }
 
     auto physicalDevices = m_instance.enumeratePhysicalDevices();
+    int bestScore = -1;
     for (const auto& device : physicalDevices) {
         auto props = device.getProperties();
         auto queueFamilies = device.getQueueFamilyProperties();
@@ -91,11 +92,23 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
         }
 
         if (gIdx != -1 && pIdx != -1) {
-            m_physicalDevice = device; 
-            m_graphicsQueueFamily = gIdx; m_presentQueueFamily = pIdx; m_transferQueueFamily = gIdx; // Utilise la file graphique pour plus de compatibilité (Blit/Shaders)
-            m_deviceName = props.deviceName.data();
-            if (props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) break;
+            int score = 0;
+            if (props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) score += 1000;
+            else if (props.deviceType == vk::PhysicalDeviceType::eIntegratedGpu) score += 100;
+            
+            if (score > bestScore) {
+                bestScore = score;
+                m_physicalDevice = device; 
+                m_graphicsQueueFamily = gIdx; 
+                m_presentQueueFamily = pIdx; 
+                m_transferQueueFamily = gIdx; // Use graphics queue for better compatibility (Blit/Shaders)
+                m_deviceName = props.deviceName.data();
+            }
         }
+    }
+
+    if (!m_physicalDevice) {
+        throw std::runtime_error("VulkanContext: Failed to find a suitable GPU!");
     }
 
     std::set<uint32_t> uniqueQueueFamilies = { m_graphicsQueueFamily, m_presentQueueFamily, m_transferQueueFamily };
@@ -116,7 +129,7 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     m_presentQueue = m_device.getQueue(m_presentQueueFamily, 0);
     m_transferQueue = m_device.getQueue(m_transferQueueFamily, 0);
 
-    // VMA avec pointeurs de fonctions explicites pour le Dispatch Dynamique
+    // VMA with explicit function pointers for Dynamic Dispatch
     VmaVulkanFunctions vmaVulkanFunctions = {};
     vmaVulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
     vmaVulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
@@ -208,16 +221,11 @@ vk::Fence VulkanContext::endTransferCommandsAsync(vk::CommandBuffer commandBuffe
 
     
 
-    // Note: Le CommandBuffer doit être libéré APRES que la fence soit signalée.
-
-    // Pour simplifier l'API initiale, on laisse la responsabilité de la destruction de la fence
-
-    // et de la libération du CB (si nécessaire) à un gestionnaire plus haut niveau ou on l'attend plus tard.
-
+    // Note: The CommandBuffer must be freed AFTER the fence is signaled.
+    // To simplify the initial API, we leave the responsibility of fence destruction
+    // and CB release (if necessary) to a higher level manager or wait for it later.
     
-
     return fence;
-
 }
 
 

@@ -6,6 +6,11 @@
 #include <filesystem>
 #include <algorithm>
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 namespace bb3d {
 
     std::shared_ptr<spdlog::logger> Log::s_CoreLogger;
@@ -19,6 +24,10 @@ namespace bb3d {
 
     void Log::Init(const EngineConfig& config)
     {
+#ifdef _WIN32
+        SetConsoleOutputCP(CP_UTF8);
+        SetConsoleCP(CP_UTF8);
+#endif
         // On utilise un 'dist_sink' pour envoyer les logs vers plusieurs destinations (Console, Fichier, etc.)
         // de manière thread-safe.
         auto dist_sink = std::make_shared<spdlog::sinks::dist_sink_mt>();

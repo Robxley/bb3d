@@ -27,29 +27,29 @@ struct ToonParameters {
 };
 
 /**
- * @brief Classe de base pour les matériaux (Sets de paramètres shaders).
+ * @brief Base class for materials (Shader parameter sets).
  * 
- * Un matériau définit comment une surface réagit à la lumière.
- * Il gère les Descriptor Sets (Vulkan) qui lient les textures et les uniform buffers aux shaders.
+ * A material defines how a surface reacts to light.
+ * It manages Descriptor Sets (Vulkan) that bind textures and uniform buffers to shaders.
  */
 class Material {
 public:
     Material(VulkanContext& context) : m_context(context) {}
     virtual ~Material() = default;
 
-    /** @brief Type de matériau (utilisé pour sélectionner le bon pipeline graphique). */
+    /** @brief Material type (used to select the correct graphics pipeline). */
     virtual MaterialType getType() const = 0;
 
     /** 
-     * @brief Récupère le Descriptor Set prêt à être utilisé par un Command Buffer.
-     * Si les paramètres ont changé, le set est mis à jour avant d'être renvoyé.
+     * @brief Retrieves the Descriptor Set ready to be used by a Command Buffer.
+     * If parameters have changed, the set is updated before being returned.
      */
     virtual vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) = 0;
 
-    /** @brief Libère les ressources statiques (textures par défaut). */
+    /** @brief Releases static resources (default textures). */
     static void Cleanup(); 
 
-    /** @brief Définit l'index de la frame actuelle pour le buffering des descripteurs. */
+    /** @brief Sets the current frame index for descriptor buffering. */
     static void SetCurrentFrame(uint32_t frame) { s_currentFrame = frame; }
 
 protected:
@@ -57,7 +57,7 @@ protected:
     static inline uint32_t s_currentFrame = 0;
     static constexpr uint32_t MAX_FRAMES_IN_FLIGHT = 3;
 
-    // Textures de fallback partagées pour éviter les erreurs si une map est manquante.
+    // Shared fallback textures to avoid errors if a map is missing.
     static Ref<Texture> s_defaultWhite;
     static Ref<Texture> s_defaultBlack;
     static Ref<Texture> s_defaultNormal;
@@ -65,10 +65,10 @@ protected:
 };
 
 /**
- * @brief Matériau standard PBR (Physically Based Rendering).
+ * @brief Standard PBR (Physically Based Rendering) material.
  * 
- * Workflow : Metallic-Roughness.
- * Maps supportées : Albedo, Normal, ORM (Occlusion/Roughness/Metallic), Emissive.
+ * Workflow: Metallic-Roughness.
+ * Supported maps: Albedo, Normal, ORM (Occlusion/Roughness/Metallic), Emissive.
  */
 class PBRMaterial : public Material {
 public:
@@ -76,18 +76,18 @@ public:
     ~PBRMaterial() override;
     MaterialType getType() const override { return MaterialType::PBR; }
 
-    /** @brief Définit la texture de couleur (Albedo). */
+    /** @brief Sets the color texture (Albedo). */
     void setAlbedoMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultWhite; if (m_albedoMap != t) { m_albedoMap = t; m_dirty.fill(true); } }
     
-    /** @brief Définit la texture de normales. */
+    /** @brief Sets the normal texture. */
     void setNormalMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultNormal; if (m_normalMap != t) { m_normalMap = t; m_dirty.fill(true); } }
     
-    /** @brief Définit la texture ORM (R: Occlusion, G: Roughness, B: Metallic). */
+    /** @brief Sets the ORM texture (R: Occlusion, G: Roughness, B: Metallic). */
     void setORMMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultWhite; if (m_ormMap != t) { m_ormMap = t; m_dirty.fill(true); } }
     
     void setEmissiveMap(Ref<Texture> texture) { Ref<Texture> t = texture ? texture : s_defaultBlack; if (m_emissiveMap != t) { m_emissiveMap = t; m_dirty.fill(true); } }
     
-    /** @brief Définit les facteurs scalaires PBR. */
+    /** @brief Sets PBR scalar factors. */
     void setParameters(const PBRParameters& params) { m_parameters = params; m_dirty.fill(true); }
     [[nodiscard]] const PBRParameters& getParameters() const { return m_parameters; }
 
@@ -96,7 +96,7 @@ public:
     
     vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
     
-    /** @brief Crée le layout de descripteurs (Binding 0=Params, 1=Albedo, 2=Normal, 3=ORM, 4=Emissive). */
+    /** @brief Creates the descriptor layout (Binding 0=Params, 1=Albedo, 2=Normal, 3=ORM, 4=Emissive). */
     static vk::DescriptorSetLayout CreateLayout(vk::Device device);
 
 private:

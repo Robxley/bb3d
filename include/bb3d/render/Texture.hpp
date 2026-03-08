@@ -12,7 +12,7 @@ public:
     Texture(VulkanContext& context, std::span<const std::byte> data, bool isColor = true);
     Texture(VulkanContext& context, std::span<const std::byte> data, int width, int height, bool isColor = true); // Raw RGBA data
     
-    /** @brief Constructeur pour une Cubemap à partir de 6 fichiers. */
+    /** @brief Constructor for a Cubemap from 6 files. */
     Texture(VulkanContext& context, const std::array<std::string, 6>& filepaths, bool isColor = true);
     Texture(VulkanContext& context, std::span<const std::byte> data, int width, int height, int layers, bool isColor = true); // Raw layered data (e.g. Cubemap)
 
@@ -27,7 +27,7 @@ public:
     [[nodiscard]] inline int getHeight() const { return m_height; }
     [[nodiscard]] inline bool isCubemap() const { return m_isCubemap; }
 
-    /** @brief Vérifie si l'upload GPU est terminé et la texture prête à l'emploi. */
+    /** @brief Checks if GPU upload is complete and texture is ready for use. */
     bool isReady();
 
 private:
@@ -36,7 +36,7 @@ private:
     void createImageView(uint32_t layers = 1);
     void createSampler();
     
-    // Méthodes modifiées pour supporter un CommandBuffer externe (Async)
+    // Modified methods to support an external CommandBuffer (Async)
     void generateMipmaps(vk::CommandBuffer cb, uint32_t layers = 1);
     void transitionLayout(vk::CommandBuffer cb, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, uint32_t layers = 1);
     void copyBufferToImage(vk::CommandBuffer cb, vk::Buffer buffer, uint32_t layers = 1);
@@ -52,10 +52,10 @@ private:
     vk::ImageView m_imageView;
     vk::Sampler m_sampler;
 
-    // État asynchrone
+    // Async state
     vk::Fence m_uploadFence = nullptr;
     bool m_ready = false;
-    Scope<class Buffer> m_stagingBuffer; // Conservé jusqu'à la fin de l'upload
+    Scope<class Buffer> m_stagingBuffer; // Kept until upload is complete
 };
 
 } // namespace bb3d

@@ -100,6 +100,8 @@ void SwapChain::createSwapChain(int width, int height) {
 
     auto surfaceFormat = chooseSwapSurfaceFormat(formats);
     auto presentMode = chooseSwapPresentMode(presentModes);
+
+
     auto extent = chooseSwapExtent(capabilities, width, height);
 
     uint32_t imageCount = capabilities.minImageCount + 1;
@@ -129,7 +131,7 @@ void SwapChain::createSwapChain(int width, int height) {
     m_imageFormat = surfaceFormat.format;
     m_extent = extent;
     
-    BB_CORE_INFO("Swapchain créée : {}x{} ({})", extent.width, extent.height, m_images.size());
+    BB_CORE_INFO("Swapchain created: {}x{} ({})", extent.width, extent.height, m_images.size());
 }
 
 void SwapChain::createImageViews() {
@@ -189,7 +191,8 @@ void SwapChain::createDepthResources() {
     allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
     VkImage img;
-    vmaCreateImage(m_context.getAllocator(), reinterpret_cast<VkImageCreateInfo*>(&imageInfo), &allocInfo, &img, &m_depthImageAllocation, nullptr);
+    VkResult res = vmaCreateImage(m_context.getAllocator(), reinterpret_cast<VkImageCreateInfo*>(&imageInfo), &allocInfo, &img, &m_depthImageAllocation, nullptr);
+    if (res != VK_SUCCESS) throw std::runtime_error("VMA Allocation Failed for Depth Image: " + vk::to_string(static_cast<vk::Result>(res)));
     m_depthImage = vk::Image(img);
 
     vk::ImageViewCreateInfo viewInfo({}, m_depthImage, vk::ImageViewType::e2D, m_depthFormat, {}, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 });

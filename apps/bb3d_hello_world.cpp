@@ -21,17 +21,19 @@ using namespace bb3d;
  * - Switch de caméras fonctionnel (Orbit/FPS)
  */
 int main() {
-    auto engine = Engine::Create(EngineConfig()
+    auto engine = Engine::Create(Config::Load("config/engine_config.json")
         .title("biobazard3d - Feature Showcase")
         .resolution(1280, 720)
         .vsync(true)
         .enableOffscreenRendering(false)
         .enablePhysics(PhysicsBackend::Jolt)
-        .enableEditor(false) 
+        .enableEditor(false) // Showcase app: Always without editor for maximum performance and clean UI
     );
 
-    auto scene = engine->CreateScene();
-    engine->SetActiveScene(scene);
+    { // Scope to ensure all Refs are destroyed before engine goes out of scope
+        auto scene = engine->CreateScene();
+        engine->SetActiveScene(scene);
+
 
     // --- 1. Caméras (Deux caméras créées, seule l'orbitale est active par défaut) ---
     auto orbitCam = scene->createOrbitCamera("Orbit Camera", 45.0f, 1280.0f/720.0f, {0, 2, 0}, 45.0f);
@@ -118,10 +120,10 @@ int main() {
         engine->physics().createRigidBody(ent);
     }
 
-    // Script global pour inputs (Correction du switch caméra)
-    scene->createEntity("InputManager").add<NativeScriptComponent>([&eng = *engine, scene, cubeMesh](Entity /*e*/, float /*dt*/) {
+    // Global script for inputs
+    scene->createEntity("InputManager").add<NativeScriptComponent>([enginePtr = engine.get(), scene, cubeMesh](Entity /*e*/, float /*dt*/) {
         // P : Spawn cube
-        if (eng.input().isKeyJustPressed(Key::P)) {
+        if (enginePtr->input().isKeyJustPressed(Key::P)) {
             auto spawnPos = glm::vec3(0, 40, 0);
             auto ent = scene->createEntity("SpawnedPhys");
             ent.at(spawnPos).add<MeshComponent>(cubeMesh);
@@ -129,13 +131,12 @@ int main() {
             auto& rb = ent.add<RigidBodyComponent>().get<RigidBodyComponent>();
             rb.type = BodyType::Dynamic;
             rb.mass = 2.0f;
-            eng.physics().createRigidBody(ent);
+            enginePtr->physics().createRigidBody(ent);
         }
 
-        // C : Switch entre Orbit et FPS
-        if (eng.input().isKeyJustPressed(Key::C)) {
+        // C : Switch between Orbit and FPS
+        if (enginePtr->input().isKeyJustPressed(Key::C)) {
             auto view = scene->getRegistry().view<CameraComponent>();
-            // On bascule l'état de CHAQUE caméra (si on en a deux, elles s'inversent)
             for (auto entity : view) {
                 auto& cam = view.get<CameraComponent>(entity);
                 cam.active = !cam.active;
@@ -143,6 +144,7 @@ int main() {
             BB_CORE_INFO("Input: Camera Switched!");
         }
     });
+
 
     BB_CORE_INFO("==================================================");
     BB_CORE_INFO(" BB3D SHOWCASE - READY (PURE 3D)");
@@ -153,6 +155,14 @@ int main() {
     BB_CORE_INFO("==================================================");
 
     engine->Run();
+
+    // Ensure GPU is idle before resource-owning Refs go out of scope
+    if (engine->graphics().getDevice()) {
+        engine->graphics().getDevice().waitIdle();
+    }
+
+    engine->SetActiveScene(nullptr);
+    } // End of scene scope
 
     return 0;
 }

@@ -229,7 +229,14 @@ Pour les futures versions, l'outillage sera séparé du Runtime.
 12. **Modularité :** N'initialiser les systèmes (Audio, Physique, Jobs) que s'ils sont explicitement activés dans Config.
 13. **Debug vs Release :** Envelopper systématiquement les vérifications de sécurité impactant la performance (ex: accès aux données Mesh libérées) dans des blocs `#if defined(BB3D_DEBUG)`.
 
-### **7\. Exemple Complet (Kitchen Sink Demo)**
+### **7\. Workflow IA Obligatoire (Compétences)**
+
+Pour tout développement de nouvelle fonctionnalité, l'IA **DOIT OBLIGATOIREMENT** suivre ce workflow en utilisant les compétences globales installées dans le projet (`.agent/skills/`) :
+
+1.  **Brainstorming (`brainstorming`) :** Avant de coder quoi que ce soit, utiliser cette compétence pour comprendre le besoin, proposer 2 à 3 approches d'architecture, et rédiger un document de conception (Design Doc) dans `docs/plans/`. Il faut obtenir l'accord de l'utilisateur sur le design avant de passer à l'étape suivante.
+2.  **Planification (`planification`) :** Une fois le design validé, utiliser cette compétence pour générer un plan d'implémentation atômique, exhaustif et orienté Test-Driven Development (TDD). Le plan de bataille doit être écrit en français dans `docs/plans/`.
+3.  **Exécution :** Procéder à l'implémentation tâche par tâche en validant les tests unitaires à chaque étape (via CTest).
+
+### **8\. Exemple Complet (Kitchen Sink Demo)**
 
 Voici un fichier main.cpp illustrant l'usage de toutes les fonctionnalités majeures (Core, Audio, Physique, FX, Input) via l'API Fluent.
-

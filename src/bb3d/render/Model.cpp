@@ -18,7 +18,7 @@
 #include <unordered_map>
 #include <filesystem>
 
-// Trait pour GLM dans fastgltf
+// Trait for GLM in fastgltf
 template <>
 struct fastgltf::ElementTraits<glm::vec3> : fastgltf::ElementTraitsBase<float, fastgltf::AccessorType::Vec3> {};
 
@@ -28,7 +28,7 @@ struct fastgltf::ElementTraits<glm::vec2> : fastgltf::ElementTraitsBase<float, f
 template <>
 struct fastgltf::ElementTraits<glm::vec4> : fastgltf::ElementTraitsBase<float, fastgltf::AccessorType::Vec4> {};
 
-/** @brief Récupère les données d'un buffer fastgltf. */
+/** @brief Retrieves data from a fastgltf buffer. */
 static const std::byte* getBufferData(const fastgltf::Buffer& buffer) {
     return std::visit([](const auto& arg) -> const std::byte* {
         using T = std::decay_t<decltype(arg)>;
@@ -114,7 +114,7 @@ void Model::loadOBJ(std::string_view path) {
         throw std::runtime_error("tinyobjloader error: " + err);
     }
 
-    // 1. Charger les matériaux
+    // 1. Load materials
     std::vector<Ref<Material>> modelMaterials;
     for (const auto& m : materials) {
         auto mat = CreateRef<UnlitMaterial>(m_context);
@@ -130,7 +130,7 @@ void Model::loadOBJ(std::string_view path) {
         modelMaterials.push_back(mat);
     }
 
-    // 2. Traiter les géométries
+    // 2. Process geometries
     for (const auto& shape : shapes) {
         std::vector<Vertex> vertices;
         std::vector<uint32_t> indices;

@@ -1,4 +1,7 @@
 #include "bb3d/core/ImGuiLayer.hpp"
+
+#if defined(BB3D_ENABLE_EDITOR)
+
 #include "bb3d/render/VulkanContext.hpp"
 #include "bb3d/core/Window.hpp"
 #include "bb3d/core/Log.hpp"
@@ -13,6 +16,7 @@
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_vulkan.h>
 #include <imgui_freetype.h>
+#include <imgui_internal.h>
 
 #include <SDL3/SDL.h>
 #include <filesystem>
@@ -133,6 +137,74 @@ void ImGuiLayer::endFrame(vk::CommandBuffer commandBuffer) {
     }
 }
 
+void ImGuiLayer::beginDockspace() {
+    static bool dockspaceOpen = true;
+    static bool opt_fullscreen = true;
+    static bool opt_padding = false;
+    static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_None;
+
+    ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
+    if (opt_fullscreen) {
+        const ImGuiViewport* viewport = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(viewport->WorkPos);
+        ImGui::SetNextWindowSize(viewport->WorkSize);
+        ImGui::SetNextWindowViewport(viewport->ID);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+        window_flags |= ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+    }
+
+    if (!opt_padding)
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+
+    ImGui::Begin("DockSpace Demo", &dockspaceOpen, window_flags);
+
+    if (!opt_padding)
+        ImGui::PopStyleVar();
+
+    if (opt_fullscreen)
+        ImGui::PopStyleVar(2);
+
+    ImGuiIO& io = ImGui::GetIO();
+    if (io.ConfigFlags & ImGuiConfigFlags_DockingEnable) {
+        ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+        
+        // Auto-layout on first launch
+        if (ImGui::DockBuilderGetNode(dockspace_id) == nullptr) {
+            ImGui::DockBuilderRemoveNode(dockspace_id);
+            ImGui::DockBuilderAddNode(dockspace_id, dockspace_flags | ImGuiDockNodeFlags_DockSpace);
+            ImGui::DockBuilderSetNodeSize(dockspace_id, ImGui::GetMainViewport()->Size);
+
+            ImGuiID dock_main_id = dockspace_id;
+            ImGuiID dock_id_left = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.20f, nullptr, &dock_main_id);
+            ImGuiID dock_id_right = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.25f, nullptr, &dock_main_id);
+            ImGuiID dock_id_left_bottom = ImGui::DockBuilderSplitNode(dock_id_left, ImGuiDir_Down, 0.30f, nullptr, &dock_id_left);
+            ImGuiID dock_id_toolbar = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Up, 0.06f, nullptr, &dock_main_id);
+
+            ImGui::DockBuilderDockWindow(ICON_FA_SITEMAP " Hierarchy", dock_id_left);
+            ImGui::DockBuilderDockWindow(ICON_FA_SLIDERS " Scene Settings", dock_id_left_bottom);
+            ImGui::DockBuilderDockWindow(ICON_FA_CIRCLE_INFO " Inspector", dock_id_right);
+            ImGui::DockBuilderDockWindow(ICON_FA_IMAGE " Viewport", dock_main_id);
+            ImGui::DockBuilderDockWindow("Toolbar", dock_id_toolbar);
+            
+            // Hide the tab bar for the toolbar to make it look seamless
+            ImGuiDockNode* toolbarNode = ImGui::DockBuilderGetNode(dock_id_toolbar);
+            if (toolbarNode) {
+                toolbarNode->LocalFlags |= ImGuiDockNodeFlags_NoTabBar;
+            }
+
+            ImGui::DockBuilderFinish(dockspace_id);
+        }
+        
+        ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
+    }
+}
+
+void ImGuiLayer::endDockspace() {
+    ImGui::End();
+}
+
 void ImGuiLayer::onEvent(const SDL_Event& event) {
     ImGui_ImplSDL3_ProcessEvent(reinterpret_cast<const ::SDL_Event*>(&event));
 }
@@ -156,6 +228,9 @@ void ImGuiLayer::showViewport(RenderTarget* renderTarget, Scene& scene) {
     if (renderTarget) {
         // Enregistrement de la texture si elle a changé (ex: resize)
         if (renderTarget->getColorImageView() != m_lastViewportImageView) {
+            if (m_viewportTextureID) {
+                ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet)m_viewportTextureID);
+            }
             m_lastViewportImageView = renderTarget->getColorImageView();
             m_viewportTextureID = addTexture(renderTarget->getSampler(), m_lastViewportImageView, vk::ImageLayout::eShaderReadOnlyOptimal);
         }
@@ -622,18 +697,24 @@ void ImGuiLayer::showInspector() {
     }
     
 void ImGuiLayer::showToolbar() {
-    ImGuiViewport* viewport = ImGui::GetMainViewport();
-    // Toolbar initial position below main menu bar
-    ImGui::SetNextWindowPos(ImVec2(viewport->Pos.x + (viewport->Size.x - 200) * 0.5f, viewport->Pos.y + 30), ImGuiCond_FirstUseEver);
-    ImGui::SetNextWindowSize(ImVec2(200, 40), ImGuiCond_FirstUseEver);
-    
-    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | 
-                             ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing | 
-                             ImGuiWindowFlags_NoNav;
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse;
 
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 2));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(0, 0));
+    
     if (ImGui::Begin("Toolbar", nullptr, flags)) {
+        ImGui::PopStyleVar(2);
+        
         auto& engine = Engine::Get();
         bool paused = engine.isPhysicsPaused();
+
+        // Calculate center position to align buttons in the middle
+        float size = ImGui::CalcTextSize(ICON_FA_PLAY " Play "" " ICON_FA_ARROW_ROTATE_LEFT " Reset Scene ").x;
+        float avail = ImGui::GetContentRegionAvail().x;
+        float off = (avail - size) * 0.5f;
+        if (off > 0.0f) {
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + off);
+        }
 
         if (paused) {
             if (ImGui::Button(ICON_FA_PLAY " Play")) {
@@ -646,24 +727,16 @@ void ImGuiLayer::showToolbar() {
         }
 
                         ImGui::SameLine();
-
                         if (ImGui::Button(ICON_FA_ARROW_ROTATE_LEFT " Reset Scene")) {
-
                             engine.resetScene();
-
                             engine.setPhysicsPaused(true);
-
                         }
-
+                    } else {
+                        ImGui::PopStyleVar(2);
                     }
-
                     ImGui::End();
-
                 }
 
-                
+} // namespace bb3d
 
-                } // namespace bb3d
-
-                
-        
+#endif // BB3D_ENABLE_EDITOR

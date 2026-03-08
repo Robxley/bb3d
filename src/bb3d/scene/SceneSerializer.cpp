@@ -125,12 +125,12 @@ namespace bb3d {
                 if (!mc.assetPath.empty()) {
                     try { mc.mesh = engine->assets().load<Mesh>(mc.assetPath); } catch(...) {}
                 } else if (mc.primitiveType != PrimitiveType::None) {
-                    // Reconstruction des primitives
+                    // Reconstruct primitives
                     if (mc.primitiveType == PrimitiveType::Cube) mc.mesh = MeshGenerator::createCube(engine->graphics(), 1.0f, mc.color);
                     else if (mc.primitiveType == PrimitiveType::Sphere) mc.mesh = MeshGenerator::createSphere(engine->graphics(), 0.5f, 32, mc.color);
                     else if (mc.primitiveType == PrimitiveType::Plane) mc.mesh = MeshGenerator::createCheckerboardPlane(engine->graphics(), 10.0f);
                     
-                    // Si on a recréé un mesh, on lui remet aussi un matériau PBR avec la bonne couleur
+                    // If we recreated a mesh, we also give it a PBR material with the right color
                     auto pbr = CreateRef<PBRMaterial>(engine->graphics());
                     pbr->setColor(mc.color);
                     mc.mesh->setMaterial(pbr);

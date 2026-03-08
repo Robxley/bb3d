@@ -25,71 +25,71 @@ struct FogSettings {
 };
 
 /**
- * @brief Conteneur logique pour tous les objets (Entités) du monde.
+ * @brief Logical container for all objects (Entities) in the world.
  * 
- * Utilise EnTT pour la gestion performante des composants (ECS).
+ * Uses EnTT for high-performance component management (ECS).
  */
 class Scene {
 public:
     Scene() = default;
     ~Scene() = default;
 
-    /** @brief Met à jour la logique de la scène (systèmes, composants). */
+    /** @brief Updates the scene logic (systems, components). */
     void onUpdate(float deltaTime);
 
-    /** @brief Crée une nouvelle entité vide avec un TransformComponent par défaut. */
+    /** @brief Creates a new empty entity with a default TransformComponent. */
     Entity createEntity(const std::string& name = "Entity");
     
     /** 
-     * @brief Crée une caméra orbitale pré-configurée avec contrôles souris.
-     * @param engine Pointeur vers l'Engine (peut être null si défini via setEngineContext).
+     * @brief Creates a pre-configured orbit camera with mouse controls.
+     * @param engine Pointer to the Engine (can be null if set via setEngineContext).
      */
     View<OrbitControllerComponent> createOrbitCamera(const std::string& name, float fov, float aspect, const glm::vec3& target, float distance, Engine* engine = nullptr);
 
     /** 
-     * @brief Crée une caméra FPS pré-configurée avec contrôles ZQSD + Souris.
-     * @param engine Pointeur vers l'Engine (peut être null si défini via setEngineContext).
+     * @brief Creates a pre-configured FPS camera with WASD + Mouse controls.
+     * @param engine Pointer to the Engine (can be null if set via setEngineContext).
      */
     View<FPSControllerComponent> createFPSCamera(const std::string& name, float fov, float aspect, const glm::vec3& position, Engine* engine = nullptr);
 
     /**
-     * @brief Charge un modèle 3D et crée une entité correspondante.
-     * @param name Nom de l'entité.
-     * @param path Chemin vers le fichier modèle (.obj, .gltf, .glb).
-     * @param position Position initiale dans le monde.
-     * @param normalizeSize (Optionnel) Si > 0, normalise l'échelle du modèle pour qu'il tienne dans ce volume.
-     * @return Vue sur le ModelComponent créé.
+     * @brief Loads a 3D model and creates a corresponding entity.
+     * @param name Name of the entity.
+     * @param path Path to the model file (.obj, .gltf, .glb).
+     * @param position Initial position in the world.
+     * @param normalizeSize (Optional) If > 0, normalizes the model scale to fit within this volume.
+     * @return View on the created ModelComponent.
      */
     View<ModelComponent> createModelEntity(const std::string& name, const std::string& path, const glm::vec3& position = {0,0,0}, const glm::vec3& normalizeSize = {0,0,0});
 
     /** 
-     * @brief Crée une lumière directionnelle (ex: Soleil).
-     * @param rotation Rotation (Euler X,Y,Z en degrés). X=-90 regarde vers le bas.
+     * @brief Creates a directional light (e.g., Sun).
+     * @param rotation Rotation (Euler X,Y,Z in degrees). X=-90 looks down.
      */
     View<LightComponent> createDirectionalLight(const std::string& name, const glm::vec3& color, float intensity, const glm::vec3& rotation = {-45.0f, 0.0f, 0.0f});
 
-    /** @brief Crée une lumière ponctuelle (Omni-directionnelle). */
+    /** @brief Creates a point light (Omni-directional). */
     View<LightComponent> createPointLight(const std::string& name, const glm::vec3& color, float intensity, float range, const glm::vec3& position);
 
     /** 
-     * @brief Crée une SkySphere (environnement panoramique) à partir d'une texture HDR/JPG.
-     * @return Vue sur le SkySphereComponent.
+     * @brief Creates a SkySphere (panoramic environment) from an HDR/JPG texture.
+     * @return View on the SkySphereComponent.
      */
     View<SkySphereComponent> createSkySphere(const std::string& name, const std::string& texturePath);
 
-    /** @brief Supprime une entité et ses composants du registre. */
+    /** @brief Removes an entity and its components from the registry. */
     void destroyEntity(Entity entity);
 
-    /** @brief Supprime toutes les entités de la scène. */
+    /** @brief Removes all entities from the scene. */
     void clear();
 
-    /** @brief Accès direct au registre EnTT (pour les systèmes internes avancés). */
+    /** @brief Direct access to the EnTT registry (for advanced internal systems). */
     [[nodiscard]] inline entt::registry& getRegistry() { return m_registry; }
 
-    /** @brief Définit le contexte moteur (appelé automatiquement par Engine::CreateScene). */
+    /** @brief Sets the engine context (called automatically by Engine::CreateScene). */
     void setEngineContext(Engine* engine) { m_EngineContext = engine; }
     
-    /** @brief Récupère le contexte moteur associé. */
+    /** @brief Retrieves the associated engine context. */
     Engine* getEngineContext() const { return m_EngineContext; }
 
     // --- Scene Environment ---

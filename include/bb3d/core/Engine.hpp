@@ -21,65 +21,66 @@ class AudioSystem;
 class ImGuiLayer;
 
 /**
- * @brief La classe principale représentant le moteur de jeu biobazard3d.
+ * @brief The main class representing the biobazard3d game engine.
  * 
- * Cette classe agit comme une façade (Facade Pattern) pour tous les sous-systèmes
- * (Rendu, Audio, Physique, Ressources) et gère la boucle principale du jeu.
+ * This class acts as a facade for all sub-systems
+ * (Rendering, Audio, Physics, Resources) and manages the main game loop.
  */
 class Engine {
 public:
     /**
-     * @brief Construit une nouvelle instance de Engine.
-     * @param configPath Chemin vers le fichier de configuration JSON.
+     * @brief Constructs a new instance of Engine.
+     * @param configPath Path to the JSON configuration file.
      */
-    Engine(const std::string_view configPath = "engine_config.json");
+    Engine(const std::string_view configPath = "config/engine_config.json");
     
-    /** @brief Construit une instance avec une config directe. */
+    /** @brief Constructs an instance with a direct configuration. */
     Engine(const EngineConfig& config);
 
     /**
-     * @brief Détruit l'instance de Engine et libère les ressources.
+     * @brief Destroys the Engine instance and releases resources.
      */
     ~Engine();
 
     /**
-     * @brief Crée et initialise une instance globale du moteur.
+     * @brief Creates and initializes a global instance of the engine.
      */
+    static Scope<Engine> Create(const std::string_view configPath = "config/engine_config.json");
     static Scope<Engine> Create(const EngineConfig& config = EngineConfig());
 
     /**
-     * @brief Récupère l'instance singleton du moteur.
+     * @brief Retrieves the engine singleton instance.
      */
     static Engine& Get();
 
     /**
-     * @brief Démarre la boucle principale du moteur.
+     * @brief Starts the main loop of the engine.
      * 
-     * Cette méthode bloque l'exécution jusqu'à ce que la fenêtre soit fermée
-     * ou que Stop() soit appelé.
+     * This method blocks execution until the window is closed
+     * or Stop() is called.
      * 
-     * Séquence : Input -> Window Events -> Update -> Render.
+     * Sequence: Input -> Window Events -> Update -> Render.
      */
     void Run();
 
     /**
-     * @brief Arrête proprement le moteur et libère les ressources.
+     * @brief Cleanly shuts down the engine and releases resources.
      * 
-     * Appelé automatiquement par le destructeur, mais peut être appelé manuellement.
-     * Attend que le GPU soit inactif avant de détruire les objets Vulkan.
+     * Automatically called by the destructor, but can be called manually.
+     * Waits for the GPU to be idle before destroying Vulkan objects.
      */
     void Shutdown();
 
-    // Accesseurs aux systèmes core
+    // Core system accessors
     
     /**
-     * @brief Demande l'arrêt de la boucle principale.
+     * @brief Requests the main loop to stop.
      * 
-     * Le moteur s'arrêtera à la fin de la frame courante.
+     * The engine will stop at the end of the current frame.
      */
     void Stop();
 
-    /** @name Accesseurs Haut Niveau (Aliases)
+    /** @name High-Level Accessors (Aliases)
      * @{
      */
     inline VulkanContext& graphics() { return *m_VulkanContext; }
@@ -96,7 +97,7 @@ public:
 #endif
     /** @} */
 
-    /** @name Accesseurs Originaux
+    /** @name Original Accessors
      * @{
      */
     VulkanContext& GetVulkanContext() { return *m_VulkanContext; }
@@ -121,12 +122,12 @@ public:
     void exportScene(const std::string& filepath);
     void importScene(const std::string& filepath);
 
-    /** @brief Met en pause ou relance la simulation physique. */
+    /** @brief Pauses or resumes the physical simulation. */
     void setPhysicsPaused(bool paused);
-    /** @brief Indique si la simulation physique est en pause. */
+    /** @brief Indicates if the physical simulation is paused. */
     bool isPhysicsPaused() const { return m_PhysicsPaused; }
 
-    /** @brief Réinitialise la scène actuelle (position des objets, physique). */
+    /** @brief Resets the current scene (object positions, physics). */
     void resetScene();
 
 private:

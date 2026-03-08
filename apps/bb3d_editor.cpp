@@ -6,6 +6,7 @@
 #include "bb3d/core/IconsFontAwesome6.h"
 #include <glm/gtc/matrix_transform.hpp>
 
+#if defined(BB3D_ENABLE_EDITOR)
 using namespace bb3d;
 
 /**
@@ -14,17 +15,21 @@ using namespace bb3d;
  * et l'interface d'édition intégrée (Viewport, Hierarchy, Inspector).
  */
 int main() {
-    auto engine = Engine::Create(EngineConfig()
-        .title(ICON_FA_GEAR " biobazard3d - Editor " ICON_FA_ROCKET)
-        .resolution(1600, 900)
-        .vsync(true)
-        .enableOffscreenRendering(true) // Requis pour le Viewport ImGui
-        .renderScale(1.0f)
-        .enablePhysics(PhysicsBackend::Jolt)
-    );
+    auto config = Config::Load("config/engine_config.json");
+    config.title(ICON_FA_GEAR " biobazard3d - Editor " ICON_FA_ROCKET)
+          .resolution(1600, 900)
+          .vsync(true)
+          .enableOffscreenRendering(true) // Required for the ImGui Viewport
+          .renderScale(1.0f)
+          .enablePhysics(PhysicsBackend::Jolt)
+          .enableEditor(true); // Editor app: Must have editor enabled
 
-    auto scene = engine->CreateScene();
-    engine->SetActiveScene(scene);
+    auto engine = Engine::Create(config);
+
+    { // Scope to ensure all Refs (scene, mesh, models) are destroyed BEFORE engine->Shutdown()
+        auto scene = engine->CreateScene();
+        engine->SetActiveScene(scene);
+
 
     // --- 1. Caméras ---
     // Caméra Orbitale (Active par défaut dans l'éditeur)
@@ -96,9 +101,9 @@ int main() {
         engine->physics().createRigidBody(ent);
     }
 
-    // --- 6. Logique de Contrôle (Switch Caméra) ---
-    scene->createEntity("Editor Logic").add<NativeScriptComponent>([orbitCamEnt, fpsCamEnt, &engine](Entity /*ent*/, float /*dt*/) mutable {
-        if (engine->input().isKeyJustPressed(Key::C)) {
+    // --- 6. Control Logic (Camera Switch) ---
+    scene->createEntity("Editor Logic").add<NativeScriptComponent>([orbitCamEnt, fpsCamEnt, enginePtr = engine.get()](Entity /*ent*/, float /*dt*/) mutable {
+        if (enginePtr->input().isKeyJustPressed(Key::C)) {
             auto& orbitComp = orbitCamEnt.get<CameraComponent>();
             auto& fpsComp = fpsCamEnt.get<CameraComponent>();
             orbitComp.active = !orbitComp.active;
@@ -107,13 +112,26 @@ int main() {
         }
     });
 
-    BB_CORE_INFO("bb3d Editor ready.");
     engine->Run();
 
-    // Cleanup explicite
+    // Ensure GPU is idle before resource-owning Refs go out of scope
+    if (engine->graphics().getDevice()) {
+        engine->graphics().getDevice().waitIdle();
+    }
+
+    // Resetting references explicitly within the scope
     engine->SetActiveScene(nullptr);
-    scene.reset();
-    engine->Shutdown();
+    } // End of scene scope
+
 
     return 0;
 }
+
+#else
+#include <iostream>
+int main() {
+    std::cerr << "Error: bb3d_editor requires BB3D_ENABLE_EDITOR to be enabled at compile time." << std::endl;
+    return 1;
+}
+#endif
+

@@ -169,13 +169,13 @@ void Texture::initFromPixels(const unsigned char* pixels) {
         }
     } catch (...) {}
 
-    // Conservation du staging buffer jusqu'à la fin de l'upload asynchrone
+    // Keeping staging buffer until asynchronous upload is complete
     m_stagingBuffer = CreateScope<Buffer>(m_context, imageSize, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
     m_stagingBuffer->upload(pixels, imageSize);
 
     createImage(static_cast<uint32_t>(m_width), static_cast<uint32_t>(m_height), 1);
 
-    // Démarrage des commandes de transfert asynchrones
+    // Starting asynchronous transfer commands
     vk::CommandBuffer cb = m_context.beginTransferCommands();
 
     transitionLayout(cb, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, 1);
@@ -192,17 +192,17 @@ void Texture::initFromPixels(const unsigned char* pixels) {
     createImageView(1);
     createSampler();
     
-    // Note: m_ready reste false jusqu'à ce que isReady() ou un wait explicite soit appelé.
+    // Note: m_ready remains false until isReady() or an explicit wait is called.
 }
 
 bool Texture::isReady() {
     if (m_ready) return true;
     if (!m_uploadFence) return true; 
 
-    // Protection contre les appels concurrents (multi-frames)
+    // Protection against concurrent calls (multi-frames)
     auto result = m_context.getDevice().getFenceStatus(m_uploadFence);
     if (result == vk::Result::eSuccess) {
-        // Double vérification pour éviter la destruction multiple
+        // Double check to avoid multiple destruction
         if (m_uploadFence) {
             m_context.getDevice().destroyFence(m_uploadFence);
             m_uploadFence = nullptr;
@@ -248,7 +248,8 @@ void Texture::createImage(uint32_t width, uint32_t height, uint32_t layers) {
     allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
 
     VkImage img;
-    vmaCreateImage(m_context.getAllocator(), reinterpret_cast<VkImageCreateInfo*>(&imageInfo), &allocInfo, &img, &m_allocation, nullptr);
+    VkResult res = vmaCreateImage(m_context.getAllocator(), reinterpret_cast<VkImageCreateInfo*>(&imageInfo), &allocInfo, &img, &m_allocation, nullptr);
+    if (res != VK_SUCCESS) throw std::runtime_error("VMA Allocation Failed for Texture Image: " + vk::to_string(static_cast<vk::Result>(res)));
     m_image = vk::Image(img);
 }
 

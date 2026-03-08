@@ -14,18 +14,18 @@ namespace bb3d {
 
 class VulkanContext;
 
-/** @brief Boîte englobante alignée sur les axes (Axis-Aligned Bounding Box). */
+/** @brief Axis-Aligned Bounding Box (AABB). */
 struct AABB {
-    glm::vec3 min{std::numeric_limits<float>::max()}; ///< Coin minimum (x, y, z).
-    glm::vec3 max{std::numeric_limits<float>::lowest()}; ///< Coin maximum (x, y, z).
+    glm::vec3 min{std::numeric_limits<float>::max()}; ///< Minimum corner (x, y, z).
+    glm::vec3 max{std::numeric_limits<float>::lowest()}; ///< Maximum corner (x, y, z).
 
-    /** @brief Étend la boîte pour inclure un nouveau point. */
+    /** @brief Extends the box to include a new point. */
     void extend(const glm::vec3& point) {
         min = glm::min(min, point);
         max = glm::max(max, point);
     }
     
-    /** @brief Étend la boîte pour inclure une autre AABB. */
+    /** @brief Extends the box to include another AABB. */
     void extend(const AABB& other) {
         min = glm::min(min, other.min);
         max = glm::max(max, other.max);
@@ -34,7 +34,7 @@ struct AABB {
     [[nodiscard]] inline glm::vec3 center() const { return (min + max) * 0.5f; }
     [[nodiscard]] inline glm::vec3 size() const { return max - min; }
 
-    /** @brief Calcule une nouvelle AABB après transformation par une matrice. */
+    /** @brief Calculates a new AABB after transformation by a matrix. */
     [[nodiscard]] inline AABB transform(const glm::mat4& m) const {
         glm::vec3 newMin = m[3];
         glm::vec3 newMax = m[3];
@@ -54,21 +54,21 @@ struct AABB {
 };
 
 /**
- * @brief Objet contenant les données géométriques prêtes pour le GPU.
+ * @brief Object containing geometric data ready for the GPU.
  * 
- * Un maillage (Mesh) possède :
- * - Un **Vertex Buffer** (Tampon de sommets : Position, Normal, UV, etc.).
- * - Un **Index Buffer** (Tampon d'indices pour le dessin indexé).
- * - Une **AABB locale** pour le culling.
- * - Un lien optionnel vers un **Material**.
+ * A Mesh consists of:
+ * - A **Vertex Buffer** (Position, Normal, UV, etc.).
+ * - An **Index Buffer** (Triangle indices for indexed drawing).
+ * - A **Local AABB** for culling.
+ * - An optional link to a **Material**.
  */
 class Mesh {
 public:
     /**
-     * @brief Crée un maillage et transfère les données vers la mémoire GPU.
-     * @param context Contexte Vulkan pour la création des buffers.
-     * @param vertices Liste des sommets.
-     * @param indices Liste des indices de triangles.
+     * @brief Creates a mesh and transfers data to GPU memory.
+     * @param context Vulkan context for buffer creation.
+     * @param vertices List of vertices.
+     * @param indices List of triangle indices.
      */
     Mesh(VulkanContext& context, 
          const std::vector<Vertex>& vertices, 
@@ -88,14 +88,14 @@ public:
         m_indexBuffer.reset();
     }
 
-    /** @brief Récupère les limites spatiales locales du maillage. */
+    /** @brief Retrieves the local spatial bounds of the mesh. */
     [[nodiscard]] inline const AABB& getBounds() const { return m_bounds; }
 
     /** 
-     * @brief Enregistre les commandes de rendu pour ce maillage.
-     * @param commandBuffer Buffer de commande actif.
-     * @param instanceCount Nombre d'instances à dessiner (Instancing).
-     * @param firstInstance Index du premier exemplaire dans le SSBO d'instances.
+     * @brief Records rendering commands for this mesh.
+     * @param commandBuffer Active command buffer.
+     * @param instanceCount Number of instances to draw (Instancing).
+     * @param firstInstance Index of the first instance in the instance SSBO.
      */
     inline void draw(vk::CommandBuffer commandBuffer, uint32_t instanceCount = 1, uint32_t firstInstance = 0) const {
         vk::Buffer vbs[] = {m_vertexBuffer->getHandle()};
@@ -105,7 +105,7 @@ public:
         commandBuffer.drawIndexed(m_indexCount, instanceCount, 0, 0, firstInstance);
     }
 
-    /** @brief Met à jour les buffers GPU après modification de la liste `getVertices()`. */
+    /** @brief Updates GPU buffers after modifying the `getVertices()` list. */
     inline void updateVertices() {
 #if defined(BB3D_DEBUG)
         if (m_cpuDataReleased) {
@@ -121,9 +121,9 @@ public:
     }
 
     /** 
-     * @brief Libère la mémoire RAM (vertices/indices) pour économiser de la mémoire.
-     * @note Après cet appel, les données ne sont plus disponibles pour le CPU (ex: pour la Physique).
-     * @warning Assurez-vous que les colliders physiques ont été créés AVANT d'appeler cette méthode.
+     * @brief Releases RAM memory (vertices/indices) to save memory.
+     * @note After this call, data is no longer available for the CPU (e.g., for Physics).
+     * @warning Ensure that physics colliders have been created BEFORE calling this method.
      */
     void releaseCPUData() {
         if (m_cpuDataReleased) return;
@@ -137,7 +137,7 @@ public:
 
     [[nodiscard]] bool isCPUDataReleased() const { return m_cpuDataReleased; }
 
-    /** @brief Récupère les sommets (Lecture seule). Log une erreur si les données ont été libérées (Debug uniquement). */
+    /** @brief Retrieves vertices (Read-only). Logs an error if data has been released (Debug only). */
     const std::vector<Vertex>& getVertices() const { 
 #if defined(BB3D_DEBUG)
         if (m_cpuDataReleased) BB_CORE_ERROR("Mesh: Accessing vertices after releaseCPUData()! Results will be empty.");
@@ -145,7 +145,7 @@ public:
         return m_vertices; 
     }
 
-    /** @brief Récupère les indices (Lecture seule). Log une erreur si les données ont été libérées (Debug uniquement). */
+    /** @brief Retrieves indices (Read-only). Logs an error if data has been released (Debug only). */
     const std::vector<uint32_t>& getIndices() const { 
 #if defined(BB3D_DEBUG)
         if (m_cpuDataReleased) BB_CORE_ERROR("Mesh: Accessing indices after releaseCPUData()! Results will be empty.");
@@ -153,7 +153,7 @@ public:
         return m_indices; 
     }
 
-    /** @brief Récupère les sommets pour modification. Log une erreur si les données ont été libérées (Debug uniquement). */
+    /** @brief Retrieves vertices for modification. Logs an error if data has been released (Debug only). */
     std::vector<Vertex>& getVertices() { 
 #if defined(BB3D_DEBUG)
         if (m_cpuDataReleased) BB_CORE_ERROR("Mesh: Accessing vertices for modification after releaseCPUData()!");

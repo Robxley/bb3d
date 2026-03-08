@@ -100,7 +100,11 @@ namespace bb3d {
         bool enableAudio = true;      ///< Active le système audio (miniaudio/OpenAL).
         bool enableJobSystem = true;  ///< Active le système de threads worker.
         bool enableHotReload = true;  ///< Active le rechargement à chaud des assets (Dev Only).
+#if defined(BB3D_ENABLE_EDITOR)
         bool enableEditor = true;     ///< Active l'interface ImGui (si compilée).
+#else
+        bool enableEditor = false;    ///< Active l'interface ImGui (si compilée).
+#endif
 
         ModuleConfig& setPhysics(bool e, PhysicsBackend b = PhysicsBackend::Jolt) { enablePhysics = e; physicsBackend = b; return *this; }
         ModuleConfig& setAudio(bool e) { enableAudio = e; return *this; }
@@ -120,7 +124,7 @@ namespace bb3d {
         
         bool logConsole = true; ///< Active la sortie console.
         bool logFile = true;    ///< Active la sortie fichier.
-        std::string logDirectory = "logs"; ///< Dossier de stockage des logs.
+        std::string logDirectory = "logs"; ///< Log storage directory (relative to executable CWD: build/bin/logs).
         std::string logFileName = "engine.log"; ///< Nom du fichier de log.
 
         SystemConfig& setMaxThreads(int t) { maxThreads = t; return *this; }

@@ -11,47 +11,47 @@ namespace bb3d {
 class ResourceManager;
 
 /**
- * @brief Asset complexe représentant un modèle 3D.
+ * @brief Complex asset representing a 3D model.
  * 
- * Un modèle est une hiérarchie de maillages (`Mesh`) et de textures.
- * Il supporte :
- * - Le chargement via **fastgltf** (pour .gltf/.glb).
- * - Le chargement via **tinyobjloader** (pour .obj).
- * - Le calcul automatique de boîte englobante (AABB).
- * - La normalisation (Recentrage et mise à l'échelle automatique).
+ * A model is a hierarchy of meshes (`Mesh`) and textures.
+ * It supports:
+ * - Loading via **fastgltf** (for .gltf/.glb).
+ * - Loading via **tinyobjloader** (for .obj).
+ * - Automatic bounding box calculation (AABB).
+ * - Normalization (Automatic centering and scaling).
  */
 class Model : public Resource {
 public:
     /** 
-     * @brief Charge un modèle depuis le disque.
-     * @param context Contexte Vulkan pour le transfert GPU.
-     * @param resourceManager Manager pour le cache des textures liées au modèle.
-     * @param path Chemin vers l'asset.
+     * @brief Loads a model from disk.
+     * @param context Vulkan context for GPU transfer.
+     * @param resourceManager Manager for the cache of textures linked to the model.
+     * @param path Path to the asset.
      */
     Model(VulkanContext& context, ResourceManager& resourceManager, std::string_view path);
     ~Model() override;
 
-    /** @brief Enregistre les commandes de rendu pour tous les maillages du modèle. */
+    /** @brief Records rendering commands for all meshes in the model. */
     void draw(vk::CommandBuffer commandBuffer);
 
     /** 
-     * @brief Modifie les coordonnées des sommets pour que le modèle soit centré 
-     * et tienne dans un cube de dimensions spécifiées.
-     * @param targetSize Taille de destination (ex: glm::vec3(1.0f) pour tenir dans 1m cube).
-     * @return Le décalage du centre appliqué (pour compenser le transform).
+     * @brief Modifies vertex coordinates so that the model is centered 
+     * and fits within a cube of specified dimensions.
+     * @param targetSize Destination size (e.g., glm::vec3(1.0f) to fit in a 1m cube).
+     * @return The applied center offset (to compensate the transform).
      */
     glm::vec3 normalize(const glm::vec3& targetSize = glm::vec3(1.0f));
 
-    /** @brief Récupère les limites spatiales du modèle. */
+    /** @brief Retrieves the spatial bounds of the model. */
     const AABB& getBounds() const { return m_bounds; }
     
-    /** @brief Récupère une texture chargée par le modèle. */
+    /** @brief Retrieves a texture loaded by the model. */
     Ref<Texture> getTexture(size_t index) const { return index < m_textures.size() ? m_textures[index] : nullptr; }
 
-    /** @brief Liste des maillages internes du modèle. */
+    /** @brief List of internal meshes in the model. */
     const std::vector<Ref<Mesh>>& getMeshes() const { return m_meshes; }
 
-    /** @brief Libère la RAM pour tous les maillages de ce modèle. */
+    /** @brief Releases RAM for all meshes in this model. */
     void releaseCPUData() {
         for (auto& mesh : m_meshes) mesh->releaseCPUData();
     }

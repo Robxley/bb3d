@@ -83,7 +83,7 @@ Scope<Mesh> MeshGenerator::createCheckerboardPlane(VulkanContext& context, float
 
             uint32_t offset = static_cast<uint32_t>(vertices.size());
             
-            // On génère 4 sommets par carré pour avoir des couleurs nettes
+            // Generate 4 vertices per square for sharp colors
             vertices.push_back({{xPos, 0, zPos + step}, {0,1,0}, color, {0,0}, {1,0,0,1}});
             vertices.push_back({{xPos + step, 0, zPos + step}, {0,1,0}, color, {1,0}, {1,0,0,1}});
             vertices.push_back({{xPos + step, 0, zPos}, {0,1,0}, color, {1,1}, {1,0,0,1}});

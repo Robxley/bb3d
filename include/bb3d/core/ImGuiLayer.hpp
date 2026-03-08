@@ -1,5 +1,7 @@
 #pragma once
 
+#if defined(BB3D_ENABLE_EDITOR)
+
 #include "bb3d/core/Base.hpp"
 #include "bb3d/scene/Entity.hpp"
 #include <vulkan/vulkan.hpp>
@@ -49,6 +51,12 @@ public:
     
     /** @brief Indique si ImGui capture le clavier. */
     [[nodiscard]] bool wantCaptureKeyboard() const;
+
+    /** @brief Commence le dockspace principal de l'éditeur. Doit être appelé avant les fenêtres. */
+    void beginDockspace();
+
+    /** @brief Termine le dockspace principal. Doit être appelé après les fenêtres. */
+    void endDockspace();
 
     [[nodiscard]] glm::uvec2 getViewportSize() const { return m_viewportSize; }
     [[nodiscard]] bool hasViewportSizeChanged() const { return m_viewportSizeChanged; }
@@ -124,3 +132,5 @@ private:
 };
 
 } // namespace bb3d
+
+#endif // BB3D_ENABLE_EDITOR

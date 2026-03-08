@@ -8,16 +8,16 @@
 namespace bb3d {
 
     /**
-     * @brief Gère la sérialisation et la désérialisation d'une scène complète au format JSON.
+     * @brief Manages the serialization and deserialization of a complete scene in JSON format.
      */
     class SceneSerializer {
     public:
         SceneSerializer(Ref<Scene> scene);
 
-        /** @brief Sauvegarde la scène dans un fichier. */
+        /** @brief Saves the scene to a file. */
         void serialize(std::string_view filepath);
         
-        /** @brief Charge une scène depuis un fichier. */
+        /** @brief Loads a scene from a file. */
         bool deserialize(std::string_view filepath);
 
     private:

@@ -11,6 +11,7 @@ int main() {
         .title("BB3D - Hello World 2.0 (OBJ + GLTF)")
         .resolution(1280, 720)
         .vsync(true)
+        .enableEditor(false)
     );
 
     // 2. Création de la scène

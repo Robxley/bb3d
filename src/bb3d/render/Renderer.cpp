@@ -224,24 +224,35 @@ bool Renderer::render(Scene& scene) {
                 for (size_t i = 0; i < m_renderFinishedSemaphores.size(); i++) 
                     m_renderFinishedSemaphores[i] = dev.createSemaphore({});
                 if (m_config.graphics.enableOffscreenRendering) {
-                    if (!m_renderTarget) {
-                        uint32_t w = static_cast<uint32_t>(m_pendingWidth * m_config.graphics.renderScale);
-                        uint32_t h = static_cast<uint32_t>(m_pendingHeight * m_config.graphics.renderScale);
-                        w = std::max(1u, w); h = std::max(1u, h);
-                        m_renderTarget = CreateScope<RenderTarget>(m_context, w, h);
-                    } else {
-                        uint32_t w = static_cast<uint32_t>(m_pendingWidth * m_config.graphics.renderScale);
-                        uint32_t h = static_cast<uint32_t>(m_pendingHeight * m_config.graphics.renderScale);
-                        w = std::max(1u, w); h = std::max(1u, h);
-                        m_renderTarget->resize(w, h);
+                    bool editorEnabled = false;
+#if defined(BB3D_ENABLE_EDITOR)
+                    editorEnabled = m_config.modules.enableEditor;
+#endif
+                    // In Editor mode, the RenderTarget is resized by the Viewport panel logic in Engine/ImGuiLayer.
+                    // Resizing here based on Window size would conflict and cause flickering.
+                    if (!editorEnabled) {
+                        if (!m_renderTarget) {
+                            uint32_t w = static_cast<uint32_t>(m_pendingWidth * m_config.graphics.renderScale);
+                            uint32_t h = static_cast<uint32_t>(m_pendingHeight * m_config.graphics.renderScale);
+                            w = std::max(1u, w); h = std::max(1u, h);
+                            m_renderTarget = CreateScope<RenderTarget>(m_context, w, h);
+                        } else {
+                            uint32_t w = static_cast<uint32_t>(m_pendingWidth * m_config.graphics.renderScale);
+                            uint32_t h = static_cast<uint32_t>(m_pendingHeight * m_config.graphics.renderScale);
+                            w = std::max(1u, w); h = std::max(1u, h);
+                            m_renderTarget->resize(w, h);
+                        }
                     }
-                    if (m_copyDescriptorSets.size() != MAX_FRAMES_IN_FLIGHT) {
-                        createCopyPipeline();
-                    } else {
-                        for (uint32_t i = 0; i < m_copyDescriptorSets.size(); i++) {
-                            vk::DescriptorImageInfo imgInfo(m_renderTarget->getSampler(), m_renderTarget->getColorImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-                            vk::WriteDescriptorSet write(m_copyDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &imgInfo, nullptr, nullptr);
-                            dev.updateDescriptorSets(write, nullptr);
+
+                    if (m_renderTarget) {
+                        if (m_copyDescriptorSets.size() != MAX_FRAMES_IN_FLIGHT) {
+                            createCopyPipeline();
+                        } else {
+                            for (uint32_t i = 0; i < m_copyDescriptorSets.size(); i++) {
+                                vk::DescriptorImageInfo imgInfo(m_renderTarget->getSampler(), m_renderTarget->getColorImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+                                vk::WriteDescriptorSet write(m_copyDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &imgInfo, nullptr, nullptr);
+                                dev.updateDescriptorSets(write, nullptr);
+                            }
                         }
                     }
                 }
@@ -399,7 +410,11 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
             }
         });
     }
-    std::sort(m_renderCommands.begin(), m_renderCommands.end());
+    std::ranges::sort(m_renderCommands, [](const RenderCommand& a, const RenderCommand& b) {
+        if (a.type != b.type) return a.type < b.type;
+        if (a.material != b.material) return a.material < b.material;
+        return a.mesh < b.mesh;
+    });
     GraphicsPipeline* lastPipeline = nullptr; Material* lastMaterial = nullptr; Mesh* lastMesh = nullptr;
     m_instanceTransforms.clear();
     uint32_t currentInstanceOffset = 0;

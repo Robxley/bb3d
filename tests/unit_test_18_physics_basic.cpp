@@ -15,6 +15,7 @@ int main() {
         .resolution(1280, 720)
         .vsync(true)
         .enablePhysics(PhysicsBackend::Jolt)
+        .enableEditor(false)
     );
 
     auto scene = engine->CreateScene();

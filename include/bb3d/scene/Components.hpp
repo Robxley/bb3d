@@ -29,18 +29,18 @@ enum class BodyType { Static, Dynamic, Kinematic, Character };
 enum class LightType { Directional, Point, Spot };
 enum class PrimitiveType { None = 0, Cube, Sphere, Plane };
 
-/** @brief Identifiant unique déterministe et thread-safe pour les entités. */
+/** @brief Unique deterministic and thread-safe identifier for entities. */
 struct IDComponent {
     uint64_t id;
 
-    // Compteur global atomique pour garantir l'unicité et le thread-safety
+    // Global atomic counter to guarantee uniqueness and thread-safety
     static inline std::atomic<uint64_t> s_NextID{1}; 
 
     IDComponent() : id(s_NextID++) {}
     
-    /** @brief Constructeur explicite pour le chargement ou la duplication. */
+    /** @brief Explicit constructor for loading or duplication. */
     IDComponent(uint64_t _id) : id(_id) {
-        // Si on force un ID (ex: chargement), on s'assure que le compteur est à jour pour éviter les collisions futures
+        // If we force an ID (e.g. loading), we ensure the counter is up to date to avoid future collisions
         uint64_t next = s_NextID.load();
         while (_id >= next && !s_NextID.compare_exchange_weak(next, _id + 1));
     }
@@ -50,19 +50,19 @@ struct IDComponent {
         if(j.contains("id")) {
             uint64_t loadedID = j.at("id").get<uint64_t>();
             id = loadedID;
-            // Mise à jour du compteur global si nécessaire
+            // Update global counter if necessary
             uint64_t next = s_NextID.load();
             while (loadedID >= next && !s_NextID.compare_exchange_weak(next, loadedID + 1));
         }
     }
 };
 
-/** @brief Composant pour identifier une entité par un nom (Debug/Editor only). */
+/** @brief Component to identify an entity by a name (Debug/Editor only). */
 struct TagComponent {
     std::string tag;
 
     TagComponent() = default;
-    // Optimisation : Passage par valeur + std::move pour éviter une copie inutile si rvalue
+    // Optimization: Pass by value + std::move to avoid unnecessary copy if rvalue
     TagComponent(std::string t) : tag(std::move(t)) {}
 
     void serialize(json& j) const {
@@ -74,13 +74,13 @@ struct TagComponent {
     }
 };
 
-/** @brief Composant gérant la position, rotation et l'échelle dans l'espace 3D. */
+/** @brief Component managing position, rotation, and scale in 3D space. */
 struct TransformComponent {
     glm::vec3 translation = { 0.0f, 0.0f, 0.0f };
-    glm::vec3 rotation = { 0.0f, 0.0f, 0.0f }; ///< Angles d'Euler en radians (X:Pitch, Y:Yaw, Z:Roll).
+    glm::vec3 rotation = { 0.0f, 0.0f, 0.0f }; ///< Euler angles in radians (X:Pitch, Y:Yaw, Z:Roll).
     glm::vec3 scale = { 1.0f, 1.0f, 1.0f };
 
-    // État d'initialisation pour le reset de scène
+    // Initialization state for scene reset
     glm::vec3 initialTranslation = { 0.0f, 0.0f, 0.0f };
     glm::vec3 initialRotation = { 0.0f, 0.0f, 0.0f };
     glm::vec3 initialScale = { 1.0f, 1.0f, 1.0f };
@@ -89,32 +89,32 @@ struct TransformComponent {
     TransformComponent(const glm::vec3& t, const glm::vec3& r = {0,0,0}, const glm::vec3& s = {1,1,1}) 
         : translation(t), rotation(r), scale(s), initialTranslation(t), initialRotation(r), initialScale(s) {}
 
-    /** @brief Sauvegarde l'état actuel comme état d'initialisation. */
+    /** @brief Saves current state as initialization state. */
     void saveInitialState() {
         initialTranslation = translation;
         initialRotation = rotation;
         initialScale = scale;
     }
 
-    /** @brief Restaure l'état à partir de la sauvegarde d'initialisation. */
+    /** @brief Restores state from initialization backup. */
     void resetToInitial() {
         translation = initialTranslation;
         rotation = initialRotation;
         scale = initialScale;
     }
 
-    /** @brief Calcule la matrice de transformation 4x4 (Model Matrix). */
+    /** @brief Calculates the 4x4 transformation matrix (Model Matrix). */
     [[nodiscard]] inline glm::mat4 getTransform() const {
         return glm::translate(glm::mat4(1.0f), translation) * 
                glm::toMat4(glm::quat(rotation)) * 
                glm::scale(glm::mat4(1.0f), scale);
     }
 
-    /** @brief Vecteur Forward (Z-) local. */
+    /** @brief Local Forward vector (Z-). */
     [[nodiscard]] inline glm::vec3 getForward() const { return glm::rotate(glm::quat(rotation), glm::vec3(0.0f, 0.0f, -1.0f)); }
-    /** @brief Vecteur Up (Y+) local. */
+    /** @brief Local Up vector (Y+). */
     [[nodiscard]] inline glm::vec3 getUp() const { return glm::rotate(glm::quat(rotation), glm::vec3(0.0f, 1.0f, 0.0f)); }
-    /** @brief Vecteur Right (X+) local. */
+    /** @brief Local Right vector (X+). */
     [[nodiscard]] inline glm::vec3 getRight() const { return glm::rotate(glm::quat(rotation), glm::vec3(1.0f, 0.0f, 0.0f)); }
 
     void serialize(json& j) const {
@@ -139,7 +139,7 @@ struct TransformComponent {
     }
 };
 
-/** @brief Composant pour l'affichage d'un maillage. */
+/** @brief Component for displaying a mesh. */
 struct MeshComponent {
     Ref<Mesh> mesh;
     std::string assetPath; ///< Path used for serialization and hot-reloading.
@@ -165,7 +165,7 @@ struct MeshComponent {
     }
 };
 
-/** @brief Composant pour l'affichage d'un modèle complet (plusieurs meshes). */
+/** @brief Component for displaying a complete model (multiple meshes). */
 struct ModelComponent {
     Ref<Model> model;
     std::string assetPath; ///< Path used for serialization.
@@ -185,7 +185,7 @@ struct ModelComponent {
     }
 };
 
-/** @brief Composant Caméra (Données optiques). */
+/** @brief Camera Component (Optical data). */
 struct CameraComponent {
     Ref<Camera> camera;
     bool active = true;
@@ -196,7 +196,7 @@ struct CameraComponent {
 
     CameraComponent() = default;
     CameraComponent(Ref<Camera> c) : camera(c) {
-        // Idéalement on récupèrerait les valeurs de l'objet camera ici
+        // Ideally we would retrieve camera values from the camera object here
     }
 
     void serialize(json& j) const {
@@ -216,12 +216,12 @@ struct CameraComponent {
     }
 };
 
-/** @brief Contrôleur pour caméra FPS (Clavier/Souris). */
+/** @brief Controller for FPS camera (Keyboard/Mouse). */
 struct FPSControllerComponent {
     glm::vec3 movementSpeed = {10.0f, 10.0f, 10.0f};
     glm::vec2 rotationSpeed = {0.1f, 0.1f};
     
-    // État interne (Yaw/Pitch)
+    // Internal state (Yaw/Pitch)
     float yaw = -90.0f;
     float pitch = 0.0f;
 
@@ -240,7 +240,7 @@ struct FPSControllerComponent {
     }
 };
 
-/** @brief Contrôleur pour caméra Orbitale. */
+/** @brief Controller for Orbital camera. */
 struct OrbitControllerComponent {
     glm::vec3 target = {0.0f, 0.0f, 0.0f};
     float distance = 10.0f;
@@ -250,7 +250,7 @@ struct OrbitControllerComponent {
     glm::vec2 rotationSpeed = {0.2f, 0.2f};
     float zoomSpeed = 0.5f;
 
-    // État interne
+    // Internal state
     float yaw = 0.0f;
     float pitch = 0.0f;
 
@@ -273,7 +273,7 @@ struct OrbitControllerComponent {
     }
 };
 
-/** @brief Composant Lumière. */
+/** @brief Light Component. */
 struct LightComponent {
     LightType type = LightType::Point;
     glm::vec3 color = { 1.0f, 1.0f, 1.0f };
@@ -298,7 +298,7 @@ struct LightComponent {
     }
 };
 
-/** @brief Composant Physique RigidBody. */
+/** @brief RigidBody Physics Component. */
 struct RigidBodyComponent {
     BodyType type = BodyType::Static;
     float mass = 1.0f;
@@ -351,7 +351,7 @@ struct CapsuleColliderComponent {
 struct MeshColliderComponent {
     Ref<Mesh> mesh;
     bool convex = false;
-    std::string assetPath; // Chemin du mesh utilisé comme collider
+    std::string assetPath; // Path of the mesh used as collider
 
     void serialize(json& j) const { j["convex"] = convex; j["assetPath"] = assetPath; }
     void deserialize(const json& j) { 
@@ -378,7 +378,7 @@ struct CharacterControllerComponent {
     }
 };
 
-/** @brief Composant Audio Source. */
+/** @brief Audio Source Component. */
 struct AudioSourceComponent {
     std::string assetPath;
     float volume = 1.0f;
@@ -409,7 +409,7 @@ struct AudioListenerComponent {
     void deserialize(const json& j) { if (j.contains("active")) j.at("active").get_to(active); }
 };
 
-/** @brief Composant Terrain. */
+/** @brief Terrain Component. */
 struct TerrainComponent {
     std::string heightmapPath;
     glm::vec3 scale = { 100.0f, 10.0f, 100.0f };
@@ -425,7 +425,7 @@ struct TerrainComponent {
     }
 };
 
-/** @brief Composant Système de Particules. */
+/** @brief Particle System Component. */
 struct ParticleSystemComponent {
     std::string texturePath;
     int maxParticles = 1000;
@@ -441,7 +441,7 @@ struct ParticleSystemComponent {
     }
 };
 
-/** @brief Composant Skybox (Cubemap). */
+/** @brief Skybox Component (Cubemap). */
 struct SkyboxComponent {
     Ref<Texture> cubemap;
     std::string assetPath;
@@ -449,7 +449,7 @@ struct SkyboxComponent {
     void deserialize(const json& j) { if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath); }
 };
 
-/** @brief Composant SkySphere (Texture 2D équirectangulaire). */
+/** @brief SkySphere Component (Equirectangular 2D texture). */
 struct SkySphereComponent {
     Ref<Texture> texture;
     std::string assetPath;
@@ -457,7 +457,7 @@ struct SkySphereComponent {
     void deserialize(const json& j) { if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath); }
 };
 
-/** @brief Composant pour attacher un comportement (script C++) à une entité. */
+/** @brief Component to attach a behavior (C++ script) to an entity. */
 struct NativeScriptComponent {
     std::function<void(Entity, float)> onUpdate;
 
@@ -466,7 +466,7 @@ struct NativeScriptComponent {
     template<typename Func>
     NativeScriptComponent(Func&& func) : onUpdate(std::forward<Func>(func)) {}
 
-    // Les scripts natifs (pointeurs de fonction) ne sont pas sérialisables par défaut
+    // Native scripts (function pointers) are not serializable by default
     void serialize(json&) const {} 
     void deserialize(const json&) {}
 };

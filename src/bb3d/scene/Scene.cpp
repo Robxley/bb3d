@@ -14,7 +14,7 @@ Entity Scene::createEntity(const std::string& name) {
     if (!name.empty()) {
         entity.add<TagComponent>(name);
     }
-    // Chaque entité a au moins un transform par défaut
+    // Every entity has at least one default transform
     entity.add<TransformComponent>();
     
     BB_CORE_INFO("Scene: Created entity '{0}' (ID: {1})", name.empty() ? "Unnamed" : name, (uint32_t)entity.getHandle());
@@ -151,15 +151,15 @@ void Scene::onUpdate(float deltaTime) {
         auto [ctrl, cam, trans] = fpsView.get(entity);
         if (!cam.active) continue;
 
-        // Rotation (Souris - Clic Droit maintenu pour "look around")
+        // Rotation (Mouse - Right Click held to look around)
         if (input.isMouseButtonPressed(Mouse::Right)) {
             glm::vec2 delta = input.getMouseDelta();
             ctrl.yaw += delta.x * ctrl.rotationSpeed.x;
-            ctrl.pitch -= delta.y * ctrl.rotationSpeed.y; // Inversé car souris bas = regard haut
-            ctrl.pitch = std::clamp(ctrl.pitch, -89.0f, 89.0f); // Empêche le gimbal lock
+            ctrl.pitch -= delta.y * ctrl.rotationSpeed.y; // Inverted because mouse down = look up
+            ctrl.pitch = std::clamp(ctrl.pitch, -89.0f, 89.0f); // Prevent gimbal lock
         }
 
-        // Calcul des vecteurs avant/droite basés sur les angles d'Euler
+        // Calculate forward/right vectors based on Euler angles
         glm::vec3 front;
         front.x = cos(glm::radians(ctrl.yaw)) * cos(glm::radians(ctrl.pitch));
         front.y = sin(glm::radians(ctrl.pitch));
@@ -168,19 +168,19 @@ void Scene::onUpdate(float deltaTime) {
         glm::vec3 right = glm::normalize(glm::cross(forward, glm::vec3(0, 1, 0)));
         glm::vec3 up = glm::normalize(glm::cross(right, forward));
 
-        // Déplacement (Clavier)
+        // Movement (Keyboard)
         glm::vec3 moveDir(0.0f);
         if (input.isKeyPressed(Key::W)) moveDir += forward * ctrl.movementSpeed.z;
         if (input.isKeyPressed(Key::S)) moveDir -= forward * ctrl.movementSpeed.z;
         if (input.isKeyPressed(Key::D)) moveDir += right * ctrl.movementSpeed.x;
         if (input.isKeyPressed(Key::A)) moveDir -= right * ctrl.movementSpeed.x;
-        // Montée/Descente absolue
+        // Absolute vertical movement (Rise/Fall)
         if (input.isKeyPressed(Key::Space)) moveDir += glm::vec3(0,1,0) * ctrl.movementSpeed.y;
         if (input.isKeyPressed(Key::LeftShift)) moveDir -= glm::vec3(0,1,0) * ctrl.movementSpeed.y;
 
         trans.translation += moveDir * deltaTime;
 
-        // Mise à jour de la caméra (View Matrix)
+        // Update camera (View Matrix)
         if (cam.camera) {
             cam.camera->setPosition(trans.translation);
             cam.camera->lookAt(trans.translation + forward);
@@ -188,13 +188,13 @@ void Scene::onUpdate(float deltaTime) {
     }
 
     // --- SYSTEM: Orbit Controller ---
-    // Gère la caméra orbitale (rotation autour d'un point cible)
+    // Manages orbital camera (rotation around a focus point)
     auto orbitView = m_registry.view<OrbitControllerComponent, CameraComponent, TransformComponent>();
     for (auto entity : orbitView) {
         auto [ctrl, cam, trans] = orbitView.get(entity);
         if (!cam.active) continue;
 
-        // Rotation (Clic Gauche maintenu)
+        // Rotation (Left Click held)
         if (input.isMouseButtonPressed(Mouse::Left)) {
             glm::vec2 delta = input.getMouseDelta();
             ctrl.yaw += delta.x * ctrl.rotationSpeed.x;
@@ -202,21 +202,21 @@ void Scene::onUpdate(float deltaTime) {
             ctrl.pitch = std::clamp(ctrl.pitch, -89.0f, 89.0f);
         }
 
-        // Zoom (Molette)
+        // Zoom (Wheel)
         float scroll = input.getMouseScroll().y;
         if (scroll != 0.0f) {
             ctrl.distance -= scroll * ctrl.zoomSpeed;
             ctrl.distance = std::clamp(ctrl.distance, ctrl.minDistance, ctrl.maxDistance);
         }
 
-        // Conversion Coordonnées Sphériques -> Cartésiennes
+        // Spherical Coordinates -> Cartesian conversion
         float x = ctrl.distance * std::cos(glm::radians(ctrl.pitch)) * std::sin(glm::radians(ctrl.yaw));
         float y = ctrl.distance * std::sin(glm::radians(ctrl.pitch));
         float z = ctrl.distance * std::cos(glm::radians(ctrl.pitch)) * std::cos(glm::radians(ctrl.yaw));
 
         trans.translation = ctrl.target + glm::vec3(x, y, z);
 
-        // Mise à jour de la caméra
+        // Update camera
         if (cam.camera) {
             cam.camera->setPosition(trans.translation);
             cam.camera->lookAt(ctrl.target);

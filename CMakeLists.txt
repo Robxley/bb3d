@@ -77,12 +77,22 @@ endforeach()
 add_custom_target(CompileShaders ALL DEPENDS ${SPV_SHADERS})
 
 file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-set(IMGUI_SOURCES ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp ${imgui_SOURCE_DIR}/imgui_demo.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp)
+set(IMGUI_SOURCES "")
+if(BB3D_ENABLE_EDITOR)
+    set(IMGUI_SOURCES ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp ${imgui_SOURCE_DIR}/imgui_demo.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp)
+endif()
+
 add_library(biobazard3d ${ENGINE_SOURCES} ${IMGUI_SOURCES})
-target_include_directories(biobazard3d PUBLIC include ${stb_SOURCE_DIR} ${Jolt_SOURCE_DIR} ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${imgui_SOURCE_DIR}/misc/freetype)
-target_compile_definitions(biobazard3d PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1 IMGUI_ENABLE_FREETYPE IMGUI_USE_WCHAR32 $<$<BOOL:${BB3D_ENABLE_EDITOR}>:BB3D_ENABLE_EDITOR> $<$<CONFIG:Debug>:BB3D_DEBUG SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE> $<$<CONFIG:Release>:SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO>)
+target_include_directories(biobazard3d PUBLIC include ${stb_SOURCE_DIR} ${Jolt_SOURCE_DIR})
+
+if(BB3D_ENABLE_EDITOR)
+    target_include_directories(biobazard3d PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${imgui_SOURCE_DIR}/misc/freetype)
+    target_compile_definitions(biobazard3d PUBLIC IMGUI_ENABLE_FREETYPE IMGUI_USE_WCHAR32 BB3D_ENABLE_EDITOR)
+endif()
+
+target_compile_definitions(biobazard3d PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1 $<$<CONFIG:Debug>:BB3D_DEBUG SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE> $<$<CONFIG:Release>:SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO>)
 target_link_libraries(biobazard3d PUBLIC spdlog::spdlog nlohmann_json::nlohmann_json SDL3::SDL3-shared Vulkan::Vulkan glm::glm VulkanMemoryAllocator fastgltf::fastgltf tinyobjloader EnTT::EnTT freetype Jolt)
-target_compile_options(biobazard3d PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/W4 /bigobj> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>)
+target_compile_options(biobazard3d PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/W4 /bigobj /FS> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>)
 if(BB3D_ENABLE_PROFILING)
     target_compile_definitions(biobazard3d PUBLIC BB_PROFILE)
     target_link_libraries(biobazard3d PUBLIC TracyClient)
@@ -95,6 +105,7 @@ enable_testing()
 add_custom_target(DeployAssets ALL
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/assets/shaders ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/shaders
     COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/assets ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/config ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/config
     DEPENDS CompileShaders
     COMMENT "Deploying all assets to common binary directory"
 )

@@ -47,6 +47,10 @@ Engine::Engine(const EngineConfig& config) : m_Config(config) {
     Init();
 }
 
+Scope<Engine> Engine::Create(const std::string_view configPath) {
+    return CreateScope<Engine>(configPath);
+}
+
 Scope<Engine> Engine::Create(const EngineConfig& config) {
     return CreateScope<Engine>(config);
 }
@@ -65,7 +69,7 @@ void Engine::Init() {
     BB_CORE_INFO(" - Audio:     {}", m_Config.modules.enableAudio ? "ENABLED" : "DISABLED");
     BB_CORE_INFO(" - Editor:    {}", m_Config.modules.enableEditor ? "ENABLED" : "DISABLED");
 
-    // 1. Job System (Initialisé en premier pour être dispo pour les chargements asynchrones)
+    // 1. Job System (Initialized first to be available for async loads)
     if (m_Config.modules.enableJobSystem) {
         m_JobSystem = CreateScope<JobSystem>();
         m_JobSystem->init(m_Config.system.maxThreads);
@@ -73,14 +77,14 @@ void Engine::Init() {
         BB_CORE_WARN("Engine: JobSystem is disabled in config.");
     }
 
-    // 2. Event Bus (Communication découplée entre systèmes)
+    // 2. Event Bus (Decoupled communication between systems)
     m_EventBus = CreateScope<EventBus>();
 
-    // 3. Input Manager (Doit être prêt avant la création de la fenêtre pour les callbacks)
+    // 3. Input Manager (Must be ready before window creation for callbacks)
     m_InputManager = CreateScope<InputManager>();
 
     // 4. Window (SDL)
-    // Nécessaire pour créer la surface Vulkan par la suite.
+    // Necessary to create the Vulkan surface later.
     m_Window = CreateScope<Window>(m_Config);
     m_Window->SetEventCallback([this](SDL_Event& e) {
 #if defined(BB3D_ENABLE_EDITOR)
@@ -88,7 +92,7 @@ void Engine::Init() {
 #endif
         if (m_InputManager) m_InputManager->onEvent(e);
         
-        // Gestion du redimensionnement : On notifie le renderer pour reconstruire la SwapChain
+        // Resize handling: Notify renderer to rebuild SwapChain
         if (e.type == SDL_EVENT_WINDOW_RESIZED || e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED) {
             int w = e.window.data1;
             int h = e.window.data2;
@@ -101,12 +105,12 @@ void Engine::Init() {
     });
 
     // 5. Vulkan Context (Instance, PhysicalDevice, LogicalDevice)
-    // Initialise Vulkan en s'attachant à la fenêtre SDL créée juste avant.
+    // Initializes Vulkan by attaching to the SDL window created just before.
     m_VulkanContext = CreateScope<VulkanContext>();
     m_VulkanContext->init(m_Window->GetNativeWindow(), m_Config.window.title, m_Config.graphics.enableValidationLayers);
 
     // 6. Renderer (SwapChain, Pipelines, RenderPasses)
-    // Dépend du VulkanContext et de la Window.
+    // Depends on VulkanContext and Window.
     m_Renderer = CreateScope<Renderer>(*m_VulkanContext, *m_Window, *m_JobSystem, m_Config);
 
     // 6.5 ImGui Layer (Editor UI)
@@ -117,11 +121,11 @@ void Engine::Init() {
 #endif
 
     // 7. Resource Manager (Textures, Models, Shaders)
-    // Gère le chargement et le cache. Utilise le JobSystem pour le chargement async.
+    // Manages loading and caching. Uses JobSystem for async loading.
     m_ResourceManager = CreateScope<ResourceManager>(*m_VulkanContext, *m_JobSystem);
 
     // 8. Physics (Jolt)
-    // Indépendant du rendu, peut être initialisé ici.
+    // Independent of rendering, can be initialized here.
     if (m_Config.modules.enablePhysics) {
         m_PhysicsWorld = CreateScope<PhysicsWorld>();
         m_PhysicsWorld->init();
@@ -140,7 +144,7 @@ void Engine::Shutdown() {
     BB_PROFILE_SCOPE("Engine::Shutdown");
     BB_CORE_INFO("Engine: Shutting down...");
 
-    // On attend que le GPU ait fini son travail avant de tout péter
+    // Wait for the GPU to finish its work before destroying everything
     if (m_VulkanContext && m_VulkanContext->getDevice()) {
         try {
             m_VulkanContext->getDevice().waitIdle();
@@ -153,13 +157,13 @@ void Engine::Shutdown() {
         m_AudioSystem.reset();
     }
 
-    // 2. Physique
+    // 2. Physics
     if (m_PhysicsWorld) {
         m_PhysicsWorld->shutdown();
         m_PhysicsWorld.reset();
     }
 
-    // 3. Scène active (Détruit les Entités, Components, Scripts)
+    // 3. Active Scene (Destroy Entities, Components, Scripts)
     if (m_ActiveScene) {
         m_ActiveScene->getRegistry().clear();
     }
@@ -172,36 +176,38 @@ void Engine::Shutdown() {
     // 4. Renderer
     m_Renderer.reset(); 
 
-    // Libérer les ressources statiques de Material (ex: sampler blanc) AVANT le contexte
-    Material::Cleanup();
-
-    // 5. Ressources (Cache de textures/modèles)
-    if (m_ResourceManager) {
-        m_ResourceManager->clearCache();
-        m_ResourceManager.reset();
-    }
-
-    // 6. Contexte Graphique (Contient l'allocateur VMA)
-    if (m_VulkanContext && m_VulkanContext->getDevice()) {
-        try { m_VulkanContext->getDevice().waitIdle(); } catch(...) {}
-    }
-    m_VulkanContext.reset();
-
-    // 7. Fenêtre
-    m_Window.reset();
-
-    // 8. Communication & Input
-    m_EventBus.reset();
-    m_InputManager.reset();
-
-    // 9. Système de Jobs (en dernier pour que les threads soient dispos pour les destructeurs si besoin)
+    // 5. Job System (Stop threads BEFORE clearing resources they might be using)
     if (m_JobSystem) {
         m_JobSystem->shutdown();
         m_JobSystem.reset();
     }
 
+    // 6. Resources (Texture/Model cache)
+    if (m_ResourceManager) {
+        m_ResourceManager->clearCache();
+        m_ResourceManager.reset();
+    }
+
+    // Release Material static resources (e.g., white sampler)
+    // Must be done after all materials/textures are cleared.
+    Material::Cleanup();
+
+    // 7. Graphics Context (Contains VMA allocator)
+    if (m_VulkanContext && m_VulkanContext->getDevice()) {
+        try { m_VulkanContext->getDevice().waitIdle(); } catch(...) {}
+    }
+    m_VulkanContext.reset();
+
+    // 8. Window
+    m_Window.reset();
+
+    // 9. Communication & Input
+    m_EventBus.reset();
+    m_InputManager.reset();
+
     BB_CORE_INFO("Engine: Shutdown complete.");
 }
+
 
 void Engine::Run() {
     m_Running = true;
@@ -212,7 +218,7 @@ void Engine::Run() {
     while (m_Running && !m_Window->ShouldClose()) {
         BB_PROFILE_FRAME("MainLoop");
 
-        // 0. Réinitialiser les deltas d'entrée pour la nouvelle frame
+        // 0. Reset input deltas for the new frame
         if (m_InputManager) {
             m_InputManager->clearDeltas();
         }
@@ -221,14 +227,14 @@ void Engine::Run() {
         float deltaTime = static_cast<float>(currentTime - lastTime) / 1000.0f;
         lastTime = currentTime;
 
-        // Limiter le deltaTime pour éviter les explosions physiques au démarrage ou après un freeze
+        // Limit deltaTime to avoid physics explosions during startup or after a freeze
         if (deltaTime > 0.1f) deltaTime = 0.1f;
 
-        // 1. Événements système (Fenêtre, Input)
+        // 1. System Events (Window, Input)
         m_Window->PollEvents();
         
-        // Si la fenêtre est minimisée (taille 0), on saute le rendu et la logique pour éviter de faire ramer le CPU
-        // et de causer des erreurs Vulkan/ImGui.
+        // If the window is minimized (size 0), skip rendering and logic to avoid CPU usage
+        // and Vulkan/ImGui errors.
         if (m_Window->GetWidth() == 0 || m_Window->GetHeight() == 0) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             continue;
@@ -238,24 +244,25 @@ void Engine::Run() {
         if (m_Config.modules.enableEditor && m_ImGuiLayer) m_ImGuiLayer->beginFrame();
 #endif
 
-        // Mise à jour de l'état des entrées (reset deltas)
+        // Update input state (reset deltas)
         if (m_InputManager) {
-            // Bloquer les inputs du jeu si ImGui capture
+            // Block game inputs if ImGui captures mouse/keyboard
             bool captureMouse = false;
             bool captureKeyboard = false;
 #if defined(BB3D_ENABLE_EDITOR)
             if (m_Config.modules.enableEditor && m_ImGuiLayer) {
-                captureMouse = m_ImGuiLayer->wantCaptureMouse();
-                captureKeyboard = m_ImGuiLayer->wantCaptureKeyboard();
+                // Ignore ImGui capture if the user is interacting with the Viewport window
+                captureMouse = m_ImGuiLayer->wantCaptureMouse() && !m_ImGuiLayer->isViewportHovered();
+                captureKeyboard = m_ImGuiLayer->wantCaptureKeyboard() && !m_ImGuiLayer->isViewportFocused();
             }
 #endif
             m_InputManager->update(captureMouse, captureKeyboard);
         }
 
-        // 2. Mise à jour de la logique (Update)
+        // 2. Business Logic Update
         Update(deltaTime);
 
-        // 3. Rendu (Render)
+        // 3. Render
         Render();
     }
 
@@ -282,18 +289,18 @@ Ref<Scene> Engine::CreateScene() {
 void Engine::Update(float deltaTime) {
     BB_PROFILE_SCOPE("Engine::Update");
     
-    // Dispatch des événements accumulés
+    // Dispatch queued events
     if (m_EventBus) {
         m_EventBus->dispatchQueued();
     }
 
     if (m_ActiveScene) {
-        // 1. Physique (La vérité master sur le Transform)
+        // 1. Physics (Master truth on Transform)
         if (m_PhysicsWorld && m_Config.modules.enablePhysics && !m_PhysicsPaused) {
             m_PhysicsWorld->update(deltaTime, *m_ActiveScene);
         }
 
-        // 2. Caméras & Logique
+        // 2. Cameras & Logic
         m_ActiveScene->onUpdate(deltaTime);
     }
 }
@@ -303,13 +310,13 @@ void Engine::resetScene() {
 
     BB_CORE_INFO("Engine: Resetting scene...");
 
-    // 1. Restaurer tous les transforms à leur état d'initialisation
+    // 1. Restore all transforms to their initial state
     auto transformView = m_ActiveScene->getRegistry().view<TransformComponent>();
     for (auto entity : transformView) {
         transformView.get<TransformComponent>(entity).resetToInitial();
     }
 
-    // 2. Réinitialiser les corps physiques (vitesses à zéro, téléportation)
+    // 2. Reset physical bodies (velocity to zero, teleportation)
     if (m_PhysicsWorld) {
         m_PhysicsWorld->resetAllBodies(*m_ActiveScene);
     }
@@ -320,7 +327,7 @@ void Engine::Render() {
     if (!m_Renderer) return;
 
 #if defined(BB3D_ENABLE_EDITOR)
-    // 0. Gestion du resize différé du viewport demandé par ImGui à la frame précédente
+    // 0. Handle deferred viewport resize requested by ImGui in previous frame
     if (m_Config.modules.enableEditor && m_ImGuiLayer && m_ImGuiLayer->hasViewportSizeChanged()) {
         glm::uvec2 size = m_ImGuiLayer->getViewportSize();
         if (size.x > 0 && size.y > 0) {
@@ -328,7 +335,7 @@ void Engine::Render() {
             if (rt) {
                 rt->resize(size.x, size.y);
 
-                // Mise à jour caméra
+                // Update camera aspect ratio
                 if (m_ActiveScene) {
                     auto view = m_ActiveScene->getRegistry().view<CameraComponent>();
                     for (auto entity : view) {
@@ -345,12 +352,14 @@ void Engine::Render() {
 
     bool frameStarted = false;
     if (m_Renderer && m_ActiveScene) {
-        // 1. Rendu de la scène
+        // 1. Scene Rendering
         frameStarted = m_Renderer->render(*m_ActiveScene);
     }
 #if defined(BB3D_ENABLE_EDITOR)
-    // 2. Rendu de l'UI (ImGui) par dessus
+    // 2. UI Rendering (ImGui) overlay
     if (m_Config.modules.enableEditor && m_ImGuiLayer) {
+        m_ImGuiLayer->beginDockspace();
+
         m_ImGuiLayer->showViewport(m_Renderer->getRenderTarget(), *m_ActiveScene);
         m_ImGuiLayer->showMainMenu();
         m_ImGuiLayer->showSceneHierarchy(*m_ActiveScene);
@@ -358,21 +367,23 @@ void Engine::Render() {
         m_ImGuiLayer->showInspector();
         m_ImGuiLayer->showToolbar();
 
+        m_ImGuiLayer->endDockspace();
+
         if (frameStarted && m_Renderer) {
-            // On a un command buffer, on peut dessiner ImGui normalement
+            // Command buffer available, draw ImGui normally
             m_Renderer->renderUI([this](vk::CommandBuffer cb) {
                 m_ImGuiLayer->endFrame(cb);
             });
         } else {
-            // Pas de rendu ce coup-ci (ou pas de renderer/scène), 
-            // on finit juste la frame ImGui pour l'état interne
+            // No rendering this time (or no renderer/scene),
+            // just finish ImGui frame for internal state
             m_ImGuiLayer->endFrame();
         }
     }
 #endif
 
     if (frameStarted && m_Renderer) {
-        // 3. Soumission et Présentation (ENVOI AU GPU)
+        // 3. Submission and Presentation (SEND TO GPU)
         m_Renderer->submitAndPresent();
     }
 }
@@ -388,7 +399,7 @@ void Engine::importScene(const std::string& filepath) {
 
     auto scene = CreateScene();
     
-    // Pause de la physique par défaut lors du chargement
+    // Pause physics by default during loading
     m_PhysicsPaused = true;
 
     SceneSerializer serializer(scene);
@@ -399,7 +410,7 @@ void Engine::importScene(const std::string& filepath) {
             m_ImGuiLayer->setSelectedEntity({});
         }
 #endif
-        // Reset automatique pour appliquer les états initiaux et synchroniser la physique
+        // Auto-reset to apply initial states and synchronize physics
         resetScene();
         
         BB_CORE_INFO("Engine: Scene loaded successfully and physics PAUSED.");

@@ -7,41 +7,41 @@
 namespace bb3d {
 
     /**
-     * @brief Système de journalisation (Logging) centralisé basé sur spdlog.
+     * @brief Centralized logging system based on spdlog.
      * 
-     * Cette classe fournit deux canaux de log distincts :
-     * - **Core Logger** : Pour les messages internes du moteur (préfixe [CORE]).
-     * - **Client Logger** : Pour les messages de l'application utilisatrice (préfixe [APP]).
+     * This class provides two distinct log channels:
+     * - **Core Logger**: For internal engine messages (prefix [CORE]).
+     * - **Client Logger**: For user application messages (prefix [APP]).
      * 
-     * @note Le système est thread-safe et peut être utilisé depuis n'importe quel thread (JobSystem inclus).
+     * @note The system is thread-safe and can be used from any thread (including JobSystem).
      */
     class Log
     {
     public:
         /**
-         * @brief Initialise le système de logs avec la configuration par défaut.
+         * @brief Initializes the logging system with default configuration.
          * 
-         * Configure la sortie console (stdout) avec couleurs et désactive la sortie fichier.
+         * Configures console output (stdout) with colors and disables file output.
          */
         static void Init();
 
         /**
-         * @brief Initialise le système de logs selon la configuration fournie.
+         * @brief Initializes the logging system according to the provided configuration.
          * 
-         * Permet d'activer/désactiver la console ou le fichier de log, et de définir le dossier de sortie.
-         * @param config Configuration du moteur contenant les paramètres de log (SystemConfig).
+         * Allows enabling/disabling console or file logging, and setting the output directory.
+         * @param config Engine configuration containing log parameters (SystemConfig).
          */
         static void Init(const struct EngineConfig& config);
 
         /** 
-         * @brief Récupère le logger interne du moteur.
-         * @return std::shared_ptr<spdlog::logger>& Référence vers le pointeur du logger Core.
+         * @brief Retrieves the engine's internal logger.
+         * @return std::shared_ptr<spdlog::logger>& Reference to the Core logger pointer.
          */
         inline static std::shared_ptr<spdlog::logger>& GetCoreLogger() { return s_CoreLogger; }
         
         /** 
-         * @brief Récupère le logger pour l'application cliente.
-         * @return std::shared_ptr<spdlog::logger>& Référence vers le pointeur du logger Client.
+         * @brief Retrieves the logger for the client application.
+         * @return std::shared_ptr<spdlog::logger>& Reference to the Client logger pointer.
          */
         inline static std::shared_ptr<spdlog::logger>& GetClientLogger() { return s_ClientLogger; }
 
@@ -52,16 +52,16 @@ namespace bb3d {
 
 }
 
-// --- Macros de Log pour le Moteur (CORE) ---
-// Utilisez ces macros à l'intérieur du code du moteur (src/bb3d/...)
+// --- Engine Log Macros (CORE) ---
+// Use these macros inside engine code (src/bb3d/...)
 #define BB_CORE_TRACE(...)    SPDLOG_LOGGER_CALL(::bb3d::Log::GetCoreLogger(), spdlog::level::trace, __VA_ARGS__)
 #define BB_CORE_INFO(...)     SPDLOG_LOGGER_CALL(::bb3d::Log::GetCoreLogger(), spdlog::level::info, __VA_ARGS__)
 #define BB_CORE_WARN(...)     SPDLOG_LOGGER_CALL(::bb3d::Log::GetCoreLogger(), spdlog::level::warn, __VA_ARGS__)
 #define BB_CORE_ERROR(...)    SPDLOG_LOGGER_CALL(::bb3d::Log::GetCoreLogger(), spdlog::level::err, __VA_ARGS__)
 #define BB_CORE_FATAL(...)    SPDLOG_LOGGER_CALL(::bb3d::Log::GetCoreLogger(), spdlog::level::critical, __VA_ARGS__)
 
-// --- Macros de Log pour l'Application (CLIENT) ---
-// Utilisez ces macros dans le code du jeu / application
+// --- Application Log Macros (CLIENT) ---
+// Use these macros in game / application code
 #define BB_TRACE(...)         SPDLOG_LOGGER_CALL(::bb3d::Log::GetClientLogger(), spdlog::level::trace, __VA_ARGS__)
 #define BB_INFO(...)          SPDLOG_LOGGER_CALL(::bb3d::Log::GetClientLogger(), spdlog::level::info, __VA_ARGS__)
 #define BB_WARN(...)          SPDLOG_LOGGER_CALL(::bb3d::Log::GetClientLogger(), spdlog::level::warn, __VA_ARGS__)

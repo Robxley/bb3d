@@ -11,6 +11,7 @@ int main() {
         .title("BB3D - SkySphere Final Test")
         .resolution(1280, 720)
         .vsync(true)
+        .enableEditor(false)
     );
 
     auto scene = engine->CreateScene();
