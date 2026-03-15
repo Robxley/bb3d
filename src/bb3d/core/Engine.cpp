@@ -251,8 +251,13 @@ void Engine::Run() {
             bool captureKeyboard = false;
 #if defined(BB3D_ENABLE_EDITOR)
             if (m_Config.modules.enableEditor && m_ImGuiLayer) {
-                // Ignore ImGui capture if the user is interacting with the Viewport window
-                captureMouse = m_ImGuiLayer->wantCaptureMouse() && !m_ImGuiLayer->isViewportHovered();
+                // On autorise le jeu à recevoir les inputs si :
+                // 1. La souris survole le Viewport
+                // 2. OU si le Viewport est focus et qu'on est en train de cliquer/drag
+                bool isInteracting = m_ImGuiLayer->isViewportHovered() || (m_ImGuiLayer->isViewportFocused() && ImGui::IsAnyMouseDown());
+                captureMouse = m_ImGuiLayer->wantCaptureMouse() && !isInteracting;
+                
+                // Le clavier est libéré dès que le Viewport est focus
                 captureKeyboard = m_ImGuiLayer->wantCaptureKeyboard() && !m_ImGuiLayer->isViewportFocused();
             }
 #endif

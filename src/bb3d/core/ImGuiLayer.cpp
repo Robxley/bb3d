@@ -253,8 +253,8 @@ void ImGuiLayer::showViewport(RenderTarget* renderTarget, Scene& /*scene*/) {
             }
         }
 
-        m_viewportFocused = ImGui::IsWindowFocused();
-        m_viewportHovered = ImGui::IsWindowHovered();
+        m_viewportFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+        m_viewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
 
         if (m_viewportTextureID) {
             ImGui::Image(m_viewportTextureID, viewportPanelSize);
@@ -333,6 +333,17 @@ void ImGuiLayer::showSceneHierarchy(Scene& scene) {
         
         if (ImGui::MenuItem(ICON_FA_PLUS " Create Empty Entity")) {
             scene.createEntity("Entity " + std::to_string(entityCount++));
+        }
+
+        if (ImGui::MenuItem(ICON_FA_FILE_IMPORT " Import 3D Model...")) {
+            auto selection = pfd::open_file("Import 3D Model", ".", { "3D Models", "*.gltf *.glb *.obj" }).result();
+            if (!selection.empty()) {
+                std::filesystem::path path(selection[0]);
+                std::string name = path.stem().string();
+                // Create entity and normalize its size to 1.0 units for better visibility initially
+                auto view = scene.createModelEntity(name, selection[0], {0,0,0}, {1.0f, 1.0f, 1.0f});
+                BB_CORE_INFO("Editor: Imported model {0} from {1}", name, selection[0]);
+            }
         }
 
         if (ImGui::BeginMenu(ICON_FA_SHAPES " Create Primitive")) {
@@ -543,6 +554,8 @@ void ImGuiLayer::showInspector() {
             DrawCompTreeLeaf("AudioListener", ICON_FA_EAR_LISTEN, colAudio, m_selectedEntity.has<AudioListenerComponent>());
             DrawCompTreeLeaf("SimpleAnimation", ICON_FA_FILM, colLogic, m_selectedEntity.has<SimpleAnimationComponent>());
             DrawCompTreeLeaf("NativeScript", ICON_FA_CODE, colLogic, m_selectedEntity.has<NativeScriptComponent>());
+            DrawCompTreeLeaf("OrbitalGravity", ICON_FA_MAGNET, colLogic, m_selectedEntity.has<OrbitalGravityComponent>());
+            DrawCompTreeLeaf("SpaceshipController", ICON_FA_ROCKET, colLogic, m_selectedEntity.has<SpaceshipControllerComponent>());
 
             ImGui::TreePop();
         }
@@ -679,7 +692,44 @@ void ImGuiLayer::showInspector() {
                 if (ComponentPropertiesHeader("Model", ICON_FA_CUBES, colRender)) {
                     auto& mc = m_selectedEntity.get<ModelComponent>();
                     ImGui::Checkbox("Visible", &mc.visible);
+                    
+                    static ModelLoadConfig s_loadConfig;
+                    const char* presets[] = { "Standard PBR", "Cell Shading" };
+                    int currentPreset = static_cast<int>(s_loadConfig.preset);
+                    if (ImGui::Combo("Loading Preset", &currentPreset, presets, IM_ARRAYSIZE(presets))) {
+                        s_loadConfig.preset = static_cast<ModelLoadPreset>(currentPreset);
+                    }
+                    
+                    if (ImGui::TreeNode("Advanced Loading Options")) {
+                        ImGui::Checkbox("Load Animations", &s_loadConfig.loadAnimations);
+                        ImGui::Checkbox("Load Materials", &s_loadConfig.loadMaterials);
+                        ImGui::Checkbox("Load PBR Maps", &s_loadConfig.loadPBRMaps);
+                        ImGui::Checkbox("Load Alpha Modes", &s_loadConfig.loadAlphaModes);
+                        ImGui::Checkbox("Load Vertex Colors", &s_loadConfig.loadVertexColors);
+                        ImGui::DragFloat3("Initial Scale", &s_loadConfig.initialScale.x, 0.1f);
+                        ImGui::TreePop();
+                    }
+
                     ImGui::Text("File: %s", mc.assetPath.c_str());
+                    ImGui::SameLine();
+                    if (ImGui::Button(ICON_FA_FOLDER_OPEN "##Load")) {
+                        auto selection = pfd::open_file("Select Model", ".", { "3D Models", "*.gltf *.glb *.obj" }).result();
+                        if (!selection.empty()) {
+                            auto& engineContext = Engine::Get();
+                            mc.model = engineContext.assets().load<Model>(selection[0], s_loadConfig);
+                            mc.assetPath = selection[0];
+                            mc.model->normalize(glm::vec3(1.0f));
+                            BB_CORE_INFO("Editor: Swapped model to {0} with custom config", selection[0]);
+                        }
+                    }
+                    ImGui::SameLine();
+                    if (ImGui::Button(ICON_FA_ROTATE "##Reload") && !mc.assetPath.empty()) {
+                         auto& engineContext = Engine::Get();
+                         mc.model = engineContext.assets().load<Model>(mc.assetPath, s_loadConfig);
+                         mc.model->normalize(glm::vec3(1.0f));
+                         BB_CORE_INFO("Editor: Reloaded model {0} with custom config", mc.assetPath);
+                    }
+
                     if (mc.model && ImGui::TreeNodeEx("Materials", ImGuiTreeNodeFlags_DefaultOpen)) {
                         int matIdx = 0;
                         for (auto& mesh : mc.model->getMeshes()) {
@@ -847,6 +897,18 @@ void ImGuiLayer::showInspector() {
                         }
                     }
                 }
+            } else if (m_focusedComponent == "OrbitalGravity" && m_selectedEntity.has<OrbitalGravityComponent>()) {
+                if (ComponentPropertiesHeader("OrbitalGravity", ICON_FA_MAGNET, colLogic, true, [&](){ m_selectedEntity.remove<OrbitalGravityComponent>(); m_focusedComponent = ""; })) {
+                    auto& ogc = m_selectedEntity.get<OrbitalGravityComponent>();
+                    ImGui::DragFloat("Strength (GM)", &ogc.strength, 5.0f);
+                }
+            } else if (m_focusedComponent == "SpaceshipController" && m_selectedEntity.has<SpaceshipControllerComponent>()) {
+                if (ComponentPropertiesHeader("SpaceshipController", ICON_FA_ROCKET, colLogic, true, [&](){ m_selectedEntity.remove<SpaceshipControllerComponent>(); m_focusedComponent = ""; })) {
+                    auto& sc = m_selectedEntity.get<SpaceshipControllerComponent>();
+                    ImGui::DragFloat("Main Thrust", &sc.mainThrustPower, 5.0f);
+                    ImGui::DragFloat("Retro Thrust", &sc.retroThrustPower, 2.0f);
+                    ImGui::DragFloat("Torque (RCS)", &sc.torquePower, 1.0f);
+                }
             }
         }
 
@@ -866,6 +928,8 @@ void ImGuiLayer::showInspector() {
             if (ImGui::MenuItem("Audio Source")) m_selectedEntity.add<AudioSourceComponent>();
             if (ImGui::MenuItem("Audio Listener")) m_selectedEntity.add<AudioListenerComponent>();
             if (ImGui::MenuItem("Simple Animation")) m_selectedEntity.add<SimpleAnimationComponent>();
+            if (ImGui::MenuItem("Orbital Gravity")) m_selectedEntity.add<OrbitalGravityComponent>();
+            if (ImGui::MenuItem("Spaceship Controller")) m_selectedEntity.add<SpaceshipControllerComponent>();
             ImGui::EndPopup();
         }
     } else { ImGui::TextDisabled("Select an entity to view its properties."); }

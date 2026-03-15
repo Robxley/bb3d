@@ -10,6 +10,22 @@ namespace bb3d {
 
 class ResourceManager;
 
+enum class ModelLoadPreset { PBR, CellShading };
+
+/** @brief Configuration for the optimized and modular GLTF loader. */
+struct ModelLoadConfig {
+    ModelLoadPreset preset = ModelLoadPreset::PBR;
+    
+    bool loadAnimations = true;
+    bool loadMaterials = true;
+    bool loadPBRMaps = true;     ///< If false, only Albedo/Normal are loaded (Optimized for Toon).
+    bool loadAlphaModes = true;  ///< If false, forces OPAQUE for all primitives.
+    bool loadVertexColors = true;
+    bool applyTransformations = true;
+    
+    glm::vec3 initialScale = {1.0f, 1.0f, 1.0f};
+};
+
 /**
  * @brief Complex asset representing a 3D model.
  * 
@@ -27,8 +43,9 @@ public:
      * @param context Vulkan context for GPU transfer.
      * @param resourceManager Manager for the cache of textures linked to the model.
      * @param path Path to the asset.
+     * @param config Optional modular loading configuration.
      */
-    Model(VulkanContext& context, ResourceManager& resourceManager, std::string_view path);
+    Model(VulkanContext& context, ResourceManager& resourceManager, std::string_view path, const ModelLoadConfig& config = ModelLoadConfig{});
     /** @brief Constructs an empty model for procedural generation. */
     Model(VulkanContext& context, ResourceManager& resourceManager);
     ~Model() override;
@@ -68,7 +85,7 @@ public:
 
 private:
     void loadOBJ(std::string_view path);
-    void loadGLTF(std::string_view path);
+    void loadGLTF(std::string_view path, const ModelLoadConfig& config);
 
     VulkanContext& m_context;
     ResourceManager& m_resourceManager;

@@ -446,6 +446,7 @@ bool Renderer::render(Scene& scene) {
     // NOTE: renderShadows requires a command buffer. It is called after cb.begin() below.
 
     uboData.globalParams = glm::vec4((float)numLights, 0.0f, 0.0f, 0.0f);
+    uboData.ambientColor = glm::vec4(0.15f, 0.15f, 0.2f, 1.0f); // Default ambient, slightly blueish
     m_cameraUbos[m_currentFrame]->update(&uboData, sizeof(uboData));
     uint32_t imageIndex;
     try { imageIndex = m_swapChain->acquireNextImage(m_imageAvailableSemaphores[m_currentFrame]); } 

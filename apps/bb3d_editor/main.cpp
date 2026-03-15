@@ -106,7 +106,31 @@ int main() {
         engine->physics().createRigidBody(ent);
     }
 
-    // --- 6. Control Logic (Camera Switch) ---
+    // --- 6. Rocket Debug Lineup ---
+    std::vector<std::string> rocketPaths = {
+        "assets/models/rockets/rocket_1/rocket.obj",
+        "assets/models/rockets/rocket_2/scene.gltf",
+        "assets/models/rockets/rocket_3/scene.gltf",
+        "assets/models/rockets/rocket_4/scene.gltf",
+        "assets/models/rockets/rocket_5/scene.gltf",
+        "assets/models/rockets/rocket_6/scene.gltf"
+    };
+
+    for (int i = 0; i < rocketPaths.size(); ++i) {
+        try {
+            auto model = engine->assets().load<Model>(rocketPaths[i]);
+            model->normalize(glm::vec3(2.0f)); 
+            
+            auto eVisual = scene->createEntity("RocketDebug_" + std::to_string(i+1));
+            eVisual.at({-15.0f + i * 6.0f, 15.0f, -60.0f}); // Positioned for editor view
+            eVisual.add<ModelComponent>(model, rocketPaths[i]);
+            BB_CORE_INFO("Editor: Rocket {0} added to debug lineup", i+1);
+        } catch(...) {
+            BB_CORE_WARN("Editor: Failed to load rocket {0} for debug", i+1);
+        }
+    }
+
+    // --- 7. Control Logic (Camera Switch) ---
     scene->createEntity("Editor Logic").add<NativeScriptComponent>([orbitCamEnt, fpsCamEnt, enginePtr = engine.get()](Entity /*ent*/, float /*dt*/) mutable {
         if (enginePtr->input().isKeyJustPressed(Key::C)) {
             auto& orbitComp = orbitCamEnt.get<CameraComponent>();

@@ -27,9 +27,11 @@ struct Vertex {
     glm::vec3 color;
     glm::vec2 uv;
     glm::vec4 tangent = {0.0f, 0.0f, 0.0f, 1.0f};
+    glm::ivec4 joints = {0, 0, 0, 0};
+    glm::vec4 weights = {0.0f, 0.0f, 0.0f, 0.0f};
 
     bool operator==(const Vertex& other) const {
-        return position == other.position && normal == other.normal && color == other.color && uv == other.uv && tangent == other.tangent;
+        return position == other.position && normal == other.normal && color == other.color && uv == other.uv && tangent == other.tangent && joints == other.joints && weights == other.weights;
     }
 
     static vk::VertexInputBindingDescription getBindingDescription() {
@@ -40,8 +42,8 @@ struct Vertex {
         return bindingDescription;
     }
 
-    static std::array<vk::VertexInputAttributeDescription, 5> getAttributeDescriptions() {
-        std::array<vk::VertexInputAttributeDescription, 5> attributeDescriptions{};
+    static std::array<vk::VertexInputAttributeDescription, 7> getAttributeDescriptions() {
+        std::array<vk::VertexInputAttributeDescription, 7> attributeDescriptions{};
 
         attributeDescriptions[0].binding = 0;
         attributeDescriptions[0].location = VertexLayout::Position;
@@ -67,6 +69,16 @@ struct Vertex {
         attributeDescriptions[4].location = VertexLayout::Tangent;
         attributeDescriptions[4].format = vk::Format::eR32G32B32A32Sfloat;
         attributeDescriptions[4].offset = offsetof(Vertex, tangent);
+
+        attributeDescriptions[5].binding = 0;
+        attributeDescriptions[5].location = VertexLayout::Joints;
+        attributeDescriptions[5].format = vk::Format::eR32G32B32A32Sint;
+        attributeDescriptions[5].offset = offsetof(Vertex, joints);
+
+        attributeDescriptions[6].binding = 0;
+        attributeDescriptions[6].location = VertexLayout::Weights;
+        attributeDescriptions[6].format = vk::Format::eR32G32B32A32Sfloat;
+        attributeDescriptions[6].offset = offsetof(Vertex, weights);
 
         return attributeDescriptions;
     }

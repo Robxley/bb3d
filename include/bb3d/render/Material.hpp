@@ -10,12 +10,18 @@ namespace bb3d {
 
 enum class MaterialType { PBR, Unlit, Toon, Skybox, SkySphere, Highlight };
 
+enum class AlphaMode { Opaque = 0, Mask, Blend };
+
 struct PBRParameters {
     glm::vec4 baseColorFactor = {1.0f, 1.0f, 1.0f, 1.0f};
+    glm::vec3 emissiveFactor = {0.0f, 0.0f, 0.0f};
     float metallicFactor = 1.0f;
     float roughnessFactor = 1.0f;
     float normalScale = 1.0f;
     float occlusionStrength = 1.0f;
+    float alphaCutoff = 0.5f;
+    AlphaMode alphaMode = AlphaMode::Opaque;
+    bool doubleSided = false;
 };
 
 struct UnlitParameters {
@@ -24,6 +30,10 @@ struct UnlitParameters {
 
 struct ToonParameters {
     glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
+    glm::vec3 emissiveFactor = {0.0f, 0.0f, 0.0f};
+    float alphaCutoff = 0.5f;
+    AlphaMode alphaMode = AlphaMode::Opaque;
+    bool doubleSided = false;
 };
 
 /**

@@ -16,10 +16,21 @@ void SpaceshipController::update(bb3d::Entity ship, float deltaTime, bb3d::Engin
     float thrustMag = 0.0f;
     float torqueMag = 0.0f;
     
-    if (engine->input().isKeyPressed(bb3d::Key::W) || engine->input().isKeyPressed(bb3d::Key::Up)) thrustMag += m_thrustPower;
-    if (engine->input().isKeyPressed(bb3d::Key::S) || engine->input().isKeyPressed(bb3d::Key::Down)) thrustMag -= m_retroThrustPower;
-    if (engine->input().isKeyPressed(bb3d::Key::A) || engine->input().isKeyPressed(bb3d::Key::Left)) torqueMag += m_torquePower;
-    if (engine->input().isKeyPressed(bb3d::Key::D) || engine->input().isKeyPressed(bb3d::Key::Right)) torqueMag -= m_torquePower;
+    float currentThrust = m_thrustPower;
+    float currentRetro = m_retroThrustPower;
+    float currentTorque = m_torquePower;
+
+    if (ship.has<bb3d::SpaceshipControllerComponent>()) {
+        auto& ctrl = ship.get<bb3d::SpaceshipControllerComponent>();
+        currentThrust = ctrl.mainThrustPower;
+        currentRetro = ctrl.retroThrustPower;
+        currentTorque = ctrl.torquePower;
+    }
+    
+    if (engine->input().isKeyPressed(bb3d::Key::W) || engine->input().isKeyPressed(bb3d::Key::Up)) thrustMag += currentThrust;
+    if (engine->input().isKeyPressed(bb3d::Key::S) || engine->input().isKeyPressed(bb3d::Key::Down)) thrustMag -= currentRetro;
+    if (engine->input().isKeyPressed(bb3d::Key::A) || engine->input().isKeyPressed(bb3d::Key::Left)) torqueMag += currentTorque;
+    if (engine->input().isKeyPressed(bb3d::Key::D) || engine->input().isKeyPressed(bb3d::Key::Right)) torqueMag -= currentTorque;
     
     // The spaceship 'Forward' is local Y axis since it points up initially
     glm::vec3 shipForward = {-std::sin(tf.rotation.z), std::cos(tf.rotation.z), 0.0f};
@@ -55,10 +66,12 @@ void SpaceshipController::update(bb3d::Entity ship, float deltaTime, bb3d::Engin
             ps.emit(props);
             ps.emit(props); // Double emission for main thruster
         } else if (thrustMag < 0.0f) {
-            props.position = tf.translation + shipForward * (1.1f * s); // Top of the nose
-            props.velocity = shipForward * 3.0f * s;
-            props.velocityVariation = {0.3f * s, 0.3f * s, 0.1f * s};
+            props.position = tf.translation + shipForward * (0.8f * s); // Adjusted position
+            props.velocity = shipForward * 1.5f * s; // Slower velocity
+            props.velocityVariation = {0.2f * s, 0.2f * s, 0.1f * s};
             props.colorBegin = {0.2f, 0.6f, 1.0f, 1.0f}; // Blue retro thrust
+            props.sizeBegin = 0.2f * s;                  // Smaller particles
+            props.sizeEnd = 0.6f * s;
             ps.emit(props);
         }
         
@@ -66,16 +79,20 @@ void SpaceshipController::update(bb3d::Entity ship, float deltaTime, bb3d::Engin
         if (torqueMag > 0.0f) { 
             // Left rotation -> fire right thruster to the right
             props.position = tf.translation + shipRight * (0.6f * s);
-            props.velocity = shipRight * 3.0f * s;
-            props.velocityVariation = {0.3f * s, 0.3f * s, 0.1f * s};
+            props.velocity = shipRight * 1.5f * s;
+            props.velocityVariation = {0.2f * s, 0.2f * s, 0.1f * s};
             props.colorBegin = {0.9f, 0.9f, 0.9f, 1.0f}; // White RCS
+            props.sizeBegin = 0.15f * s;
+            props.sizeEnd = 0.4f * s;
             ps.emit(props);
         } else if (torqueMag < 0.0f) { 
             // Right rotation -> fire left thruster to the left
             props.position = tf.translation - shipRight * (0.6f * s);
-            props.velocity = -shipRight * 3.0f * s;
-            props.velocityVariation = {0.3f * s, 0.3f * s, 0.1f * s};
+            props.velocity = -shipRight * 1.5f * s;
+            props.velocityVariation = {0.2f * s, 0.2f * s, 0.1f * s};
             props.colorBegin = {0.9f, 0.9f, 0.9f, 1.0f}; // White RCS
+            props.sizeBegin = 0.15f * s;
+            props.sizeEnd = 0.4f * s;
             ps.emit(props);
         }
     }

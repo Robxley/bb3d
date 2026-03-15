@@ -164,6 +164,7 @@ private:
         glm::vec4 shadowSplitDepths;
         glm::vec4 camPos;      // .xyz = pos, .w = padding
         glm::vec4 globalParams; // .x = numLights (cast to int), .yzw = padding
+        glm::vec4 ambientColor; // .xyz = color, .w = intensity
         ShaderLight lights[10];
     };
 #pragma warning(pop)

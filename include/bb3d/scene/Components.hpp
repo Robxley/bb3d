@@ -703,4 +703,42 @@ struct ProceduralPlanetComponent {
     }
 };
 
+// --- AstroBazard Specific ---
+
+struct OrbitalGravityComponent {
+    float strength = 500.0f;
+    uint32_t centralBody = 0xFFFFFFFF;
+    
+    OrbitalGravityComponent() = default;
+    OrbitalGravityComponent(float s, uint32_t center) : strength(s), centralBody(center) {}
+
+    void serialize(json& j) const {
+        j["strength"] = strength;
+        j["centralBody"] = centralBody;
+    }
+    void deserialize(const json& j) {
+        if (j.contains("strength")) j.at("strength").get_to(strength);
+        if (j.contains("centralBody")) j.at("centralBody").get_to(centralBody);
+    }
+};
+
+struct SpaceshipControllerComponent {
+    float mainThrustPower = 250.0f;
+    float retroThrustPower = 100.0f;
+    float torquePower = 20.0f;
+    
+    SpaceshipControllerComponent() = default;
+
+    void serialize(json& j) const {
+        j["mainThrustPower"] = mainThrustPower;
+        j["retroThrustPower"] = retroThrustPower;
+        j["torquePower"] = torquePower;
+    }
+    void deserialize(const json& j) {
+        if (j.contains("mainThrustPower")) j.at("mainThrustPower").get_to(mainThrustPower);
+        if (j.contains("retroThrustPower")) j.at("retroThrustPower").get_to(retroThrustPower);
+        if (j.contains("torquePower")) j.at("torquePower").get_to(torquePower);
+    }
+};
+
 } // namespace bb3d

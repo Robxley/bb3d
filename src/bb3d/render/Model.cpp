@@ -12,6 +12,9 @@
 #include <tiny_obj_loader.h>
 #pragma warning(pop)
 
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/quaternion.hpp>
 #include <iostream>
 #include <array>
 #include <variant>
@@ -53,14 +56,14 @@ Model::~Model() {
     BB_CORE_TRACE("Model: Destroying model {} ({} meshes)", m_path, m_meshes.size());
 }
 
-Model::Model(VulkanContext& context, ResourceManager& resourceManager, std::string_view path)
+Model::Model(VulkanContext& context, ResourceManager& resourceManager, std::string_view path, const ModelLoadConfig& config)
     : Resource(std::string(path)), m_context(context), m_resourceManager(resourceManager) {
     
     std::filesystem::path p(path);
     if (p.extension() == ".obj") {
         loadOBJ(path);
     } else {
-        loadGLTF(path);
+        loadGLTF(path, config);
     }
 }
 
@@ -177,121 +180,218 @@ void Model::loadOBJ(std::string_view path) {
     BB_CORE_INFO("Model: Successfully loaded OBJ '{0}' with {1} meshes", path, m_meshes.size());
 }
 
-void Model::loadGLTF(std::string_view path) {
+void Model::loadGLTF(std::string_view path, const ModelLoadConfig& config) {
     auto absPath = std::filesystem::absolute(path);
-    BB_CORE_INFO("Model: Loading GLTF {}", absPath.string());
+    BB_CORE_INFO("Model: Loading GLTF {} (Preset: {})", absPath.string(), (int)config.preset);
 
     fastgltf::Parser parser;
     constexpr auto options = fastgltf::Options::DontRequireValidAssetMember | fastgltf::Options::LoadExternalBuffers | fastgltf::Options::LoadExternalImages;
 
     auto data = fastgltf::GltfDataBuffer::FromPath(absPath);
-    if (data.error() != fastgltf::Error::None) throw std::runtime_error("GLTF: Failed to load file");
+    if (data.error() != fastgltf::Error::None) {
+        BB_CORE_ERROR("GLTF: Failed to load file {0} (Error: {1})", absPath.string(), (int)data.error());
+        throw std::runtime_error("GLTF: Failed to load file");
+    }
 
     auto type = fastgltf::determineGltfFileType(data.get());
-    auto asset = (type == fastgltf::GltfType::GLB) ? parser.loadGltfBinary(data.get(), absPath.parent_path(), options) : parser.loadGltf(data.get(), absPath.parent_path(), options);
-    if (asset.error() != fastgltf::Error::None) throw std::runtime_error("GLTF: Parse error");
+    auto assetParse = (type == fastgltf::GltfType::GLB) ? parser.loadGltfBinary(data.get(), absPath.parent_path(), options) : parser.loadGltf(data.get(), absPath.parent_path(), options);
+    
+    if (assetParse.error() != fastgltf::Error::None) {
+        BB_CORE_ERROR("GLTF: Parse error in {0} (Error: {1})", absPath.string(), (int)assetParse.error());
+        throw std::runtime_error("GLTF: Parse error");
+    }
 
-    const auto& gltf = asset.get();
+    const auto& gltf = assetParse.get();
 
+    // 1. Process Textures
     for (const auto& image : gltf.images) {
         auto texture = std::visit(fastgltf::visitor {
-            [&](const fastgltf::sources::Vector& vector) -> Ref<Texture> { return CreateRef<Texture>(m_context, std::span<const std::byte>(reinterpret_cast<const std::byte*>(vector.bytes.data()), vector.bytes.size())); },
-            [&](const fastgltf::sources::ByteView& byteView) -> Ref<Texture> { return CreateRef<Texture>(m_context, std::span<const std::byte>(reinterpret_cast<const std::byte*>(byteView.bytes.data()), byteView.bytes.size())); },
+            [&](const fastgltf::sources::Vector& vector) -> Ref<Texture> { return CreateRef<Texture>(m_context, std::span<const std::byte>(vector.bytes.data(), vector.bytes.size())); },
+            [&](const fastgltf::sources::Array& array) -> Ref<Texture> { return CreateRef<Texture>(m_context, std::span<const std::byte>(array.bytes.data(), array.bytes.size())); },
+            [&](const fastgltf::sources::ByteView& byteView) -> Ref<Texture> { return CreateRef<Texture>(m_context, byteView.bytes); },
             [&](const fastgltf::sources::BufferView& view) -> Ref<Texture> {
                 auto& bv = gltf.bufferViews[view.bufferViewIndex];
                 const std::byte* ptr = getBufferData(gltf.buffers[bv.bufferIndex]);
                 return ptr ? CreateRef<Texture>(m_context, std::span<const std::byte>(ptr + bv.byteOffset, bv.byteLength)) : nullptr;
+            },
+            [&](const fastgltf::sources::URI& uri) -> Ref<Texture> {
+                if (uri.uri.isLocalPath()) {
+                    auto imagePath = absPath.parent_path() / uri.uri.path();
+                    try { return m_resourceManager.load<Texture>(imagePath.string(), true); }
+                    catch (...) { BB_CORE_ERROR("Model: GLTF failed to load external texture: {}", imagePath.string()); }
+                }
+                return nullptr;
             },
             [](auto&) -> Ref<Texture> { return nullptr; }
         }, image.data);
         m_textures.push_back(texture);
     }
 
-    for (const auto& mesh : gltf.meshes) {
-        for (const auto& primitive : mesh.primitives) {
-            std::vector<Vertex> vertices;
-            std::vector<uint32_t> indices;
+    // 2. Load Materials
+    std::vector<Ref<Material>> materials;
+    for (const auto& mat : gltf.materials) {
+        Ref<Material> material;
+        bool isUnlit = mat.unlit;
 
-            if (primitive.indicesAccessor.has_value()) {
-                auto& accessor = gltf.accessors[primitive.indicesAccessor.value()];
-                indices.resize(accessor.count);
-                fastgltf::iterateAccessorWithIndex<uint32_t>(gltf, accessor, [&](uint32_t idx, size_t i) { indices[i] = idx; });
-            }
-
-            const auto* posAttr = primitive.findAttribute("POSITION");
-            if (posAttr != primitive.attributes.end()) {
-                auto& accessor = gltf.accessors[posAttr->accessorIndex];
-                vertices.resize(accessor.count);
-                fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, accessor, [&](glm::vec3 pos, size_t i) {
-                    vertices[i].position = pos; vertices[i].color = {1.0f, 1.0f, 1.0f}; vertices[i].normal = {0.0f, 1.0f, 0.0f}; vertices[i].tangent = {1.0f, 0.0f, 0.0f, 1.0f};
-                });
-            }
-
-            const auto* normAttr = primitive.findAttribute("NORMAL");
-            if (normAttr != primitive.attributes.end()) {
-                fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, gltf.accessors[normAttr->accessorIndex], [&](glm::vec3 norm, size_t i) { vertices[i].normal = norm; });
-            }
-
-            const auto* tanAttr = primitive.findAttribute("TANGENT");
-            if (tanAttr != primitive.attributes.end()) {
-                fastgltf::iterateAccessorWithIndex<glm::vec4>(gltf, gltf.accessors[tanAttr->accessorIndex], [&](glm::vec4 tan, size_t i) { vertices[i].tangent = tan; });
-            }
-
-            const auto* uvAttr = primitive.findAttribute("TEXCOORD_0");
-            if (uvAttr != primitive.attributes.end()) {
-                fastgltf::iterateAccessorWithIndex<glm::vec2>(gltf, gltf.accessors[uvAttr->accessorIndex], [&](glm::vec2 uv, size_t i) { vertices[i].uv = uv; });
-            }
-
-                            auto newMesh = CreateRef<Mesh>(m_context, vertices, indices);
-                        if (primitive.materialIndex.has_value()) {
-                const auto& material = gltf.materials[primitive.materialIndex.value()];
-                auto pbrMat = CreateRef<PBRMaterial>(m_context);
-                PBRParameters params;
-                params.baseColorFactor = glm::vec4(material.pbrData.baseColorFactor[0], material.pbrData.baseColorFactor[1], material.pbrData.baseColorFactor[2], material.pbrData.baseColorFactor[3]);
-                params.metallicFactor = material.pbrData.metallicFactor;
-                params.roughnessFactor = material.pbrData.roughnessFactor;
-                
-                auto getTextureFromIndex = [&](std::optional<size_t> texIdx) -> Ref<Texture> {
-                    if (texIdx.has_value()) {
-                        if (texIdx.value() < gltf.textures.size() && gltf.textures[texIdx.value()].imageIndex.has_value()) {
-                            size_t imgIdx = gltf.textures[texIdx.value()].imageIndex.value();
-                            if (imgIdx < m_textures.size()) return m_textures[imgIdx];
-                        }
-                    }
-                    return nullptr;
-                };
-
-                if (material.pbrData.baseColorTexture.has_value()) {
-                    auto albedo = getTextureFromIndex(material.pbrData.baseColorTexture->textureIndex);
-                    if (albedo) pbrMat->setAlbedoMap(albedo);
+        if (isUnlit) {
+            auto unlit = CreateRef<UnlitMaterial>(m_context);
+            unlit->setColor(glm::make_vec4(mat.pbrData.baseColorFactor.data()));
+            if (mat.pbrData.baseColorTexture.has_value()) {
+                size_t texIdx = mat.pbrData.baseColorTexture->textureIndex;
+                if (gltf.textures[texIdx].imageIndex.has_value()) {
+                    size_t imgIdx = gltf.textures[texIdx].imageIndex.value();
+                    if (imgIdx < m_textures.size()) unlit->setBaseMap(m_textures[imgIdx]);
                 }
-
-                if (material.normalTexture.has_value()) {
-                    auto normal = getTextureFromIndex(material.normalTexture->textureIndex);
-                    if (normal) {
-                        pbrMat->setNormalMap(normal);
-                        params.normalScale = (float)material.normalTexture->scale;
-                    }
+            }
+            material = unlit;
+        } else if (config.preset == ModelLoadPreset::CellShading) {
+            auto toon = CreateRef<ToonMaterial>(m_context);
+            ToonParameters params;
+            params.baseColor = glm::vec4(mat.pbrData.baseColorFactor[0], mat.pbrData.baseColorFactor[1], mat.pbrData.baseColorFactor[2], mat.pbrData.baseColorFactor[3]);
+            params.emissiveFactor = glm::make_vec3(mat.emissiveFactor.data());
+            
+            if (mat.pbrData.baseColorTexture.has_value()) {
+                size_t texIdx = mat.pbrData.baseColorTexture->textureIndex;
+                if (gltf.textures[texIdx].imageIndex.has_value()) {
+                    size_t imgIdx = gltf.textures[texIdx].imageIndex.value();
+                    if (imgIdx < m_textures.size()) toon->setBaseMap(m_textures[imgIdx]);
                 }
-
-                if (material.pbrData.metallicRoughnessTexture.has_value()) {
-                    auto orm = getTextureFromIndex(material.pbrData.metallicRoughnessTexture->textureIndex);
-                    if (orm) pbrMat->setORMMap(orm);
+            }
+            
+            if (config.loadAlphaModes) {
+                params.alphaMode = mat.alphaMode == fastgltf::AlphaMode::Mask ? AlphaMode::Mask : (mat.alphaMode == fastgltf::AlphaMode::Blend ? AlphaMode::Blend : AlphaMode::Opaque);
+                params.alphaCutoff = mat.alphaCutoff;
+                params.doubleSided = mat.doubleSided;
+            }
+            material = toon;
+        } else {
+            auto pbr = CreateRef<PBRMaterial>(m_context);
+            PBRParameters params;
+            params.baseColorFactor = glm::make_vec4(mat.pbrData.baseColorFactor.data());
+            params.emissiveFactor = glm::make_vec3(mat.emissiveFactor.data());
+            params.metallicFactor = mat.pbrData.metallicFactor;
+            params.roughnessFactor = mat.pbrData.roughnessFactor;
+            params.alphaCutoff = mat.alphaCutoff;
+            
+            BB_CORE_INFO("Model: Material '{0}' - BaseColor:({1},{2},{3},{4}), Metallic:{5}, Roughness:{6}", 
+                mat.name, params.baseColorFactor.r, params.baseColorFactor.g, params.baseColorFactor.b, params.baseColorFactor.a,
+                params.metallicFactor, params.roughnessFactor);
+            
+            auto getTex = [&](const auto& info) -> Ref<Texture> {
+                if (info.has_value() && gltf.textures[info->textureIndex].imageIndex.has_value()) {
+                    size_t imgIdx = gltf.textures[info->textureIndex].imageIndex.value();
+                    return imgIdx < m_textures.size() ? m_textures[imgIdx] : nullptr;
                 }
-                
-                if (material.occlusionTexture.has_value()) {
-                    params.occlusionStrength = (float)material.occlusionTexture->strength;
-                }
+                return nullptr;
+            };
 
-                pbrMat->setParameters(params);
-                newMesh->setMaterial(pbrMat);
+            pbr->setAlbedoMap(getTex(mat.pbrData.baseColorTexture));
+            if (config.loadPBRMaps) {
+                pbr->setNormalMap(getTex(mat.normalTexture));
+                pbr->setORMMap(getTex(mat.pbrData.metallicRoughnessTexture));
+                pbr->setEmissiveMap(getTex(mat.emissiveTexture));
+                if (mat.normalTexture.has_value()) params.normalScale = (float)mat.normalTexture->scale;
             }
 
-            m_bounds.extend(newMesh->getBounds());
-            m_meshes.push_back(std::move(newMesh));
+            if (config.loadAlphaModes) {
+                params.alphaMode = mat.alphaMode == fastgltf::AlphaMode::Mask ? AlphaMode::Mask : (mat.alphaMode == fastgltf::AlphaMode::Blend ? AlphaMode::Blend : AlphaMode::Opaque);
+                params.alphaCutoff = mat.alphaCutoff;
+                params.doubleSided = mat.doubleSided;
+            }
+            pbr->setParameters(params);
+            material = pbr;
         }
+        materials.push_back(material);
     }
-    BB_CORE_INFO("Model: Successfully loaded GLTF '{0}' with {1} meshes", absPath.string(), m_meshes.size());
+
+    // 3. Recursive Node Processing
+    auto processNode = [&](auto self, size_t nodeIdx, const glm::mat4& parentTransform) -> void {
+        const auto& node = gltf.nodes[nodeIdx];
+        glm::mat4 localTransform(1.0f);
+        
+        if (auto* matrix = std::get_if<fastgltf::math::fmat4x4>(&node.transform)) {
+            localTransform = glm::make_mat4(matrix->data());
+        } else if (auto* trs = std::get_if<fastgltf::TRS>(&node.transform)) {
+            localTransform = glm::translate(glm::mat4(1.0f), glm::make_vec3(trs->translation.data())) *
+                             glm::mat4_cast(glm::quat(trs->rotation[3], trs->rotation[0], trs->rotation[1], trs->rotation[2])) *
+                             glm::scale(glm::mat4(1.0f), glm::make_vec3(trs->scale.data()));
+        }
+        
+        glm::mat4 worldTransform = parentTransform * localTransform;
+
+        if (node.meshIndex.has_value()) {
+            const auto& mesh = gltf.meshes[node.meshIndex.value()];
+            for (const auto& prim : mesh.primitives) {
+                std::vector<Vertex> vertices;
+                std::vector<uint32_t> indices;
+
+                // Load Indices
+                if (prim.indicesAccessor.has_value()) {
+                    auto& acc = gltf.accessors[prim.indicesAccessor.value()];
+                    indices.resize(acc.count);
+                    fastgltf::iterateAccessorWithIndex<uint32_t>(gltf, acc, [&](uint32_t idx, size_t i) { indices[i] = idx; });
+                }
+
+                // Load Attributes
+                const auto* posAttr = prim.findAttribute("POSITION");
+                if (posAttr != prim.attributes.end()) {
+                    auto& acc = gltf.accessors[posAttr->accessorIndex];
+                    vertices.resize(acc.count);
+                    fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, acc, [&](glm::vec3 pos, size_t i) {
+                        vertices[i].position = glm::vec3(worldTransform * glm::vec4(pos, 1.0f));
+                        vertices[i].normal = glm::normalize(glm::mat3(glm::transpose(glm::inverse(worldTransform))) * glm::vec3(0,1,0)); // Default normal
+                        vertices[i].uv = {0.0f, 0.0f};
+                        vertices[i].color = {1.0f, 1.0f, 1.0f}; // Default white
+                        vertices[i].tangent = {1.0f, 0.0f, 0.0f, 1.0f};
+                    });
+                }
+
+                if (const auto* nIdx = prim.findAttribute("NORMAL"); nIdx != prim.attributes.end()) {
+                    fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, gltf.accessors[nIdx->accessorIndex], [&](glm::vec3 n, size_t i) {
+                        vertices[i].normal = glm::normalize(glm::mat3(glm::transpose(glm::inverse(worldTransform))) * n);
+                    });
+                }
+
+                if (const auto* uvIdx = prim.findAttribute("TEXCOORD_0"); uvIdx != prim.attributes.end()) {
+                    fastgltf::iterateAccessorWithIndex<glm::vec2>(gltf, gltf.accessors[uvIdx->accessorIndex], [&](glm::vec2 uv, size_t i) { vertices[i].uv = uv; });
+                }
+
+                if (config.loadVertexColors) {
+                    if (const auto* colIdx = prim.findAttribute("COLOR_0"); colIdx != prim.attributes.end()) {
+                        fastgltf::iterateAccessorWithIndex<glm::vec3>(gltf, gltf.accessors[colIdx->accessorIndex], [&](glm::vec3 col, size_t i) { vertices[i].color = col; });
+                    }
+                }
+
+                if (config.loadAnimations) {
+                    if (const auto* jIdx = prim.findAttribute("JOINTS_0"); jIdx != prim.attributes.end()) {
+                        fastgltf::iterateAccessorWithIndex<fastgltf::math::uvec4>(gltf, gltf.accessors[jIdx->accessorIndex], [&](fastgltf::math::uvec4 j, size_t i) { 
+                            vertices[i].joints = glm::ivec4(j[0], j[1], j[2], j[3]); 
+                        });
+                    }
+                    if (const auto* wIdx = prim.findAttribute("WEIGHTS_0"); wIdx != prim.attributes.end()) {
+                        fastgltf::iterateAccessorWithIndex<glm::vec4>(gltf, gltf.accessors[wIdx->accessorIndex], [&](glm::vec4 w, size_t i) { vertices[i].weights = w; });
+                    }
+                }
+
+                auto newMesh = CreateRef<Mesh>(m_context, vertices, indices);
+                if (prim.materialIndex.has_value() && config.loadMaterials) {
+                    newMesh->setMaterial(materials[prim.materialIndex.value()]);
+                }
+                
+                m_bounds.extend(newMesh->getBounds());
+                m_meshes.push_back(std::move(newMesh));
+            }
+        }
+
+        for (size_t childIdx : node.children) self(self, childIdx, worldTransform);
+    };
+
+    if (gltf.defaultScene.has_value()) {
+        const auto& scene = gltf.scenes[gltf.defaultScene.value()];
+        for (size_t nodeIdx : scene.nodeIndices) processNode(processNode, nodeIdx, glm::scale(glm::mat4(1.0f), config.initialScale));
+    }
+
+    BB_CORE_INFO("Model: Successfully loaded GLTF '{}' with {} meshes", absPath.string(), m_meshes.size());
 }
 
 } // namespace bb3d

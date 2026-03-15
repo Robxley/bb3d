@@ -35,6 +35,7 @@ layout(set = 0, binding = 0) uniform GlobalUBO {
     vec4 shadowSplitDepths;
     vec4 camPos;
     vec4 globalParams; // .x = numLights
+    vec4 ambientColor; // .rgb = color, .a = intensity
     Light lights[10];
 } ubo;
 
@@ -170,7 +171,7 @@ void main() {
         Lo += calculatePBR(L, V, N, radiance, albedo, metallic, roughness, F0);
     }
 
-    vec3 ambient = vec3(0.03) * albedo * ao; 
+    vec3 ambient = ubo.ambientColor.rgb * ubo.ambientColor.a * albedo * ao; 
     vec3 color = ambient + Lo + emissive;
 
     color = color / (color + vec3(1.0));
