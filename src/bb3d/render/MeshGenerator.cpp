@@ -96,6 +96,98 @@ Scope<Mesh> MeshGenerator::createSphere(VulkanContext& context, float radius, ui
     return CreateScope<Mesh>(context, vertices, indices);
 }
 
+Scope<Mesh> MeshGenerator::createCone(VulkanContext& context, float radius, float height, uint32_t segments, const glm::vec3& color) {
+    std::vector<Vertex> vertices;
+    std::vector<uint32_t> indices;
+
+    float halfHeight = height * 0.5f;
+
+    // 1. Center of the base (bottom)
+    Vertex bottomCenter;
+    bottomCenter.position = {0.0f, -halfHeight, 0.0f};
+    bottomCenter.normal = {0.0f, -1.0f, 0.0f};
+    bottomCenter.color = color;
+    bottomCenter.uv = {0.5f, 0.5f};
+    bottomCenter.tangent = {1.0f, 0.0f, 0.0f, 1.0f};
+    vertices.push_back(bottomCenter);
+    uint32_t bottomCenterIndex = 0;
+
+    // 2. Base perimeter vertices (for both the bottom cap and the side wall)
+    // We duplicate the perimeter vertices so normals can differ (flat for bottom, sloped for side)
+    
+    // Bottom cap perimeter
+    uint32_t baseCapStart = 1;
+    for (uint32_t i = 0; i <= segments; ++i) {
+        float theta = (float)i / (float)segments * 2.0f * glm::pi<float>();
+        float c = std::cos(theta);
+        float s = std::sin(theta);
+        
+        Vertex v;
+        v.position = {c * radius, -halfHeight, s * radius};
+        v.normal = {0.0f, -1.0f, 0.0f};
+        v.color = color;
+        v.uv = {c * 0.5f + 0.5f, s * 0.5f + 0.5f};
+        v.tangent = {1.0f, 0.0f, 0.0f, 1.0f};
+        vertices.push_back(v);
+    }
+
+    // Indices for bottom cap
+    for (uint32_t i = 0; i < segments; ++i) {
+        indices.push_back(bottomCenterIndex);
+        indices.push_back(baseCapStart + i + 1);
+        indices.push_back(baseCapStart + i);
+    }
+
+    // 3. Side wall vertices
+    uint32_t sideWallStart = static_cast<uint32_t>(vertices.size());
+    
+    // The slope of the cone:
+    float slopeY = radius / std::sqrt(radius*radius + height*height);
+    float slopeXZ = height / std::sqrt(radius*radius + height*height);
+
+    for (uint32_t i = 0; i <= segments; ++i) {
+        float theta = (float)i / (float)segments * 2.0f * glm::pi<float>();
+        float c = std::cos(theta);
+        float s = std::sin(theta);
+
+        glm::vec3 normal(c * slopeXZ, slopeY, s * slopeXZ);
+        glm::vec3 tangent(-s, 0.0f, c);
+
+        // Base vertex for side wall
+        Vertex vBase;
+        vBase.position = {c * radius, -halfHeight, s * radius};
+        vBase.normal = normal;
+        vBase.color = color;
+        vBase.uv = {(float)i / segments, 1.0f};
+        vBase.tangent = glm::vec4(tangent, 1.0f);
+        vertices.push_back(vBase);
+
+        // Tip vertex for side wall (each needs its own normal for smooth shading!)
+        Vertex vTip;
+        vTip.position = {0.0f, halfHeight, 0.0f};
+        vTip.normal = normal; // Technically all converge to tip, but average normal works.
+        vTip.color = color;
+        vTip.uv = {(float)i / segments, 0.0f};
+        vTip.tangent = glm::vec4(tangent, 1.0f);
+        vertices.push_back(vTip);
+    }
+
+    // Indices for side wall
+    for (uint32_t i = 0; i < segments; ++i) {
+        uint32_t base1 = sideWallStart + i * 2;
+        uint32_t tip1 = sideWallStart + i * 2 + 1;
+        uint32_t base2 = sideWallStart + (i + 1) * 2;
+        // uint32_t tip2 = sideWallStart + (i + 1) * 2 + 1;
+
+        indices.push_back(base1);
+        indices.push_back(base2);
+        indices.push_back(tip1); // Tip connects the two bases.
+    }
+
+    return CreateScope<Mesh>(context, vertices, indices);
+}
+
+
 Scope<Mesh> MeshGenerator::createCheckerboardPlane(VulkanContext& context, float size, uint32_t subdivisions, const glm::vec3& color1, const glm::vec3& color2) {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
@@ -121,6 +213,20 @@ Scope<Mesh> MeshGenerator::createCheckerboardPlane(VulkanContext& context, float
             indices.push_back(offset + 2); indices.push_back(offset + 3); indices.push_back(offset + 0);
         }
     }
+
+    return CreateScope<Mesh>(context, vertices, indices);
+}
+
+Scope<Mesh> MeshGenerator::createQuad(VulkanContext& context, float size, const glm::vec3& color) {
+    float h = size * 0.5f;
+    std::vector<Vertex> vertices = {
+        {{-h, -h, 0.0f}, {0,0,1}, color, {0,1}, {1,0,0,1}},
+        {{ h, -h, 0.0f}, {0,0,1}, color, {1,1}, {1,0,0,1}},
+        {{ h,  h, 0.0f}, {0,0,1}, color, {1,0}, {1,0,0,1}},
+        {{-h,  h, 0.0f}, {0,0,1}, color, {0,0}, {1,0,0,1}}
+    };
+
+    std::vector<uint32_t> indices = { 0, 1, 2, 2, 3, 0 };
 
     return CreateScope<Mesh>(context, vertices, indices);
 }

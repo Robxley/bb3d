@@ -64,6 +64,10 @@ Model::Model(VulkanContext& context, ResourceManager& resourceManager, std::stri
     }
 }
 
+Model::Model(VulkanContext& context, ResourceManager& resourceManager)
+    : Resource("ProceduralModel"), m_context(context), m_resourceManager(resourceManager) {
+}
+
 void Model::draw(vk::CommandBuffer commandBuffer) {
     for (const auto& mesh : m_meshes) {
         mesh->draw(commandBuffer);
@@ -117,16 +121,20 @@ void Model::loadOBJ(std::string_view path) {
     // 1. Load materials
     std::vector<Ref<Material>> modelMaterials;
     for (const auto& m : materials) {
-        auto mat = CreateRef<UnlitMaterial>(m_context);
+        auto mat = CreateRef<PBRMaterial>(m_context);
         
         if (!m.diffuse_texname.empty()) {
             std::string texPath = baseDir + m.diffuse_texname;
             try {
-                mat->setBaseMap(m_resourceManager.load<Texture>(texPath, true));
+                mat->setAlbedoMap(m_resourceManager.load<Texture>(texPath, true));
             } catch (...) { BB_CORE_WARN("Model: Failed to load OBJ texture {}", texPath); }
         }
         
-        mat->setColor(glm::vec3(m.diffuse[0], m.diffuse[1], m.diffuse[2]));
+        PBRParameters params;
+        params.baseColorFactor = glm::vec4(m.diffuse[0], m.diffuse[1], m.diffuse[2], 1.0f);
+        params.metallicFactor = m.metallic;
+        params.roughnessFactor = m.roughness;
+        mat->setParameters(params);
         modelMaterials.push_back(mat);
     }
 

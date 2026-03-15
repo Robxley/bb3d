@@ -29,6 +29,8 @@ public:
      * @param path Path to the asset.
      */
     Model(VulkanContext& context, ResourceManager& resourceManager, std::string_view path);
+    /** @brief Constructs an empty model for procedural generation. */
+    Model(VulkanContext& context, ResourceManager& resourceManager);
     ~Model() override;
 
     /** @brief Records rendering commands for all meshes in the model. */
@@ -50,6 +52,14 @@ public:
 
     /** @brief List of internal meshes in the model. */
     const std::vector<Ref<Mesh>>& getMeshes() const { return m_meshes; }
+    
+    /** @brief Adds a mesh to the model. */
+    void addMesh(Ref<Mesh> mesh) {
+        if (mesh) {
+            m_meshes.push_back(mesh);
+            m_bounds.extend(mesh->getBounds());
+        }
+    }
 
     /** @brief Releases RAM for all meshes in this model. */
     void releaseCPUData() {

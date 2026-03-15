@@ -42,12 +42,16 @@ namespace bb3d {
         std::string buffering = "triple"; ///< Stratégie de SwapChain : "double" (latence faible, risque tearing sans vsync) ou "triple" (plus fluide).
         int msaaSamples = 1; ///< Anti-aliasing MSAA (1 = désactivé, 2, 4, 8).
         float anisotropy = 16.0f; ///< Filtrage anisotrope maximal pour les textures (1.0 à 16.0).
-        int shadowMapResolution = 2048; ///< Résolution des textures d'ombres (plus haut = plus net mais plus coûteux).
+        uint32_t shadowMapResolution = 2048; ///< Résolution des textures d'ombres (CSM).
         bool enableValidationLayers = true; ///< Active les couches de validation Vulkan (Debug uniquement, impact perf).
         bool enableFrustumCulling = true;   ///< Active le culling des objets hors champ (Optimisation CPU).
         bool enableMipmapping = true;       ///< Génération automatique des mips pour les textures.
         bool enableOffscreenRendering = false; ///< Rendu dans une texture intermédiaire (ex: pour post-process personnalisé).
         float renderScale = 1.0f;              ///< Échelle de résolution interne (0.5 = 50% de la taille fenêtre, 1.0 = Natif).
+
+        bool shadowsEnabled = true;       ///< Active le rendu des ombres portées principale (Soleil).
+        uint32_t shadowCascades = 4;      ///< Nombre de cascades pour le CSM (typiquement 1 à 4).
+        bool shadowPCF = true;            ///< Active le Percentage-Closer Filtering pour des ombres douces.
 
         GraphicsConfig& setVsync(bool v) { vsync = v; return *this; }
         GraphicsConfig& setFpsMax(int fps) { fpsMax = fps; return *this; }
@@ -58,8 +62,9 @@ namespace bb3d {
         GraphicsConfig& setMipmapping(bool e) { enableMipmapping = e; return *this; }
         GraphicsConfig& setOffscreenRendering(bool e) { enableOffscreenRendering = e; return *this; }
         GraphicsConfig& setRenderScale(float s) { renderScale = s; return *this; }
+        GraphicsConfig& setShadows(bool e, uint32_t res = 2048, uint32_t c = 4, bool pcf = true) { shadowsEnabled = e; shadowMapResolution = res; shadowCascades = c; shadowPCF = pcf; return *this; }
 
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers, enableFrustumCulling, enableMipmapping, enableOffscreenRendering, renderScale)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers, enableFrustumCulling, enableMipmapping, enableOffscreenRendering, renderScale, shadowsEnabled, shadowCascades, shadowPCF)
     };
 
     /**

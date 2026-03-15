@@ -54,8 +54,10 @@ int main() {
     
     auto ground = scene->createEntity("Ground");
     ground.add<MeshComponent>(groundMesh);
-    ground.add<RigidBodyComponent>().get<RigidBodyComponent>().type = BodyType::Static;
-    ground.add<BoxColliderComponent>().get<BoxColliderComponent>().halfExtents = {100.0f, 0.1f, 100.0f};
+    auto& groundPhys = ground.add<PhysicsComponent>().get<PhysicsComponent>();
+    groundPhys.type = BodyType::Static;
+    groundPhys.colliderType = ColliderType::Box;
+    groundPhys.boxHalfExtents = {100.0f, 0.1f, 100.0f};
     engine->physics().createRigidBody(ground);
 
     // --- 4. Showcase : Multi-Model Instancing (OBJ) ---
@@ -84,6 +86,11 @@ int main() {
             auto e = scene->createEntity("Instanced Plane");
             e.at({x, 15.0f, z}).add<ModelComponent>(model);
             e.add<SimpleAnimationComponent>().get<SimpleAnimationComponent>().speed = 0.3f;
+            auto& phys = e.add<PhysicsComponent>().get<PhysicsComponent>();
+            phys.type = BodyType::Kinematic;
+            phys.colliderType = ColliderType::Box;
+            phys.boxHalfExtents = { 3.0f, 1.0f, 3.0f };
+            engine->physics().createRigidBody(e);
         }
     }
 
@@ -109,10 +116,11 @@ int main() {
         auto ent = scene->createEntity("AutoFallingCube");
         ent.at({(float)i * 3.0f - 10.0f, 30.0f, 5.0f});
         ent.add<MeshComponent>(cubeMesh);
-        ent.add<BoxColliderComponent>().get<BoxColliderComponent>().halfExtents = {0.5f, 0.5f, 0.5f};
-        auto& rb = ent.add<RigidBodyComponent>().get<RigidBodyComponent>();
-        rb.type = BodyType::Dynamic;
-        rb.mass = 2.0f;
+        auto& phys = ent.add<PhysicsComponent>().get<PhysicsComponent>();
+        phys.colliderType = ColliderType::Box;
+        phys.boxHalfExtents = {0.5f, 0.5f, 0.5f};
+        phys.type = BodyType::Dynamic;
+        phys.mass = 2.0f;
         engine->physics().createRigidBody(ent);
     }
 
@@ -123,10 +131,11 @@ int main() {
             auto spawnPos = glm::vec3(0, 40, 0);
             auto ent = scene->createEntity("SpawnedPhys");
             ent.at(spawnPos).add<MeshComponent>(cubeMesh);
-            ent.add<BoxColliderComponent>().get<BoxColliderComponent>().halfExtents = {0.5f, 0.5f, 0.5f};
-            auto& rb = ent.add<RigidBodyComponent>().get<RigidBodyComponent>();
-            rb.type = BodyType::Dynamic;
-            rb.mass = 2.0f;
+            auto& phys = ent.add<PhysicsComponent>().get<PhysicsComponent>();
+            phys.colliderType = ColliderType::Box;
+            phys.boxHalfExtents = {0.5f, 0.5f, 0.5f};
+            phys.type = BodyType::Dynamic;
+            phys.mass = 2.0f;
             enginePtr->physics().createRigidBody(ent);
         }
 

@@ -36,6 +36,8 @@ public:
     [[nodiscard]] inline const glm::mat4& getViewMatrix() const { return m_view; }
     [[nodiscard]] inline const glm::mat4& getProjectionMatrix() const { return m_proj; }
     [[nodiscard]] inline const glm::vec3& getPosition() const { return m_position; }
+    [[nodiscard]] inline float getNearPlane() const { return m_near; }
+    [[nodiscard]] inline float getFarPlane() const { return m_far; }
     /** @} */
 
     /** @brief Définit la position de la caméra. */
@@ -45,7 +47,10 @@ public:
     virtual void setAspectRatio(float aspect);
 
     /** @brief Oriente la caméra vers une cible spécifique. */
-    virtual void lookAt(const glm::vec3& target);
+    virtual void lookAt(const glm::vec3& target, const glm::vec3& up = glm::vec3(0.0f, 1.0f, 0.0f));
+
+    /** @brief Définit directement la matrice de vue complète (ex: depuis un TransformComponent). */
+    virtual void setViewMatrix(const glm::mat4& view);
 
     /** @brief Met à jour les paramètres de projection perspective. */
     void setPerspective(float fov, float aspect, float near, float far);

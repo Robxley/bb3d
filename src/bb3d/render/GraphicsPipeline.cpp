@@ -15,14 +15,15 @@ GraphicsPipeline::GraphicsPipeline(VulkanContext& context, SwapChain& swapChain,
                                    bool depthWrite,
                                    vk::CompareOp depthCompareOp,
                                    const std::vector<uint32_t>& enabledAttributes,
-                                   vk::PrimitiveTopology topology)
+                                   vk::PrimitiveTopology topology,
+                                   bool blendEnable)
     : m_context(context) {
     
     m_colorFormat = swapChain.getImageFormat();
     m_depthFormat = swapChain.getDepthFormat();
 
     createPipelineLayout(descriptorSetLayouts, pushConstantRanges);
-    createPipeline(vertShader, fragShader, config, useVertexInput, depthWrite, depthCompareOp, enabledAttributes, topology);
+    createPipeline(vertShader, fragShader, config, useVertexInput, depthWrite, depthCompareOp, enabledAttributes, topology, blendEnable);
 }
 
 // Constructeur via Formats Explicites (pour RenderTarget / Offscreen)
@@ -35,11 +36,12 @@ GraphicsPipeline::GraphicsPipeline(VulkanContext& context, vk::Format colorForma
                                    bool depthWrite,
                                    vk::CompareOp depthCompareOp,
                                    const std::vector<uint32_t>& enabledAttributes,
-                                   vk::PrimitiveTopology topology)
+                                   vk::PrimitiveTopology topology,
+                                   bool blendEnable)
     : m_context(context), m_colorFormat(colorFormat), m_depthFormat(depthFormat) {
 
     createPipelineLayout(descriptorSetLayouts, pushConstantRanges);
-    createPipeline(vertShader, fragShader, config, useVertexInput, depthWrite, depthCompareOp, enabledAttributes, topology);
+    createPipeline(vertShader, fragShader, config, useVertexInput, depthWrite, depthCompareOp, enabledAttributes, topology, blendEnable);
 }
 
 
@@ -63,7 +65,7 @@ void GraphicsPipeline::createPipelineLayout(const std::vector<vk::DescriptorSetL
 
 void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, 
                                      bool useVertexInput, bool depthWrite, vk::CompareOp depthCompareOp, 
-                                     const std::vector<uint32_t>& enabledAttributes, vk::PrimitiveTopology topology) {
+                                     const std::vector<uint32_t>& enabledAttributes, vk::PrimitiveTopology topology, bool blendEnable) {
     std::array<vk::PipelineShaderStageCreateInfo, 2> shaderStages = {
         vk::PipelineShaderStageCreateInfo({}, vk::ShaderStageFlagBits::eVertex, vertShader.getModule(), "main"),
         vk::PipelineShaderStageCreateInfo({}, vk::ShaderStageFlagBits::eFragment, fragShader.getModule(), "main")
@@ -109,8 +111,16 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
         depthWrite ? VK_TRUE : VK_FALSE,
         depthCompareOp, VK_FALSE, config.depthStencil.stencilTest ? VK_TRUE : VK_FALSE);
 
-    vk::PipelineColorBlendAttachmentState colorBlendAttachment(VK_FALSE);
+    vk::PipelineColorBlendAttachmentState colorBlendAttachment(blendEnable);
     colorBlendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+    if (blendEnable) {
+        colorBlendAttachment.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
+        colorBlendAttachment.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+        colorBlendAttachment.colorBlendOp = vk::BlendOp::eAdd;
+        colorBlendAttachment.srcAlphaBlendFactor = vk::BlendFactor::eOne;
+        colorBlendAttachment.dstAlphaBlendFactor = vk::BlendFactor::eZero;
+        colorBlendAttachment.alphaBlendOp = vk::BlendOp::eAdd;
+    }
     vk::PipelineColorBlendStateCreateInfo colorBlending({}, VK_FALSE, vk::LogicOp::eCopy, 1, &colorBlendAttachment);
 
     // Utilisation des formats stockés

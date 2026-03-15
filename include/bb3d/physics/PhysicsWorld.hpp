@@ -58,11 +58,17 @@ namespace bb3d {
         /** @brief Réinitialise tous les corps physiques de la scène. */
         void resetAllBodies(Scene& scene);
 
-        /** 
-         * @brief Crée un corps physique Jolt pour une entité possédant un RigidBodyComponent. 
-         * @warning Pour les MeshColliders, cette méthode doit être appelée AVANT Mesh::releaseCPUData().
-         */
+        /** @brief Applique une force linéaire sur le centre de masse d'un corps dynamique. */
+        void addForce(Entity entity, const glm::vec3& force);
+
+        /** @brief Applique un torque (force de rotation) sur un corps dynamique. */
+        void addTorque(Entity entity, const glm::vec3& torque);
+
+        /** @brief Crée un corps physique Jolt pour une entité possédant un PhysicsComponent. */
         void createRigidBody(Entity entity);
+
+        /** @brief Supprime le corps physique Jolt associé à une entité. */
+        void destroyRigidBody(Entity entity);
 
         /** @brief Crée un CharacterController virtuel (idéal pour le joueur). */
         void createCharacterController(Entity entity);
@@ -74,6 +80,9 @@ namespace bb3d {
          * @param maxDistance Distance maximale du test.
          */
         RaycastResult raycast(const glm::vec3& origin, const glm::vec3& direction, float maxDistance);
+
+        /** @brief Change la gravité globale du monde physique. */
+        void setGravity(const glm::vec3& gravity);
 
     private:
         struct Impl; ///< PIMPL pour cacher les headers Jolt de l'API publique.

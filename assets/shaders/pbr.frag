@@ -31,12 +31,48 @@ struct Light {
 layout(set = 0, binding = 0) uniform GlobalUBO {
     mat4 view;
     mat4 proj;
+    mat4 shadowCascades[4];
+    vec4 shadowSplitDepths;
     vec4 camPos;
     vec4 globalParams; // .x = numLights
     Light lights[10];
 } ubo;
 
+layout(set = 0, binding = 2) uniform sampler2DArrayShadow shadowMap;
+
 const float PI = 3.14159265359;
+
+float ShadowCalculation(vec3 fragPosWorldSpace, vec3 N, vec3 lightDir) {
+    vec4 viewPos = ubo.view * vec4(fragPosWorldSpace, 1.0);
+    float depth = abs(viewPos.z);
+    
+    int layer = -1;
+    for(int i = 0; i < 4; ++i) {
+        if(depth < ubo.shadowSplitDepths[i]) {
+            layer = i;
+            break;
+        }
+    }
+    if (layer == -1) layer = 3;
+
+    vec4 fragPosLightSpace = ubo.shadowCascades[layer] * vec4(fragPosWorldSpace, 1.0);
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    projCoords.xy = projCoords.xy * 0.5 + 0.5;
+    
+    if(projCoords.z > 1.0 || projCoords.z < 0.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0)
+        return 1.0; 
+
+    float bias = max(0.005 * (1.0 - dot(N, lightDir)), 0.001);
+    
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0).xy;
+    for(int x = -1; x <= 1; ++x) {
+        for(int y = -1; y <= 1; ++y) {
+            shadow += texture(shadowMap, vec4(projCoords.xy + vec2(x,y)*texelSize, layer, projCoords.z - bias));
+        }
+    }
+    return shadow / 9.0;
+}
 
 float DistributionGGX(vec3 N, vec3 H, float roughness) {
     float a = roughness * roughness;
@@ -115,6 +151,12 @@ void main() {
         if (ubo.lights[i].position.w < 0.5) { // Directional
             L = normalize(-ubo.lights[i].direction.xyz);
             radiance = ubo.lights[i].color.rgb * ubo.lights[i].color.a;
+            
+            // Appliquer l'ombre uniquement sur la lumiere principale directionnelle
+            if (i == 0) {
+                float shadow = ShadowCalculation(fragPos, N, L);
+                radiance *= shadow;
+            }
         } else { // Point
             vec3 lightDir = ubo.lights[i].position.xyz - fragPos;
             float distance = length(lightDir);

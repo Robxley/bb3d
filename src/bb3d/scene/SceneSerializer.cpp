@@ -30,15 +30,13 @@ namespace bb3d {
         SerializeComponent<FPSControllerComponent>(j, entity, "FPSControllerComponent");
         SerializeComponent<OrbitControllerComponent>(j, entity, "OrbitControllerComponent");
         SerializeComponent<LightComponent>(j, entity, "LightComponent");
-        SerializeComponent<RigidBodyComponent>(j, entity, "RigidBodyComponent");
-        SerializeComponent<BoxColliderComponent>(j, entity, "BoxColliderComponent");
-        SerializeComponent<SphereColliderComponent>(j, entity, "SphereColliderComponent");
-        SerializeComponent<CapsuleColliderComponent>(j, entity, "CapsuleColliderComponent");
-        SerializeComponent<MeshColliderComponent>(j, entity, "MeshColliderComponent");
+        SerializeComponent<PhysicsComponent>(j, entity, "PhysicsComponent");
         SerializeComponent<SkySphereComponent>(j, entity, "SkySphereComponent");
         SerializeComponent<SkyboxComponent>(j, entity, "SkyboxComponent");
         SerializeComponent<AudioSourceComponent>(j, entity, "AudioSourceComponent");
         SerializeComponent<AudioListenerComponent>(j, entity, "AudioListenerComponent");
+        SerializeComponent<ParticleSystemComponent>(j, entity, "ParticleSystemComponent");
+        SerializeComponent<ProceduralPlanetComponent>(j, entity, "ProceduralPlanetComponent");
     }
 
     void SceneSerializer::serialize(std::string_view filepath) {
@@ -145,24 +143,17 @@ namespace bb3d {
                 }
             }
 
+            if (e.contains("NativeScriptComponent")) entity.add<NativeScriptComponent>().get<NativeScriptComponent>().deserialize(e["NativeScriptComponent"]);
+            if (e.contains("PhysicsComponent")) {
+                entity.add<PhysicsComponent>().get<PhysicsComponent>().deserialize(e["PhysicsComponent"]);
+                // Note: The physical body in Jolt must be recreated after loading all components
+            }
+
             if (e.contains("LightComponent")) {
                 entity.add<LightComponent>().get<LightComponent>().deserialize(e["LightComponent"]);
             }
 
-            if (e.contains("RigidBodyComponent")) {
-                entity.add<RigidBodyComponent>().get<RigidBodyComponent>().deserialize(e["RigidBodyComponent"]);
-            }
 
-            if (e.contains("BoxColliderComponent")) entity.add<BoxColliderComponent>().get<BoxColliderComponent>().deserialize(e["BoxColliderComponent"]);
-            if (e.contains("SphereColliderComponent")) entity.add<SphereColliderComponent>().get<SphereColliderComponent>().deserialize(e["SphereColliderComponent"]);
-            if (e.contains("CapsuleColliderComponent")) entity.add<CapsuleColliderComponent>().get<CapsuleColliderComponent>().deserialize(e["CapsuleColliderComponent"]);
-            if (e.contains("MeshColliderComponent")) {
-                auto& mc = entity.add<MeshColliderComponent>().get<MeshColliderComponent>();
-                mc.deserialize(e["MeshColliderComponent"]);
-                if (!mc.assetPath.empty()) {
-                    try { mc.mesh = engine->assets().load<Mesh>(mc.assetPath); } catch(...) {}
-                }
-            }
 
             if (e.contains("FPSControllerComponent")) entity.add<FPSControllerComponent>().get<FPSControllerComponent>().deserialize(e["FPSControllerComponent"]);
             if (e.contains("OrbitControllerComponent")) entity.add<OrbitControllerComponent>().get<OrbitControllerComponent>().deserialize(e["OrbitControllerComponent"]);
@@ -181,12 +172,26 @@ namespace bb3d {
                 }
             }
 
-            // ... etc
+            if (e.contains("SkyboxComponent")) {
+                auto& sb = entity.add<SkyboxComponent>().get<SkyboxComponent>();
+                sb.deserialize(e["SkyboxComponent"]);
+                if (!sb.assetPath.empty()) {
+                    try { sb.cubemap = engine->assets().load<Texture>(sb.assetPath, true); } catch(...) {}
+                }
+            }
+
+            if (e.contains("AudioSourceComponent")) entity.add<AudioSourceComponent>().get<AudioSourceComponent>().deserialize(e["AudioSourceComponent"]);
+            if (e.contains("AudioListenerComponent")) entity.add<AudioListenerComponent>().get<AudioListenerComponent>().deserialize(e["AudioListenerComponent"]);
+            if (e.contains("ParticleSystemComponent")) entity.add<ParticleSystemComponent>().get<ParticleSystemComponent>().deserialize(e["ParticleSystemComponent"]);
+            
+            if (e.contains("ProceduralPlanetComponent")) {
+                entity.add<ProceduralPlanetComponent>().get<ProceduralPlanetComponent>().deserialize(e["ProceduralPlanetComponent"]);
+            }
         }
 
-        // --- CRITICAL: PHYSICS RECONSTRUCTION ---
+        // Re-create Physics Components
         if (engine->GetPhysicsWorld()) {
-            auto view = m_scene->getRegistry().view<RigidBodyComponent>();
+            auto view = m_scene->getRegistry().view<PhysicsComponent>();
             for (auto entityID : view) {
                 engine->physics().createRigidBody(Entity(entityID, *m_scene));
             }

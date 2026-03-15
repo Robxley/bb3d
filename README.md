@@ -7,7 +7,7 @@
 biobazard3d est conçu pour être un moteur de jeu complet avec les caractéristiques suivantes :
 
 - **Architecture moderne** : C++20, Vulkan 1.3, ECS (Entity Component System).
-- **Rendu avancé** : PBR (Physically Based Rendering), gestion des matériaux, ombres dynamiques.
+- **Rendu avancé** : PBR (Physically Based Rendering), gestion des matériaux, ombres dynamiques (Cascaded Shadow Maps avec PCF).
 - **Système de physique** : Intégration performante avec Jolt Physics.
 - **Gestion des ressources** : Chargement asynchrone, cache des assets, empreinte RAM optimisée.
 - **Système de scène** : Sérialisation/deserialization JSON, hiérarchie d'entités.
@@ -133,16 +133,18 @@ bb3d/
 ### Moteur de rendu Vulkan Haute Performance
 
 - **Unity Build** : Compilation accélérée par regroupement de fichiers source.
+- **JobSystem & Multithreading** : Pool de threads pour le chargement d'assets, le culling, et la création de maillages procéduraux.
 - **GPU Instancing (SSBO)** : Rendu de milliers d'objets en un seul Draw Call.
 - **Batching Automatique** : Optimisation de l'état du pipeline pour réduire les changements de contexte GPU.
 - **RAM Footprint Optimization** : Les données CPU des Meshs sont libérées après l'upload VRAM pour économiser la mémoire système.
-- **Frustum Culling** : Élimination précise des objets hors champ (optimisé pour Vulkan depth range).
+- **Frustum & Horizon Culling** : Élimination précise des objets hors champ (Frustum) et des faces arrières cachées typiques des planètes (Horizon), optimisé sur le CPU.
 - **Post-Process** : Rendu Offscreen avec Render Scale ajustable et Tone Mapping.
 - **Système de matériaux complet** :
   - **PBR (Physically Based Rendering)** : Workflow optimisé via **ORM Packing**.
   - **Unlit** : Matériaux simples.
   - **Toon** : Rendu stylisé.
-- **Éclairage dynamique** : Support de 10 lumières simultanées (Directionnelles et Ponctuelles).
+- **Éclairage dynamique** : Support de lumières directionnelles (CSM Shadows prévu) et Ponctuelles.
+- **Génération Procédurale** : Support de géométries massives complexes type Cube-Sphères multi-biomes (Planètes).
 
 ### Physique & Simulation (Jolt)
 

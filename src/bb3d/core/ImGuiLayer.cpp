@@ -55,7 +55,7 @@ ImGuiLayer::ImGuiLayer(VulkanContext& context, Window& window, SwapChain& swapCh
     initInfo.Queue = m_context.getGraphicsQueue();
     initInfo.DescriptorPool = m_descriptorPool;
     initInfo.MinImageCount = 2;
-    initInfo.ImageCount = swapChain.getImageCount(); 
+    initInfo.ImageCount = static_cast<uint32_t>(swapChain.getImageCount());
     initInfo.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
     initInfo.UseDynamicRendering = true;
     
@@ -221,7 +221,7 @@ ImTextureID ImGuiLayer::addTexture(vk::Sampler sampler, vk::ImageView view, vk::
     return (ImTextureID)ImGui_ImplVulkan_AddTexture(sampler, view, static_cast<VkImageLayout>(layout));
 }
 
-void ImGuiLayer::showViewport(RenderTarget* renderTarget, Scene& scene) {
+void ImGuiLayer::showViewport(RenderTarget* renderTarget, Scene& /*scene*/) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
     ImGui::Begin(ICON_FA_IMAGE " Viewport");
 
@@ -292,7 +292,7 @@ void ImGuiLayer::showSceneHierarchy(Scene& scene) {
             renderables.push_back(entity);
         } else if (entity.has<AudioSourceComponent>() || entity.has<AudioListenerComponent>()) {
             audio.push_back(entity);
-        } else if (entity.has<RigidBodyComponent>() || entity.has<BoxColliderComponent>() || entity.has<NativeScriptComponent>()) {
+        } else if (entity.has<PhysicsComponent>() || entity.has<NativeScriptComponent>()) {
             logicAndPhysics.push_back(entity);
         } else {
             other.push_back(entity);
@@ -404,8 +404,8 @@ void ImGuiLayer::drawEntityNode(Entity entity) {
     } else if (entity.has<ModelComponent>() || entity.has<MeshComponent>()) {
         icon = entity.has<ModelComponent>() ? ICON_FA_CUBES : ICON_FA_CUBE;
         iconColor = ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
-    } else if (entity.has<RigidBodyComponent>() || entity.has<BoxColliderComponent>()) {
-        icon = entity.has<RigidBodyComponent>() ? ICON_FA_BOX : ICON_FA_SHIELD_HALVED;
+    } else if (entity.has<PhysicsComponent>()) {
+        icon = ICON_FA_BOX;
         iconColor = ImVec4(0.4f, 1.0f, 0.4f, 1.0f);
     } else if (entity.has<NativeScriptComponent>()) {
         icon = ICON_FA_CODE;
@@ -443,12 +443,17 @@ void ImGuiLayer::drawEntityNode(Entity entity) {
 
         drawCompNode("Transform", ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT, colTransform, entity.has<TransformComponent>());
         drawCompNode("Camera", ICON_FA_VIDEO, colTransform, entity.has<CameraComponent>());
+        drawCompNode("OrbitController", ICON_FA_CROSSHAIRS, colTransform, entity.has<OrbitControllerComponent>());
+        drawCompNode("FPSController", ICON_FA_GAMEPAD, colTransform, entity.has<FPSControllerComponent>());
         drawCompNode("Mesh", ICON_FA_CUBE, colRender, entity.has<MeshComponent>());
         drawCompNode("Model", ICON_FA_CUBES, colRender, entity.has<ModelComponent>());
         drawCompNode("Light", ICON_FA_LIGHTBULB, colLight, entity.has<LightComponent>());
-        drawCompNode("RigidBody", ICON_FA_BOX, colPhysics, entity.has<RigidBodyComponent>());
-        drawCompNode("BoxCollider", ICON_FA_SHIELD_HALVED, colPhysics, entity.has<BoxColliderComponent>());
+        drawCompNode("Skybox", ICON_FA_CLOUD, colLight, entity.has<SkyboxComponent>());
+        drawCompNode("SkySphere", ICON_FA_GLOBE, colLight, entity.has<SkySphereComponent>());
+        drawCompNode("PhysicsBody", ICON_FA_BOX, colPhysics, entity.has<PhysicsComponent>());
         drawCompNode("AudioSource", ICON_FA_VOLUME_HIGH, colAudio, entity.has<AudioSourceComponent>());
+        drawCompNode("AudioListener", ICON_FA_EAR_LISTEN, colAudio, entity.has<AudioListenerComponent>());
+        drawCompNode("SimpleAnimation", ICON_FA_FILM, colLogic, entity.has<SimpleAnimationComponent>());
         drawCompNode("NativeScript", ICON_FA_CODE, colLogic, entity.has<NativeScriptComponent>());
 
         ImGui::TreePop();
@@ -526,12 +531,16 @@ void ImGuiLayer::showInspector() {
 
             DrawCompTreeLeaf("Transform", ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT, colTransform, m_selectedEntity.has<TransformComponent>());
             DrawCompTreeLeaf("Camera", ICON_FA_VIDEO, colTransform, m_selectedEntity.has<CameraComponent>());
+            DrawCompTreeLeaf("OrbitController", ICON_FA_CROSSHAIRS, colTransform, m_selectedEntity.has<OrbitControllerComponent>());
+            DrawCompTreeLeaf("FPSController", ICON_FA_GAMEPAD, colTransform, m_selectedEntity.has<FPSControllerComponent>());
             DrawCompTreeLeaf("Mesh", ICON_FA_CUBE, colRender, m_selectedEntity.has<MeshComponent>());
             DrawCompTreeLeaf("Model", ICON_FA_CUBES, colRender, m_selectedEntity.has<ModelComponent>());
             DrawCompTreeLeaf("Light", ICON_FA_LIGHTBULB, colLight, m_selectedEntity.has<LightComponent>());
-            DrawCompTreeLeaf("RigidBody", ICON_FA_BOX, colPhysics, m_selectedEntity.has<RigidBodyComponent>());
-            DrawCompTreeLeaf("BoxCollider", ICON_FA_SHIELD_HALVED, colPhysics, m_selectedEntity.has<BoxColliderComponent>());
+            DrawCompTreeLeaf("Skybox", ICON_FA_CLOUD, colLight, m_selectedEntity.has<SkyboxComponent>());
+            DrawCompTreeLeaf("SkySphere", ICON_FA_GLOBE, colLight, m_selectedEntity.has<SkySphereComponent>());
+            DrawCompTreeLeaf("PhysicsBody", ICON_FA_BOX, colPhysics, m_selectedEntity.has<PhysicsComponent>());
             DrawCompTreeLeaf("AudioSource", ICON_FA_VOLUME_HIGH, colAudio, m_selectedEntity.has<AudioSourceComponent>());
+            DrawCompTreeLeaf("AudioListener", ICON_FA_EAR_LISTEN, colAudio, m_selectedEntity.has<AudioListenerComponent>());
             DrawCompTreeLeaf("SimpleAnimation", ICON_FA_FILM, colLogic, m_selectedEntity.has<SimpleAnimationComponent>());
             DrawCompTreeLeaf("NativeScript", ICON_FA_CODE, colLogic, m_selectedEntity.has<NativeScriptComponent>());
 
@@ -583,17 +592,29 @@ void ImGuiLayer::showInspector() {
             };
 
             auto ComponentPropertiesHeader = [&](const char* name, const char* icon, ImVec4 color, bool canRemove = true, std::function<void()> onRemove = nullptr) -> bool {
+                ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(color.x, color.y, color.z, 0.1f));
+                ImGui::BeginChild((std::string("##Child") + name).c_str(), ImVec2(0, 32), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+                
                 ImGui::PushStyleColor(ImGuiCol_Text, color);
-                ImVec4 headerColor = color; headerColor.w = 0.15f; 
-                ImGui::PushStyleColor(ImGuiCol_Header, headerColor);
-                ImGuiTreeNodeFlags headerFlags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_Framed;
-                bool open = ImGui::CollapsingHeader((std::string(icon) + " " + name).c_str(), headerFlags);
-                ImGui::PopStyleColor(2);
+                ImGui::Text("%s %s", icon, name);
+                ImGui::PopStyleColor();
+
                 if (canRemove && onRemove) {
-                    ImGui::SameLine(ImGui::GetWindowWidth() - 30);
-                    if (ImGui::Button((std::string(ICON_FA_TRASH "##") + name).c_str())) onRemove();
+                    ImGui::SameLine(ImGui::GetWindowWidth() - 35);
+                    if (ImGui::Button((std::string(ICON_FA_TRASH "##") + name).c_str())) {
+                        onRemove();
+                        ImGui::EndChild();
+                        ImGui::PopStyleColor();
+                        return false; 
+                    }
                 }
-                return open;
+                
+                ImGui::EndChild();
+                ImGui::PopStyleColor();
+                
+                ImGui::Spacing();
+                
+                return true;
             };
 
             if (m_focusedComponent == "Transform" && m_selectedEntity.has<TransformComponent>()) {
@@ -608,7 +629,7 @@ void ImGuiLayer::showInspector() {
                     if (ImGui::DragFloat3("##Scale", &tc.scale.x, 0.1f)) tcChanged = true;
                     ImGui::SameLine(); ImGui::TextColored(colTransform, "Scale");
 
-                    if (tcChanged && m_selectedEntity.has<RigidBodyComponent>()) {
+                    if (tcChanged && m_selectedEntity.has<PhysicsComponent>()) {
                         auto ph = Engine::Get().GetPhysicsWorld();
                         if (ph) ph->updateBodyTransform(m_selectedEntity);
                     }
@@ -620,11 +641,32 @@ void ImGuiLayer::showInspector() {
                     ImGui::SameLine(); if (ImGui::Button(ICON_FA_FLOPPY_DISK " Save")) { tc.saveInitialState(); }
                 }
             } else if (m_focusedComponent == "Camera" && m_selectedEntity.has<CameraComponent>()) {
-                if (ComponentPropertiesHeader("Camera", ICON_FA_VIDEO, colTransform)) {
+                if (ComponentPropertiesHeader("Camera", ICON_FA_VIDEO, colTransform, true, [&](){ m_selectedEntity.remove<CameraComponent>(); m_focusedComponent = ""; })) {
                     auto& cam = m_selectedEntity.get<CameraComponent>();
-                    ImGui::DragFloat("FOV", &cam.fov, 0.5f, 10.0f, 120.0f);
-                    ImGui::DragFloat("Near", &cam.nearPlane, 0.01f, 0.001f, 10.0f);
-                    ImGui::DragFloat("Far", &cam.farPlane, 10.0f, 100.0f, 10000.0f);
+                    bool changed = false;
+                    ImGui::Checkbox("Primary Active", &cam.active);
+                    changed |= ImGui::DragFloat("FOV", &cam.fov, 0.5f, 10.0f, 120.0f);
+                    changed |= ImGui::DragFloat("Near", &cam.nearPlane, 0.01f, 0.001f, 10.0f);
+                    changed |= ImGui::DragFloat("Far", &cam.farPlane, 10.0f, 100.0f, 10000.0f);
+                    if (changed && cam.camera) {
+                        cam.camera->setPerspective(cam.fov, cam.aspect, cam.nearPlane, cam.farPlane);
+                    }
+                }
+            } else if (m_focusedComponent == "OrbitController" && m_selectedEntity.has<OrbitControllerComponent>()) {
+                if (ComponentPropertiesHeader("OrbitController", ICON_FA_CROSSHAIRS, colTransform, true, [&](){ m_selectedEntity.remove<OrbitControllerComponent>(); m_focusedComponent = ""; })) {
+                    auto& oc = m_selectedEntity.get<OrbitControllerComponent>();
+                    ImGui::DragFloat3("Target", &oc.target.x, 0.1f);
+                    ImGui::DragFloat("Distance", &oc.distance, 0.1f, oc.minDistance, oc.maxDistance);
+                    ImGui::DragFloat("Min Distance", &oc.minDistance, 0.1f, 0.1f, oc.maxDistance);
+                    ImGui::DragFloat("Max Distance", &oc.maxDistance, 0.1f, oc.minDistance, 1000.0f);
+                }
+            } else if (m_focusedComponent == "FPSController" && m_selectedEntity.has<FPSControllerComponent>()) {
+                if (ComponentPropertiesHeader("FPSController", ICON_FA_GAMEPAD, colTransform, true, [&](){ m_selectedEntity.remove<FPSControllerComponent>(); m_focusedComponent = ""; })) {
+                    auto& fps = m_selectedEntity.get<FPSControllerComponent>();
+                    ImGui::DragFloat3("Movement Speed", &fps.movementSpeed.x, 0.1f);
+                    ImGui::DragFloat2("Rotation Speed", &fps.rotationSpeed.x, 0.01f);
+                    ImGui::DragFloat("Yaw", &fps.yaw, 1.0f);
+                    ImGui::DragFloat("Pitch", &fps.pitch, 1.0f, -89.0f, 89.0f);
                 }
             } else if (m_focusedComponent == "Mesh" && m_selectedEntity.has<MeshComponent>()) {
                 if (ComponentPropertiesHeader("Mesh", ICON_FA_CUBE, colRender)) {
@@ -649,7 +691,8 @@ void ImGuiLayer::showInspector() {
                     }
                 }
             } else if (m_focusedComponent == "Light" && m_selectedEntity.has<LightComponent>()) {
-                if (ComponentPropertiesHeader("Light", ICON_FA_LIGHTBULB, colLight)) {
+            } else if (m_focusedComponent == "Light" && m_selectedEntity.has<LightComponent>()) {
+                if (ComponentPropertiesHeader("Light", ICON_FA_LIGHTBULB, colLight, true, [&](){ m_selectedEntity.remove<LightComponent>(); m_focusedComponent = ""; })) {
                     auto& light = m_selectedEntity.get<LightComponent>();
                     const char* types[] = { "Directional", "Point", "Spot" };
                     int currentType = static_cast<int>(light.type);
@@ -659,35 +702,109 @@ void ImGuiLayer::showInspector() {
                     if (light.type != LightType::Directional) ImGui::DragFloat("Range", &light.range, 0.1f, 0.0f, 500.0f);
                     ImGui::Checkbox("Cast Shadows", &light.castShadows);
                 }
-            } else if (m_focusedComponent == "RigidBody" && m_selectedEntity.has<RigidBodyComponent>()) {
-                if (ComponentPropertiesHeader("RigidBody", ICON_FA_BOX, colPhysics, true, [&](){ m_selectedEntity.remove<RigidBodyComponent>(); m_focusedComponent = ""; })) {
-                    auto& rb = m_selectedEntity.get<RigidBodyComponent>();
-                    const char* types[] = { "Static", "Kinematic", "Dynamic" };
-                    int currentType = static_cast<int>(rb.type);
-                    if (ImGui::Combo("##BodyType", &currentType, types, IM_ARRAYSIZE(types))) {
-                        rb.type = static_cast<BodyType>(currentType);
-                        auto ph = Engine::Get().GetPhysicsWorld();
-                        if (ph) ph->resetBody(m_selectedEntity);
+            } else if (m_focusedComponent == "Skybox" && m_selectedEntity.has<SkyboxComponent>()) {
+                if (ComponentPropertiesHeader("Skybox", ICON_FA_CLOUD, colLight, true, [&](){ m_selectedEntity.remove<SkyboxComponent>(); m_focusedComponent = ""; })) {
+                    auto& sky = m_selectedEntity.get<SkyboxComponent>();
+                    ImGui::Text("File: %s", sky.assetPath.empty() ? "None" : sky.assetPath.c_str());
+                    if (ImGui::Button(ICON_FA_FOLDER_OPEN " Load Cubemap/HDRI")) {
+                        auto selection = pfd::open_file("Load Image", ".", { "Images", "*.hdr *.png *.jpg" }).result();
+                        if (!selection.empty()) {
+                            try {
+                                sky.cubemap = Engine::Get().assets().load<Texture>(selection[0], true);
+                                sky.assetPath = selection[0];
+                            } catch(...) {}
+                        }
                     }
-                    ImGui::SameLine(); ImGui::TextColored(colPhysics, "Body Type");
-                    if (ImGui::DragFloat("##Mass", &rb.mass, 0.1f, 0.0f, 1000.0f)) {}
-                    ImGui::SameLine(); ImGui::TextColored(colPhysics, "Mass");
-                    if (ImGui::SliderFloat("##Friction", &rb.friction, 0.0f, 1.0f)) {}
-                    ImGui::SameLine(); ImGui::TextColored(colPhysics, "Friction");
-                    if (ImGui::SliderFloat("##Restitution", &rb.restitution, 0.0f, 1.0f)) {}
-                    ImGui::SameLine(); ImGui::TextColored(colPhysics, "Restitution");
                 }
-            } else if (m_focusedComponent == "BoxCollider" && m_selectedEntity.has<BoxColliderComponent>()) {
-                if (ComponentPropertiesHeader("BoxCollider", ICON_FA_SHIELD_HALVED, colPhysics, true, [&](){ m_selectedEntity.remove<BoxColliderComponent>(); m_focusedComponent = ""; })) {
-                    auto& bc = m_selectedEntity.get<BoxColliderComponent>();
-                    ImGui::DragFloat3("Half Extents", &bc.halfExtents.x, 0.1f);
+            } else if (m_focusedComponent == "SkySphere" && m_selectedEntity.has<SkySphereComponent>()) {
+                if (ComponentPropertiesHeader("SkySphere", ICON_FA_GLOBE, colLight, true, [&](){ m_selectedEntity.remove<SkySphereComponent>(); m_focusedComponent = ""; })) {
+                    auto& sky = m_selectedEntity.get<SkySphereComponent>();
+                    ImGui::Text("File: %s", sky.assetPath.empty() ? "None" : sky.assetPath.c_str());
+                    if (ImGui::Button(ICON_FA_FOLDER_OPEN " Load Sphere Map")) {
+                        auto selection = pfd::open_file("Load Image", ".", { "Images", "*.hdr *.png *.jpg" }).result();
+                        if (!selection.empty()) {
+                            try {
+                                sky.texture = Engine::Get().assets().load<Texture>(selection[0], true);
+                                sky.assetPath = selection[0];
+                            } catch(...) {}
+                        }
+                    }
+                    ImGui::Checkbox("Flip Y-Axis", &sky.flipY);
+                }
+            } else if (m_focusedComponent == "PhysicsBody" && m_selectedEntity.has<PhysicsComponent>()) {
+                if (ComponentPropertiesHeader("PhysicsBody", ICON_FA_BOX, colPhysics, true, [&](){ 
+                    m_selectedEntity.getScene().getEngineContext()->physics().destroyRigidBody(m_selectedEntity);
+                    m_selectedEntity.remove<PhysicsComponent>(); 
+                    m_focusedComponent = ""; 
+                })) {
+                    auto& phys = m_selectedEntity.get<PhysicsComponent>();
+                    bool changed = false;
+                    
+                    const char* bodyTypes[] = { "Static", "Dynamic", "Kinematic" };
+                    int typeIdx = static_cast<int>(phys.type);
+                    if (ImGui::Combo("Body Type", &typeIdx, bodyTypes, IM_ARRAYSIZE(bodyTypes))) {
+                        phys.type = static_cast<BodyType>(typeIdx);
+                        changed = true;
+                    }
+
+                    changed |= ImGui::DragFloat("Mass", &phys.mass, 0.1f, 0.0f, 1000.0f);
+                    changed |= ImGui::SliderFloat("Friction", &phys.friction, 0.0f, 1.0f);
+                    changed |= ImGui::SliderFloat("Restitution", &phys.restitution, 0.0f, 1.0f);
+                    changed |= ImGui::Checkbox("Constrain X-Y Plane", &phys.constrain2D);
+                    
+                    ImGui::Separator();
+                    const char* colTypes[] = { "Box", "Sphere", "Capsule", "Mesh" };
+                    int colIdx = static_cast<int>(phys.colliderType);
+                    if (ImGui::Combo("Collider Shape", &colIdx, colTypes, IM_ARRAYSIZE(colTypes))) {
+                        phys.colliderType = static_cast<ColliderType>(colIdx);
+                        changed = true;
+                    }
+
+                    if (phys.colliderType == ColliderType::Box) {
+                        changed |= ImGui::DragFloat3("Half Extents", &phys.boxHalfExtents.x, 0.1f);
+                    } else if (phys.colliderType == ColliderType::Sphere) {
+                        changed |= ImGui::DragFloat("Radius", &phys.radius, 0.1f);
+                    } else if (phys.colliderType == ColliderType::Capsule) {
+                        changed |= ImGui::DragFloat("Radius", &phys.radius, 0.1f);
+                        changed |= ImGui::DragFloat("Height", &phys.height, 0.1f);
+                    } else if (phys.colliderType == ColliderType::Mesh) {
+                        changed |= ImGui::Checkbox("Use Attached Model", &phys.useModelMesh);
+                        if (!phys.useModelMesh) {
+                            ImGui::Text("Mesh Path: %s", phys.meshAssetPath.empty() ? "None" : phys.meshAssetPath.c_str());
+                            ImGui::SameLine();
+                            if (ImGui::Button("Load Proxy")) {
+                                auto selection = pfd::open_file("Load Collision Mesh", ".", { "3D Models", "*.gltf *.glb *.obj" }).result();
+                                if (!selection.empty()) {
+                                    /* Todo: load proxy */
+                                }
+                            }
+                        }
+                        changed |= ImGui::Checkbox("Convex Hull", &phys.isConvex);
+                    }
+
+                    if (changed) {
+                        auto* engine = m_selectedEntity.getScene().getEngineContext();
+                        engine->physics().destroyRigidBody(m_selectedEntity);
+                        engine->physics().createRigidBody(m_selectedEntity);
+                    }
                 }
             } else if (m_focusedComponent == "AudioSource" && m_selectedEntity.has<AudioSourceComponent>()) {
-                if (ComponentPropertiesHeader("AudioSource", ICON_FA_VOLUME_HIGH, colAudio)) {
+                if (ComponentPropertiesHeader("AudioSource", ICON_FA_VOLUME_HIGH, colAudio, true, [&](){ m_selectedEntity.remove<AudioSourceComponent>(); m_focusedComponent = ""; })) {
                     auto& audio = m_selectedEntity.get<AudioSourceComponent>();
-                    ImGui::Text("File: %s", audio.assetPath.c_str());
+                    ImGui::Text("File: %s", audio.assetPath.empty() ? "None" : audio.assetPath.c_str());
+                    if (ImGui::Button(ICON_FA_FOLDER_OPEN " Load Audio")) {
+                        auto selection = pfd::open_file("Load Audio", ".", { "Audio Files", "*.wav *.mp3 *.ogg *.flac" }).result();
+                        if (!selection.empty()) {
+                            audio.assetPath = selection[0];
+                        }
+                    }
                     ImGui::SliderFloat("Volume", &audio.volume, 0.0f, 2.0f);
                     ImGui::Checkbox("Looping", &audio.loop);
+                }
+            } else if (m_focusedComponent == "AudioListener" && m_selectedEntity.has<AudioListenerComponent>()) {
+                if (ComponentPropertiesHeader("AudioListener", ICON_FA_EAR_LISTEN, colAudio, true, [&](){ m_selectedEntity.remove<AudioListenerComponent>(); m_focusedComponent = ""; })) {
+                    auto& listener = m_selectedEntity.get<AudioListenerComponent>();
+                    ImGui::Checkbox("Primary Active", &listener.active);
                 }
             } else if (m_focusedComponent == "SimpleAnimation" && m_selectedEntity.has<SimpleAnimationComponent>()) {
                 if (ComponentPropertiesHeader("SimpleAnimation", ICON_FA_FILM, colLogic, true, [&](){ m_selectedEntity.remove<SimpleAnimationComponent>(); m_focusedComponent = ""; })) {
@@ -736,9 +853,18 @@ void ImGuiLayer::showInspector() {
         ImGui::Separator();
         if (ImGui::Button(ICON_FA_PLUS " Add Component")) ImGui::OpenPopup("AddComponentPopup");
         if (ImGui::BeginPopup("AddComponentPopup")) {
+            if (ImGui::MenuItem("Camera")) m_selectedEntity.add<CameraComponent>();
+            if (ImGui::MenuItem("FPS Controller")) m_selectedEntity.add<FPSControllerComponent>();
+            if (ImGui::MenuItem("Orbit Controller")) m_selectedEntity.add<OrbitControllerComponent>();
             if (ImGui::MenuItem("Light")) m_selectedEntity.add<LightComponent>();
-            if (ImGui::MenuItem("RigidBody")) m_selectedEntity.add<RigidBodyComponent>();
+            if (ImGui::MenuItem("Skybox")) m_selectedEntity.add<SkyboxComponent>();
+            if (ImGui::MenuItem("SkySphere")) m_selectedEntity.add<SkySphereComponent>();
+            if (ImGui::MenuItem("Physics Body")) {
+                m_selectedEntity.add<PhysicsComponent>();
+                m_selectedEntity.getScene().getEngineContext()->physics().createRigidBody(m_selectedEntity);
+            }
             if (ImGui::MenuItem("Audio Source")) m_selectedEntity.add<AudioSourceComponent>();
+            if (ImGui::MenuItem("Audio Listener")) m_selectedEntity.add<AudioListenerComponent>();
             if (ImGui::MenuItem("Simple Animation")) m_selectedEntity.add<SimpleAnimationComponent>();
             ImGui::EndPopup();
         }

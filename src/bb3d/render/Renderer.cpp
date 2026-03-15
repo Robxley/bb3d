@@ -1,4 +1,5 @@
 #include "bb3d/render/Renderer.hpp"
+#include "bb3d/render/ShadowCascade.hpp"
 #include "bb3d/core/Window.hpp"
 #include "bb3d/core/Log.hpp"
 #include "bb3d/render/UniformBuffer.hpp"
@@ -26,11 +27,13 @@ Renderer::Renderer(VulkanContext& context, Window& window, JobSystem& jobSystem,
     }
 
     createSyncObjects();
+    createShadowObjects();
     createGlobalDescriptors();
     createPipelines(config);
     createCopyPipeline();
 
     m_skyboxCube = MeshGenerator::createCube(m_context, 1.0f); 
+    m_particleQuad = MeshGenerator::createQuad(m_context, 1.0f);
     m_internalSkyboxMat = CreateRef<SkyboxMaterial>(m_context);
     m_internalSkySphereMat = CreateRef<SkySphereMaterial>(m_context);
     m_fallbackMaterial = CreateRef<PBRMaterial>(m_context);
@@ -60,7 +63,7 @@ Renderer::~Renderer() {
         m_internalSkySphereMat.reset();
         m_fallbackMaterial.reset();
         m_skyboxCube.reset();
-
+        m_particleQuad.reset();
         for (auto& ubo : m_cameraUbos) ubo.reset();
         m_cameraUbos.clear();
         for (auto& buf : m_instanceBuffers) buf.reset();
@@ -78,6 +81,11 @@ Renderer::~Renderer() {
         if (m_hoveredMat) m_hoveredMat.reset();
 
         if (m_descriptorPool) dev.destroyDescriptorPool(m_descriptorPool);
+        if (m_shadowSampler) dev.destroySampler(m_shadowSampler);
+        for (auto& cv : m_shadowCascadeViews) if (cv) dev.destroyImageView(cv);
+        m_shadowCascadeViews.clear();
+        if (m_shadowDepthView) dev.destroyImageView(m_shadowDepthView);
+        if (m_shadowDepthImage) vmaDestroyImage(m_context.getAllocator(), m_shadowDepthImage, m_shadowDepthAllocation);
         if (m_globalDescriptorLayout) dev.destroyDescriptorSetLayout(m_globalDescriptorLayout);
         if (m_copyLayout) dev.destroyDescriptorSetLayout(m_copyLayout);
         for (auto& [type, layout] : m_layouts) if(layout) dev.destroyDescriptorSetLayout(layout);
@@ -100,6 +108,79 @@ void Renderer::createSyncObjects() {
     m_imagesInUseFences.assign(m_swapChain->getImageCount(), nullptr);
 }
 
+void Renderer::createShadowObjects() {
+    auto dev = m_context.getDevice();
+    auto allocator = m_context.getAllocator();
+
+    vk::Format depthFormat = m_swapChain->getDepthFormat(); // using standard context depth format
+
+    uint32_t resolution = m_config.graphics.shadowsEnabled ? m_config.graphics.shadowMapResolution : 1;
+    uint32_t cascades = m_config.graphics.shadowsEnabled ? m_config.graphics.shadowCascades : 4;
+
+    // 1. Create Texture2DArray Image (layers = cascades)
+    vk::ImageCreateInfo imageInfo = {};
+    imageInfo.imageType = vk::ImageType::e2D;
+    imageInfo.extent = vk::Extent3D(resolution, resolution, 1);
+    imageInfo.mipLevels = 1;
+    imageInfo.arrayLayers = cascades;
+    imageInfo.format = depthFormat;
+    imageInfo.tiling = vk::ImageTiling::eOptimal;
+    imageInfo.initialLayout = vk::ImageLayout::eUndefined;
+    imageInfo.usage = vk::ImageUsageFlagBits::eDepthStencilAttachment | vk::ImageUsageFlagBits::eSampled;
+    imageInfo.samples = vk::SampleCountFlagBits::e1;
+    imageInfo.sharingMode = vk::SharingMode::eExclusive;
+
+    VmaAllocationCreateInfo allocInfo = {};
+    allocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    VkImage img;
+    vmaCreateImage(allocator, reinterpret_cast<VkImageCreateInfo*>(&imageInfo), &allocInfo, &img, &m_shadowDepthAllocation, nullptr);
+    m_shadowDepthImage = img;
+
+    // 2. Create ImageView (2D Array)
+    vk::ImageViewCreateInfo viewInfo = {};
+    viewInfo.image = m_shadowDepthImage;
+    viewInfo.viewType = vk::ImageViewType::e2DArray;
+    viewInfo.format = depthFormat;
+    viewInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth;
+    viewInfo.subresourceRange.baseMipLevel = 0;
+    viewInfo.subresourceRange.levelCount = 1;
+    viewInfo.subresourceRange.baseArrayLayer = 0;
+    viewInfo.subresourceRange.layerCount = cascades;
+
+    m_shadowDepthView = dev.createImageView(viewInfo);
+
+    m_shadowCascadeViews.resize(cascades);
+    for (uint32_t i = 0; i < cascades; ++i) {
+        vk::ImageViewCreateInfo cascadeViewInfo = viewInfo;
+        cascadeViewInfo.viewType = vk::ImageViewType::e2D;
+        cascadeViewInfo.subresourceRange.baseArrayLayer = i;
+        cascadeViewInfo.subresourceRange.layerCount = 1;
+        m_shadowCascadeViews[i] = dev.createImageView(cascadeViewInfo);
+    }
+
+    // Rendering Dynamique : Plus besoin de RenderPass
+
+
+    // 4. Create Sampler for reading in shaders
+    vk::SamplerCreateInfo samplerInfo = {};
+    samplerInfo.magFilter = vk::Filter::eLinear;
+    samplerInfo.minFilter = vk::Filter::eLinear;
+    // VERY IMPORTANT FOR PCF: Using ClampToBorder to avoid sampling outside shadow map bounds and creating artifacts
+    samplerInfo.addressModeU = vk::SamplerAddressMode::eClampToBorder;
+    samplerInfo.addressModeV = vk::SamplerAddressMode::eClampToBorder;
+    samplerInfo.addressModeW = vk::SamplerAddressMode::eClampToBorder;
+    samplerInfo.anisotropyEnable = VK_FALSE;
+    samplerInfo.maxAnisotropy = 1.0f;
+    samplerInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite; // Areas outside shadow map are lit
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_TRUE; // Enable PCF comparison
+    samplerInfo.compareOp = vk::CompareOp::eLessOrEqual;
+    samplerInfo.mipmapMode = vk::SamplerMipmapMode::eLinear;
+
+    m_shadowSampler = dev.createSampler(samplerInfo);
+}
+
 void Renderer::createGlobalDescriptors() {
     auto dev = m_context.getDevice();
     m_cameraUbos.resize(MAX_FRAMES_IN_FLIGHT);
@@ -110,7 +191,8 @@ void Renderer::createGlobalDescriptors() {
     }
     std::vector<vk::DescriptorSetLayoutBinding> bindings = {
         {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment},
-        {1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex}
+        {1, vk::DescriptorType::eStorageBuffer, 1, vk::ShaderStageFlagBits::eVertex},
+        {2, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}
     };
     m_globalDescriptorLayout = dev.createDescriptorSetLayout({ {}, (uint32_t)bindings.size(), bindings.data() });
     std::vector<vk::DescriptorPoolSize> pSizes = { {vk::DescriptorType::eUniformBuffer, 500}, {vk::DescriptorType::eCombinedImageSampler, 1000}, {vk::DescriptorType::eStorageBuffer, 100} };
@@ -120,7 +202,13 @@ void Renderer::createGlobalDescriptors() {
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vk::DescriptorBufferInfo camInfo(m_cameraUbos[i]->getHandle(), 0, sizeof(GlobalUBO));
         vk::DescriptorBufferInfo instInfo(m_instanceBuffers[i]->getHandle(), 0, sizeof(glm::mat4) * MAX_INSTANCES);
-        std::vector<vk::WriteDescriptorSet> writes = { {m_globalDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &camInfo}, {m_globalDescriptorSets[i], 1, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &instInfo} };
+        vk::DescriptorImageInfo shadowInfo(m_shadowSampler, m_shadowDepthView, vk::ImageLayout::eDepthStencilReadOnlyOptimal);
+        
+        std::vector<vk::WriteDescriptorSet> writes = { 
+            {m_globalDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &camInfo}, 
+            {m_globalDescriptorSets[i], 1, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &instInfo},
+            {m_globalDescriptorSets[i], 2, 0, 1, vk::DescriptorType::eCombinedImageSampler, &shadowInfo, nullptr}
+        };
         dev.updateDescriptorSets(writes, {});
     }
 }
@@ -133,6 +221,32 @@ void Renderer::createPipelines(const EngineConfig& config) {
     m_layouts[MaterialType::Skybox] = SkyboxMaterial::CreateLayout(dev);
     m_layouts[MaterialType::SkySphere] = SkySphereMaterial::CreateLayout(dev);
     m_layouts[MaterialType::Highlight] = UnlitMaterial::CreateLayout(dev);
+
+    m_shaders["shadow.vert"] = CreateScope<Shader>(m_context, "assets/shaders/shadow.vert.spv");
+    m_shaders["shadow.frag"] = CreateScope<Shader>(m_context, "assets/shaders/shadow.frag.spv");
+
+    // --- Pipeline Shadow ---
+    vk::PushConstantRange pushConstant;
+    pushConstant.stageFlags = vk::ShaderStageFlagBits::eVertex;
+    pushConstant.offset = 0;
+    pushConstant.size = sizeof(glm::mat4); // lightVP
+
+    // Shadow pipeline: depth-only, front-culling for Peter Panning fix
+    m_pipelines[static_cast<MaterialType>(99)] = CreateScope<GraphicsPipeline>(
+        m_context,
+        vk::Format::eUndefined,  // no color attachment
+        m_swapChain->getDepthFormat(),
+        *m_shaders["shadow.vert"], *m_shaders["shadow.frag"],
+        config,
+        std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout},
+        std::vector<vk::PushConstantRange>{pushConstant},
+        true, // useVertexInput
+        true, // depthWrite
+        vk::CompareOp::eLess,
+        std::vector<uint32_t>{0}, // position only
+        vk::PrimitiveTopology::eTriangleList,
+        false // no blending
+    );
 
     m_shaders["pbr.vert"] = CreateScope<Shader>(m_context, "assets/shaders/pbr.vert.spv");
     m_shaders["pbr.frag"] = CreateScope<Shader>(m_context, "assets/shaders/pbr.frag.spv");
@@ -150,18 +264,24 @@ void Renderer::createPipelines(const EngineConfig& config) {
     vk::Format colorFmt = m_config.graphics.enableOffscreenRendering ? m_renderTarget->getColorFormat() : m_swapChain->getImageFormat();
     vk::Format depthFmt = m_config.graphics.enableOffscreenRendering ? m_renderTarget->getDepthFormat() : m_swapChain->getDepthFormat();
 
-    auto createP = [&](MaterialType t, const std::string& v, const std::string& f, const EngineConfig& cfg, bool dWrite, vk::CompareOp op, const std::vector<uint32_t>& attr = {}, vk::PrimitiveTopology top = vk::PrimitiveTopology::eTriangleList) {
+    auto createP = [&](MaterialType t, const std::string& v, const std::string& f, const EngineConfig& cfg, bool dWrite, vk::CompareOp op, const std::vector<uint32_t>& attr = {}, vk::PrimitiveTopology top = vk::PrimitiveTopology::eTriangleList, bool blend = false) {
         std::vector<vk::DescriptorSetLayout> ls = { m_globalDescriptorLayout, m_layouts[t] };
-        return CreateScope<GraphicsPipeline>(m_context, colorFmt, depthFmt, *m_shaders[v], *m_shaders[f], cfg, ls, std::vector<vk::PushConstantRange>{}, true, dWrite, op, attr, top);
+        return CreateScope<GraphicsPipeline>(m_context, colorFmt, depthFmt, *m_shaders[v], *m_shaders[f], cfg, ls, std::vector<vk::PushConstantRange>{}, true, dWrite, op, attr, top, blend);
     };
 
     m_pipelines[MaterialType::PBR] = createP(MaterialType::PBR, "pbr.vert", "pbr.frag", config, true, vk::CompareOp::eLess);
     EngineConfig envCfg = config; envCfg.rasterizer.setCullMode("None");
-    m_pipelines[MaterialType::Unlit] = createP(MaterialType::Unlit, "unlit.vert", "unlit.frag", envCfg, true, vk::CompareOp::eLess);
+    // Enable Alpha Blending for Unlit (used for particles and some UI elements)
+    // Disable Depth Write to allow correct overlapping of transparent particles
+    m_pipelines[MaterialType::Unlit] = createP(MaterialType::Unlit, "unlit.vert", "unlit.frag", envCfg, false, vk::CompareOp::eLess, {}, vk::PrimitiveTopology::eTriangleList, true);
     m_pipelines[MaterialType::Toon] = createP(MaterialType::Toon, "toon.vert", "toon.frag", config, true, vk::CompareOp::eLess);
     std::vector<uint32_t> envAttr = { 0, 1, 2, 3, 4 };
     m_pipelines[MaterialType::Skybox] = createP(MaterialType::Skybox, "skybox.vert", "skybox.frag", envCfg, false, vk::CompareOp::eAlways, envAttr);
-    m_pipelines[MaterialType::SkySphere] = createP(MaterialType::SkySphere, "skysphere.vert", "skysphere.frag", envCfg, false, vk::CompareOp::eAlways, envAttr);
+    
+    // SkySphere has a push constant for flipY
+    std::vector<vk::PushConstantRange> skySpherePCR = { vk::PushConstantRange(vk::ShaderStageFlagBits::eFragment, 0, sizeof(int)) };
+    std::vector<vk::DescriptorSetLayout> lsSkySphere = { m_globalDescriptorLayout, m_layouts[MaterialType::SkySphere] };
+    m_pipelines[MaterialType::SkySphere] = CreateScope<GraphicsPipeline>(m_context, colorFmt, depthFmt, *m_shaders["skysphere.vert"], *m_shaders["skysphere.frag"], envCfg, lsSkySphere, skySpherePCR, true, false, vk::CompareOp::eAlways, envAttr, vk::PrimitiveTopology::eTriangleList);
     
     // Highlight Pipeline uses LINE_LIST topology
     m_pipelines[MaterialType::Highlight] = createP(MaterialType::Highlight, "unlit.vert", "unlit.frag", envCfg, false, vk::CompareOp::eAlways, {}, vk::PrimitiveTopology::eLineList);
@@ -321,6 +441,10 @@ bool Renderer::render(Scene& scene) {
         else if (light.type == LightType::Point) { sl.position.w = 1.0f; if (scene.getRegistry().all_of<TransformComponent>(entity)) sl.position = glm::vec4(scene.getRegistry().get<TransformComponent>(entity).translation, 1.0f); }
         numLights++;
     }
+    
+    
+    // NOTE: renderShadows requires a command buffer. It is called after cb.begin() below.
+
     uboData.globalParams = glm::vec4((float)numLights, 0.0f, 0.0f, 0.0f);
     m_cameraUbos[m_currentFrame]->update(&uboData, sizeof(uboData));
     uint32_t imageIndex;
@@ -332,6 +456,12 @@ bool Renderer::render(Scene& scene) {
     auto& cb = m_commandBuffers[m_currentFrame];
     cb.reset({}); cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
     m_frameStarted = true;
+
+    // Render Shadows (Updates uboData.shadowCascades) - must be done after cb.begin()
+    renderShadows(cb, scene, uboData);
+    // Re-upload UBO after shadow pass updated the cascade matrices
+    m_cameraUbos[m_currentFrame]->update(&uboData, sizeof(uboData));
+
     if (m_config.graphics.enableOffscreenRendering) {
         vk::Image rtImage = m_renderTarget->getColorImage();
         vk::ImageMemoryBarrier rtBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
@@ -432,6 +562,7 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
                     if (!m_frustum.intersects(worldBox)) continue;
                 }
                 for (const auto& mesh : modelComp.model->getMeshes()) {
+                    if (!mesh->isVisible()) continue;
                     Material* mat = mesh->getMaterial().get();
                     if (!mat) {
                         Ref<Texture> tex = mesh->getTexture();
@@ -446,6 +577,36 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
                 m_renderCommands.insert(m_renderCommands.end(), localCommands.begin(), localCommands.end());
             }
         });
+    }
+    
+    // --- SYSTEM: Particles Rendering ---
+    auto particleView = scene.getRegistry().view<ParticleSystemComponent>();
+    std::vector<entt::entity> particleEntities;
+    particleEntities.assign(particleView.begin(), particleView.end());
+    if (!particleEntities.empty()) {
+        std::vector<RenderCommand> localCommands;
+        for (entt::entity entity : particleEntities) {
+            auto& particleSys = particleView.get<ParticleSystemComponent>(entity);
+            Material* mat = particleSys.material ? particleSys.material.get() : m_highlightMat.get();
+            Mesh* mesh = particleSys.mesh ? particleSys.mesh.get() : m_particleQuad.get(); 
+            
+            if (!mesh) mesh = m_highlightCube.get(); // Ultimate fallback
+            for (const auto& p : particleSys.particlePool) {
+                if (p.lifeRemaining <= 0.0f) continue;
+                
+                float t = 1.0f - (p.lifeRemaining / p.lifeTime);
+                float currentSize = p.sizeBegin + (p.sizeEnd - p.sizeBegin) * t;
+                
+                glm::mat4 pt = glm::translate(glm::mat4(1.0f), p.position);
+                pt = glm::scale(pt, glm::vec3(currentSize));
+                
+                localCommands.push_back({ mat->getType(), mat, mesh, pt });
+            }
+        }
+        if (!localCommands.empty()) {
+            std::lock_guard<std::mutex> lock(m_commandMutex);
+            m_renderCommands.insert(m_renderCommands.end(), localCommands.begin(), localCommands.end());
+        }
     }
     
     // Add Highlight as a render command so it uses the standard SSBO transform logic
@@ -496,6 +657,8 @@ void Renderer::renderSkybox(vk::CommandBuffer cb, Scene& scene) {
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
             vk::DescriptorSet ds = m_internalSkySphereMat->getDescriptorSet(m_descriptorPool, m_layouts[MaterialType::SkySphere]);
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 1, 1, &ds, 0, nullptr);
+            int flipY = sky.flipY ? 1 : 0;
+            cb.pushConstants(pipeline->getLayout(), vk::ShaderStageFlagBits::eFragment, 0, sizeof(int), &flipY);
             m_skyboxCube->draw(cb); return; 
         }
     }
@@ -527,6 +690,107 @@ void Renderer::compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex) {
     cb.endRendering();
     vk::ImageMemoryBarrier resetBarrier(vk::AccessFlagBits::eShaderRead, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
     cb.pipelineBarrier(vk::PipelineStageFlagBits::eFragmentShader, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, resetBarrier);
+}
+
+void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboData) {
+    if (!m_config.graphics.shadowsEnabled || uboData.globalParams.x == 0) return;
+
+    if (uboData.lights[0].position.w >= 0.5f) return; // Not directional
+    glm::vec3 lightDir = glm::normalize(glm::vec3(uboData.lights[0].direction));
+
+    Camera* activeCamera = nullptr;
+    auto camView = scene.getRegistry().view<CameraComponent>();
+    for (auto entity : camView) { if (camView.get<CameraComponent>(entity).active) { activeCamera = camView.get<CameraComponent>(entity).camera.get(); break; } }
+    if (!activeCamera) return;
+
+    float nearZ = activeCamera->getNearPlane();
+    float farZ = activeCamera->getFarPlane();
+    auto splits = ShadowCascade::calculateSplitDistances(m_config.graphics.shadowCascades, nearZ, farZ, 0.5f);
+    
+    glm::mat4 camProj = activeCamera->getProjectionMatrix();
+    glm::mat4 camViewMat = activeCamera->getViewMatrix();
+
+    // Transition Depth Array to Attachment
+    vk::ImageMemoryBarrier depthBarrier = {};
+    depthBarrier.srcAccessMask = {};
+    depthBarrier.dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+    depthBarrier.oldLayout = vk::ImageLayout::eUndefined;
+    depthBarrier.newLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+    depthBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    depthBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    depthBarrier.image = m_shadowDepthImage;
+    depthBarrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth;
+    depthBarrier.subresourceRange.baseMipLevel = 0;
+    depthBarrier.subresourceRange.levelCount = 1;
+    depthBarrier.subresourceRange.baseArrayLayer = 0;
+    depthBarrier.subresourceRange.layerCount = m_config.graphics.shadowCascades;
+
+    cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, depthBarrier);
+
+    vk::Extent2D shadowExtent(m_config.graphics.shadowMapResolution, m_config.graphics.shadowMapResolution);
+    cb.setViewport(0, vk::Viewport(0, 0, (float)shadowExtent.width, (float)shadowExtent.height, 0, 1));
+    cb.setScissor(0, vk::Rect2D({0, 0}, shadowExtent));
+    
+    auto& shadowPipeline = m_pipelines[static_cast<MaterialType>(99)];
+    cb.bindPipeline(vk::PipelineBindPoint::eGraphics, shadowPipeline->getHandle());
+    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, shadowPipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+
+    // Dynamic depth bias
+    cb.setDepthBias(1.25f, 0.0f, 1.75f);
+
+    for (uint32_t i = 0; i < m_config.graphics.shadowCascades; ++i) {
+        float minZ = (i == 0) ? nearZ : splits[i-1];
+        float maxZ = splits[i];
+
+        uboData.shadowSplitDepths[i] = maxZ; 
+        glm::mat4 lightVP = ShadowCascade::calculateLightSpaceMatrix(camProj, camViewMat, lightDir, minZ, maxZ, m_config.graphics.shadowMapResolution);
+        uboData.shadowCascades[i] = lightVP;
+
+        vk::RenderingAttachmentInfo depthAttr = {};
+        depthAttr.imageView = m_shadowCascadeViews[i];
+        depthAttr.imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+        depthAttr.loadOp = vk::AttachmentLoadOp::eClear;
+        depthAttr.storeOp = vk::AttachmentStoreOp::eStore;
+        depthAttr.clearValue = vk::ClearValue(vk::ClearDepthStencilValue(1.0f, 0));
+
+        vk::RenderingInfo renderInfo = {};
+        renderInfo.renderArea = vk::Rect2D({0, 0}, shadowExtent);
+        renderInfo.layerCount = 1;
+        renderInfo.pDepthAttachment = &depthAttr;
+
+        cb.beginRendering(renderInfo);
+        
+        cb.pushConstants(shadowPipeline->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &lightVP);
+
+        // Simple iteration over all meshes to draw them purely with instances buffers
+        auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
+        uint32_t instanceOffset = 0;
+        for (auto entity : meshView) {
+            auto& meshComp = meshView.get<MeshComponent>(entity);
+            if (!meshComp.mesh || !meshComp.visible || !meshComp.castShadows) continue;
+            // Draw
+            meshComp.mesh->draw(cb, 1, instanceOffset);
+            instanceOffset++;
+        }
+        cb.endRendering();
+    }
+
+    // Transition Depth Array to Shader Read
+    vk::ImageMemoryBarrier depthReadBarrier = {};
+    depthReadBarrier.srcAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+    depthReadBarrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+    depthReadBarrier.oldLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+    depthReadBarrier.newLayout = vk::ImageLayout::eDepthStencilReadOnlyOptimal;
+    depthReadBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    depthReadBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    depthReadBarrier.image = m_shadowDepthImage;
+    depthReadBarrier.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eDepth;
+    depthReadBarrier.subresourceRange.baseMipLevel = 0;
+    depthReadBarrier.subresourceRange.levelCount = 1;
+    depthReadBarrier.subresourceRange.baseArrayLayer = 0;
+    depthReadBarrier.subresourceRange.layerCount = m_config.graphics.shadowCascades;
+
+    cb.pipelineBarrier(vk::PipelineStageFlagBits::eLateFragmentTests, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, depthReadBarrier);
 }
 
 } // namespace bb3d

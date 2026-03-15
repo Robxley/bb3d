@@ -361,9 +361,11 @@ void Engine::Render() {
                     return e.get<MeshComponent>().mesh->getBounds().transform(tform);
                 } else if (e.has<ModelComponent>() && e.get<ModelComponent>().model) {
                     return e.get<ModelComponent>().model->getBounds().transform(tform);
-                } else if (e.has<BoxColliderComponent>()) {
-                    auto& box = e.get<BoxColliderComponent>();
-                    return AABB(-box.halfExtents, box.halfExtents).transform(tform);
+                } else if (e.has<PhysicsComponent>()) {
+                    auto& phys = e.get<PhysicsComponent>();
+                    if (phys.colliderType == ColliderType::Box) return AABB(-phys.boxHalfExtents, phys.boxHalfExtents).transform(tform);
+                    if (phys.colliderType == ColliderType::Sphere) return AABB(glm::vec3(-phys.radius), glm::vec3(phys.radius)).transform(tform);
+                    return AABB(glm::vec3(-0.5f), glm::vec3(0.5f)).transform(tform);
                 } else {
                     return AABB(glm::vec3(-0.5f), glm::vec3(0.5f)).transform(tform); 
                 }

@@ -72,6 +72,8 @@ public:
     /** @brief Récupère le RenderTarget courant (pour affichage dans ImGui). */
     RenderTarget* getRenderTarget() { return m_renderTarget.get(); }
 
+    [[nodiscard]] vk::ImageView getShadowDepthImageView() const { return m_shadowDepthView; }
+
     /** 
      * @brief Permet d'injecter des commandes de rendu UI après le rendu principal de la scène.
      * 
@@ -91,6 +93,7 @@ public:
 
 private:
     void createSyncObjects();
+    void createShadowObjects();
     void createGlobalDescriptors();
     void createPipelines(const EngineConfig& config);
     void createCopyPipeline();
@@ -103,6 +106,13 @@ private:
     EngineConfig m_config;
     Scope<SwapChain> m_swapChain;
     Scope<RenderTarget> m_renderTarget;
+    
+    // Shadow System
+    vk::Image m_shadowDepthImage;
+    VmaAllocation m_shadowDepthAllocation = nullptr;
+    vk::ImageView m_shadowDepthView; // Vue complete 2D Array
+    std::vector<vk::ImageView> m_shadowCascadeViews; // Vues individuelles par cascade
+    vk::Sampler m_shadowSampler;
     
     Frustum m_frustum;
     
@@ -150,6 +160,8 @@ private:
     struct GlobalUBO {
         glm::mat4 view;
         glm::mat4 proj;
+        glm::mat4 shadowCascades[4];
+        glm::vec4 shadowSplitDepths;
         glm::vec4 camPos;      // .xyz = pos, .w = padding
         glm::vec4 globalParams; // .x = numLights (cast to int), .yzw = padding
         ShaderLight lights[10];
@@ -176,6 +188,7 @@ private:
     std::mutex m_commandMutex;
 
     Scope<Mesh> m_skyboxCube;
+    Scope<Mesh> m_particleQuad;
     Ref<SkyboxMaterial> m_internalSkyboxMat;
     Ref<SkySphereMaterial> m_internalSkySphereMat;
     Ref<Material> m_fallbackMaterial;
@@ -194,6 +207,7 @@ private:
     void renderSkybox(vk::CommandBuffer cb, Scene& scene);
     void drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView colorView, vk::ImageView depthView, vk::Extent2D extent);
     void compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex);
+    void renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboData);
     void updateGlobalUBO(uint32_t currentFrame, Scene& scene);
 };
 

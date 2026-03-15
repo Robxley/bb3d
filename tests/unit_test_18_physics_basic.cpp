@@ -34,10 +34,11 @@ int main() {
     ground.add<MeshComponent>(groundMesh, "", PrimitiveType::Plane);
     
     // Physique du sol
-    ground.add<RigidBodyComponent>();
-    auto& groundRB = ground.get<RigidBodyComponent>();
+    ground.add<PhysicsComponent>();
+    auto& groundRB = ground.get<PhysicsComponent>();
     groundRB.type = BodyType::Static;
-    ground.add<BoxColliderComponent>(glm::vec3(25.0f, 0.1f, 25.0f));
+    groundRB.colliderType = ColliderType::Box;
+    groundRB.boxHalfExtents = glm::vec3(25.0f, 0.1f, 25.0f);
     engine->physics().createRigidBody(ground);
 
     // 4. Boîtes (Dynamiques)
@@ -53,11 +54,12 @@ int main() {
         cube.at({0.0f, 10.0f + i * 2.0f, 0.0f});
         cube.add<MeshComponent>(cubeMesh, "", PrimitiveType::Cube);
         
-        cube.add<RigidBodyComponent>();
-        auto& rb = cube.get<RigidBodyComponent>();
+        cube.add<PhysicsComponent>();
+        auto& rb = cube.get<PhysicsComponent>();
         rb.type = BodyType::Dynamic;
         rb.mass = 1.0f;
-        cube.add<BoxColliderComponent>(glm::vec3(0.5f, 0.5f, 0.5f));
+        rb.colliderType = ColliderType::Box;
+        rb.boxHalfExtents = glm::vec3(0.5f, 0.5f, 0.5f);
         
         engine->physics().createRigidBody(cube);
     }

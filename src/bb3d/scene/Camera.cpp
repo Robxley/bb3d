@@ -21,8 +21,12 @@ void Camera::setAspectRatio(float aspect) {
     setPerspective(m_fov, aspect, m_near, m_far);
 }
 
-void Camera::lookAt(const glm::vec3& target) {
-    m_view = glm::lookAt(m_position, target, glm::vec3(0.0f, 1.0f, 0.0f));
+void Camera::lookAt(const glm::vec3& target, const glm::vec3& up) {
+    m_view = glm::lookAt(m_position, target, up);
+}
+
+void Camera::setViewMatrix(const glm::mat4& view) {
+    m_view = view;
 }
 
 CameraUniform Camera::getUniformData() const {

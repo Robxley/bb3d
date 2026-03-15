@@ -62,10 +62,10 @@ int main() {
     groundMesh->setMaterial(matFloor);
     ground.add<MeshComponent>(groundMesh, "", PrimitiveType::Plane);
     
-    auto& groundRB = ground.add<RigidBodyComponent>().get<RigidBodyComponent>();
+    auto& groundRB = ground.add<PhysicsComponent>().get<PhysicsComponent>();
     groundRB.type = BodyType::Static;
-    
-    ground.add<BoxColliderComponent>(glm::vec3(50.0f, 0.1f, 50.0f));
+    groundRB.colliderType = ColliderType::Box;
+    groundRB.boxHalfExtents = glm::vec3(50.0f, 0.1f, 50.0f);
     engine->physics().createRigidBody(ground);
 
     // 5. Pyramid
@@ -88,12 +88,12 @@ int main() {
                 cube.at({posX, posY, posZ});
                 cube.add<MeshComponent>(cubeMesh, "", PrimitiveType::Cube);
                 
-                auto& rb = cube.add<RigidBodyComponent>().get<RigidBodyComponent>();
+                auto& rb = cube.add<PhysicsComponent>().get<PhysicsComponent>();
                 rb.type = BodyType::Dynamic;
                 rb.mass = 1.0f;
                 rb.friction = 0.6f;
-
-                cube.add<BoxColliderComponent>(glm::vec3(0.5f));
+                rb.colliderType = ColliderType::Box;
+                rb.boxHalfExtents = glm::vec3(0.5f);
                 engine->physics().createRigidBody(cube);
             }
         }
@@ -134,12 +134,12 @@ int main() {
             ball.at(spawnPos);
             ball.add<MeshComponent>(ballMeshes[meshIdx], "", PrimitiveType::Sphere);
             
-            auto& rb = ball.add<RigidBodyComponent>().get<RigidBodyComponent>();
+            auto& rb = ball.add<PhysicsComponent>().get<PhysicsComponent>();
             rb.type = BodyType::Dynamic;
             rb.mass = mass;
             rb.initialLinearVelocity = direction * 40.0f; // Propulsé dans l'axe de la vue !
-
-            ball.add<SphereColliderComponent>(radius);
+            rb.colliderType = ColliderType::Sphere;
+            rb.radius = radius;
             
             pEngine->physics().createRigidBody(ball);
             BB_CORE_INFO("Pew! Ball spawned (Mass: {0})", mass);

@@ -130,18 +130,24 @@ namespace bb3d {
         BB_CORE_INFO("PhysicsWorld: Jolt Physics initialized.");
     }
 
+    void PhysicsWorld::setGravity(const glm::vec3& gravity) {
+        if (!m_impl->initialized) return;
+        m_impl->physicsSystem->SetGravity(toJPH(gravity));
+    }
+
     void PhysicsWorld::update(float deltaTime, Scene& scene) {
         if (!m_impl->initialized) return;
 
         // 1. "Kinematic" sync: Engine -> Jolt
         // For kinematic objects (moved by code/animation), we force their position in Jolt.
         auto& bodyInterface = m_impl->physicsSystem->GetBodyInterface();
-        auto kinematicView = scene.getRegistry().view<RigidBodyComponent, TransformComponent>();
+        auto kinematicView = scene.getRegistry().view<PhysicsComponent, TransformComponent>();
         for (auto entity : kinematicView) {
-            auto& rb = kinematicView.get<RigidBodyComponent>(entity);
-            auto& tf = kinematicView.get<TransformComponent>(entity);
-            if (rb.bodyID == 0xFFFFFFFF || rb.type != BodyType::Kinematic) continue;
-            bodyInterface.SetPositionAndRotation(JPH::BodyID(rb.bodyID), toJPH(tf.translation), toJPH(glm::quat(tf.rotation)), JPH::EActivation::Activate);
+            auto& phys = kinematicView.get<PhysicsComponent>(entity);
+            if (phys.type == BodyType::Kinematic && phys.bodyID != 0xFFFFFFFF) {
+                auto& tf = kinematicView.get<TransformComponent>(entity);
+                bodyInterface.SetPositionAndRotation(JPH::BodyID(phys.bodyID), toJPH(tf.translation), toJPH(glm::quat(tf.rotation)), JPH::EActivation::Activate);
+            }
         }
 
         // 2. Character updates (CharacterVirtual)
@@ -171,11 +177,11 @@ namespace bb3d {
         // 3. Simulation Step (Calculate collisions and forces)
         m_impl->physicsSystem->Update(deltaTime, 1, m_impl->tempAllocator.get(), m_impl->jobSystem.get());
 
-        // Scan for new RigidBodies without Jolt ID and create them
-        auto newBodiesView = scene.getRegistry().view<RigidBodyComponent>();
+        // 3. Create missing Jolt bodies (for new components added this frame)
+        auto newBodiesView = scene.getRegistry().view<PhysicsComponent>();
         for (auto entityHandle : newBodiesView) {
-            auto& rb = newBodiesView.get<RigidBodyComponent>(entityHandle);
-            if (rb.bodyID == 0xFFFFFFFF) {
+            auto& phys = newBodiesView.get<PhysicsComponent>(entityHandle);
+            if (phys.bodyID == 0xFFFFFFFF) {
                 createRigidBody(Entity(entityHandle, scene));
             }
         }
@@ -188,15 +194,15 @@ namespace bb3d {
     void PhysicsWorld::syncTransforms(Scene& scene) {
         if (!m_impl->initialized) return;
         auto& bodyInterface = m_impl->physicsSystem->GetBodyInterface();
-        auto view = scene.getRegistry().view<RigidBodyComponent, TransformComponent>();
+        auto view = scene.getRegistry().view<PhysicsComponent, TransformComponent>();
 
         for (auto entity : view) {
-            auto& rb = view.get<RigidBodyComponent>(entity);
+            auto& phys = view.get<PhysicsComponent>(entity);
             auto& tf = view.get<TransformComponent>(entity);
 
-            if (rb.bodyID == 0xFFFFFFFF || rb.type == BodyType::Kinematic || rb.type == BodyType::Static) continue;
+            if (phys.bodyID == 0xFFFFFFFF || phys.type == BodyType::Kinematic || phys.type == BodyType::Static) continue;
 
-            JPH::BodyID id(rb.bodyID);
+            JPH::BodyID id(phys.bodyID);
             if (bodyInterface.IsActive(id)) {
                 JPH::RVec3 pos; JPH::Quat rot;
                 bodyInterface.GetPositionAndRotation(id, pos, rot);
@@ -207,28 +213,28 @@ namespace bb3d {
     }
 
     void PhysicsWorld::updateBodyTransform(Entity entity) {
-        if (!m_impl->initialized || !entity.has<RigidBodyComponent>() || !entity.has<TransformComponent>()) return;
+        if (!m_impl->initialized || !entity.has<PhysicsComponent>() || !entity.has<TransformComponent>()) return;
 
-        auto& rb = entity.get<RigidBodyComponent>();
+        auto& phys = entity.get<PhysicsComponent>();
         auto& tf = entity.get<TransformComponent>();
-        if (rb.bodyID == 0xFFFFFFFF) return;
+        if (phys.bodyID == 0xFFFFFFFF) return;
 
         auto& bodyInterface = m_impl->physicsSystem->GetBodyInterface();
-        JPH::BodyID id(rb.bodyID);
+        JPH::BodyID id(phys.bodyID);
         
         bodyInterface.SetPositionAndRotation(id, toJPH(tf.translation), toJPH(glm::quat(tf.rotation)), JPH::EActivation::Activate);
     }
 
     void PhysicsWorld::resetBody(Entity entity) {
-        if (!m_impl->initialized || !entity.has<RigidBodyComponent>()) return;
+        if (!m_impl->initialized || !entity.has<PhysicsComponent>()) return;
 
-        auto& rb = entity.get<RigidBodyComponent>();
-        if (rb.bodyID == 0xFFFFFFFF) return;
+        auto& phys = entity.get<PhysicsComponent>();
+        if (phys.bodyID == 0xFFFFFFFF) return;
 
         auto& bodyInterface = m_impl->physicsSystem->GetBodyInterface();
-        JPH::BodyID id(rb.bodyID);
+        JPH::BodyID id(phys.bodyID);
 
-        bodyInterface.SetLinearVelocity(id, toJPH(rb.initialLinearVelocity));
+        bodyInterface.SetLinearVelocity(id, toJPH(phys.initialLinearVelocity));
         bodyInterface.SetAngularVelocity(id, JPH::Vec3::sZero());
         
         if (entity.has<TransformComponent>()) {
@@ -240,7 +246,7 @@ namespace bb3d {
     void PhysicsWorld::resetAllBodies(Scene& scene) {
         if (!m_impl->initialized) return;
 
-        auto view = scene.getRegistry().view<RigidBodyComponent>();
+        auto view = scene.getRegistry().view<PhysicsComponent>();
         for (auto entityHandle : view) {
             resetBody(Entity(entityHandle, scene));
         }
@@ -257,40 +263,67 @@ namespace bb3d {
         }
     }
 
-    void PhysicsWorld::createRigidBody(Entity entity) {
-        if (!m_impl->initialized || !entity.has<RigidBodyComponent>()) return;
+    void PhysicsWorld::addForce(Entity entity, const glm::vec3& force) {
+        if (!m_impl->initialized || !entity.has<PhysicsComponent>()) return;
+        auto& phys = entity.get<PhysicsComponent>();
+        if (phys.bodyID == 0xFFFFFFFF) return;
+        m_impl->physicsSystem->GetBodyInterface().AddForce(JPH::BodyID(phys.bodyID), toJPH(force));
+    }
 
-        auto& rb = entity.get<RigidBodyComponent>();
+    void PhysicsWorld::addTorque(Entity entity, const glm::vec3& torque) {
+        if (!m_impl->initialized || !entity.has<PhysicsComponent>()) return;
+        auto& phys = entity.get<PhysicsComponent>();
+        if (phys.bodyID == 0xFFFFFFFF) return;
+        m_impl->physicsSystem->GetBodyInterface().AddTorque(JPH::BodyID(phys.bodyID), toJPH(torque));
+    }
+
+    void PhysicsWorld::createRigidBody(Entity entity) {
+        if (!m_impl->initialized || !entity.has<PhysicsComponent>()) return;
+
+        auto& phys = entity.get<PhysicsComponent>();
         auto& tf = entity.get<TransformComponent>();
         auto& bodyInterface = m_impl->physicsSystem->GetBodyInterface();
 
         JPH::ShapeRefC shape;
-        if (entity.has<BoxColliderComponent>()) {
-            shape = new JPH::BoxShape(toJPH(entity.get<BoxColliderComponent>().halfExtents * tf.scale));
-        } else if (entity.has<SphereColliderComponent>()) {
-            shape = new JPH::SphereShape(entity.get<SphereColliderComponent>().radius * glm::max(tf.scale.x, glm::max(tf.scale.y, tf.scale.z)));
-        } else if (entity.has<CapsuleColliderComponent>()) {
-            auto& cap = entity.get<CapsuleColliderComponent>();
-            shape = new JPH::CapsuleShape(cap.height * 0.5f * tf.scale.y, cap.radius * glm::max(tf.scale.x, tf.scale.z));
-        } else if (entity.has<MeshColliderComponent>()) {
-            auto& mc = entity.get<MeshColliderComponent>();
-            if (mc.mesh) {
-#if defined(BB3D_DEBUG)
-                if (mc.mesh->isCPUDataReleased()) {
-                    BB_CORE_ERROR("PhysicsWorld: Cannot create MeshCollider for entity '{}', Mesh CPU data has been released! Create colliders BEFORE calling releaseCPUData().", 
-                        entity.has<TagComponent>() ? entity.get<TagComponent>().tag : "Unnamed");
-                }
-#endif
-                if (mc.convex) {
+        
+        if (phys.colliderType == ColliderType::Box) {
+            shape = new JPH::BoxShape(toJPH(phys.boxHalfExtents * tf.scale));
+        } else if (phys.colliderType == ColliderType::Sphere) {
+            shape = new JPH::SphereShape(phys.radius * glm::max(tf.scale.x, glm::max(tf.scale.y, tf.scale.z)));
+        } else if (phys.colliderType == ColliderType::Capsule) {
+            shape = new JPH::CapsuleShape(phys.height * 0.5f * tf.scale.y, phys.radius * glm::max(tf.scale.x, tf.scale.z));
+        } else if (phys.colliderType == ColliderType::Mesh) {
+            std::vector<Ref<Mesh>> targetMeshes;
+            if (phys.useModelMesh && entity.has<ModelComponent>()) {
+                targetMeshes = entity.get<ModelComponent>().model->getMeshes();
+            } else if (entity.has<MeshComponent>()) {
+                targetMeshes.push_back(entity.get<MeshComponent>().mesh);
+            } else if (entity.has<ProceduralPlanetComponent>()) {
+                auto& planet = entity.get<ProceduralPlanetComponent>();
+                if (planet.model) targetMeshes = planet.model->getMeshes();
+            } else if (phys.mesh) {
+                targetMeshes.push_back(phys.mesh);
+            }
+            
+            if (!targetMeshes.empty()) {
+                if (phys.isConvex) {
                     JPH::ConvexHullShapeSettings settings;
-                    for (const auto& v : mc.mesh->getVertices()) settings.mPoints.push_back(toJPH(v.position * tf.scale));
+                    for (const auto& mesh : targetMeshes) {
+                        for (const auto& v : mesh->getVertices()) settings.mPoints.push_back(toJPH(v.position * tf.scale));
+                    }
                     shape = settings.Create().Get();
                 } else {
                     JPH::VertexList vertices;
-                    for (const auto& v : mc.mesh->getVertices()) vertices.push_back(toJPHFloat3(v.position * tf.scale));
                     JPH::IndexedTriangleList triangles;
-                    const auto& indices = mc.mesh->getIndices();
-                    for (size_t i = 0; i < indices.size(); i += 3) triangles.push_back({indices[i], indices[i+1], indices[i+2]});
+                    uint32_t vertexBase = 0;
+                    for (const auto& mesh : targetMeshes) {
+                        for (const auto& v : mesh->getVertices()) vertices.push_back(toJPHFloat3(v.position * tf.scale));
+                        const auto& indices = mesh->getIndices();
+                        for (size_t i = 0; i < indices.size(); i += 3) {
+                            triangles.push_back({indices[i] + vertexBase, indices[i+1] + vertexBase, indices[i+2] + vertexBase});
+                        }
+                        vertexBase += (uint32_t)mesh->getVertices().size();
+                    }
                     shape = JPH::MeshShapeSettings(vertices, triangles).Create().Get();
                 }
             }
@@ -300,19 +333,37 @@ namespace bb3d {
 
         JPH::EMotionType motion = JPH::EMotionType::Static;
         JPH::ObjectLayer layer = Layers::NON_MOVING;
-        if (rb.type == BodyType::Dynamic) { motion = JPH::EMotionType::Dynamic; layer = Layers::MOVING; }
-        else if (rb.type == BodyType::Kinematic) { motion = JPH::EMotionType::Kinematic; layer = Layers::MOVING; }
+        if (phys.type == BodyType::Dynamic) { motion = JPH::EMotionType::Dynamic; layer = Layers::MOVING; }
+        else if (phys.type == BodyType::Kinematic) { motion = JPH::EMotionType::Kinematic; layer = Layers::MOVING; }
 
         JPH::BodyCreationSettings settings(shape, toJPH(tf.translation), toJPH(glm::quat(tf.rotation)), motion, layer);
-        settings.mFriction = rb.friction;
-        settings.mRestitution = rb.restitution;
-        settings.mLinearVelocity = toJPH(rb.initialLinearVelocity);
-        settings.mMassPropertiesOverride.mMass = rb.mass;
+        settings.mFriction = phys.friction;
+        settings.mRestitution = phys.restitution;
+        settings.mLinearVelocity = toJPH(phys.initialLinearVelocity);
+        settings.mMassPropertiesOverride.mMass = phys.mass;
         settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
+        
+        if (phys.constrain2D) {
+            settings.mAllowedDOFs = JPH::EAllowedDOFs::Plane2D;
+        }
 
         JPH::Body* body = bodyInterface.CreateBody(settings);
         bodyInterface.AddBody(body->GetID(), JPH::EActivation::Activate);
-        rb.bodyID = body->GetID().GetIndexAndSequenceNumber();
+        phys.bodyID = body->GetID().GetIndexAndSequenceNumber();
+    }
+
+    void PhysicsWorld::destroyRigidBody(Entity entity) {
+        if (!m_impl->initialized || !entity.has<PhysicsComponent>()) return;
+
+        auto& phys = entity.get<PhysicsComponent>();
+        if (phys.bodyID == 0xFFFFFFFF) return;
+
+        auto& bodyInterface = m_impl->physicsSystem->GetBodyInterface();
+        JPH::BodyID id(phys.bodyID);
+
+        bodyInterface.RemoveBody(id);
+        bodyInterface.DestroyBody(id);
+        phys.bodyID = 0xFFFFFFFF;
     }
 
     void PhysicsWorld::createCharacterController(Entity entity) {
@@ -322,9 +373,9 @@ namespace bb3d {
         auto& cc = entity.get<CharacterControllerComponent>();
 
         JPH::ShapeRefC shape;
-        if (entity.has<CapsuleColliderComponent>()) {
-            auto& cap = entity.get<CapsuleColliderComponent>();
-            shape = new JPH::CapsuleShape(cap.height * 0.5f * tf.scale.y, cap.radius * glm::max(tf.scale.x, tf.scale.z));
+        if (entity.has<PhysicsComponent>() && entity.get<PhysicsComponent>().colliderType == ColliderType::Capsule) {
+            auto& phys = entity.get<PhysicsComponent>();
+            shape = new JPH::CapsuleShape(phys.height * 0.5f * tf.scale.y, phys.radius * glm::max(tf.scale.x, tf.scale.z));
         } else {
             shape = new JPH::CapsuleShape(0.5f, 0.3f); 
         }

@@ -167,6 +167,9 @@ public:
     void setMaterial(Ref<Material> material) { m_material = material; }
     Ref<Material> getMaterial() const { return m_material; }
 
+    void setVisible(bool visible) { m_visible = visible; }
+    [[nodiscard]] bool isVisible() const { return m_visible; }
+
 private:
     VulkanContext& m_context;
     std::vector<Vertex> m_vertices;
@@ -178,6 +181,7 @@ private:
     uint32_t m_indexCount;
     AABB m_bounds;
     bool m_cpuDataReleased = false;
+    bool m_visible = true;
 };
 
 } // namespace bb3d

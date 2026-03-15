@@ -146,7 +146,8 @@ struct MeshComponent {
     std::string assetPath; ///< Path used for serialization and hot-reloading.
     PrimitiveType primitiveType = PrimitiveType::None;
     glm::vec3 color = {1.0f, 1.0f, 1.0f};
-    bool visible = true; ///< If false, the mesh is skipped during the rendering pass.
+    bool visible = true;
+    bool castShadows = true; ///< If false, the mesh is skipped during the rendering pass.
 
     MeshComponent() = default;
     MeshComponent(Ref<Mesh> m, const std::string& path = "", PrimitiveType type = PrimitiveType::None) : mesh(m), assetPath(path), primitiveType(type) {}
@@ -170,7 +171,8 @@ struct MeshComponent {
 struct ModelComponent {
     Ref<Model> model;
     std::string assetPath; ///< Path used for serialization.
-    bool visible = true; ///< If false, all meshes in this model are skipped during rendering.
+    bool visible = true;
+    bool castShadows = true; ///< If false, all meshes in this model are skipped during rendering.
 
     ModelComponent() = default;
     ModelComponent(Ref<Model> m, const std::string& path = "") : model(m), assetPath(path) {}
@@ -299,16 +301,35 @@ struct LightComponent {
     }
 };
 
-/** @brief RigidBody Physics Component. */
-struct RigidBodyComponent {
+enum class ColliderType { Box, Sphere, Capsule, Mesh };
+
+/** @brief Unified Physics Component (RigidBody + Collider) */
+struct PhysicsComponent {
+    // 1. RigidBody Properties
     BodyType type = BodyType::Static;
     float mass = 1.0f;
     float friction = 0.5f;
     float restitution = 0.5f;
-    glm::vec3 initialLinearVelocity = {0.0f, 0.0f, 0.0f};
 
-    // Runtime Jolt data
+    // 2. Collider Properties
+    ColliderType colliderType = ColliderType::Box;
+    
+    // Collider specific data
+    glm::vec3 boxHalfExtents = { 0.5f, 0.5f, 0.5f }; // Box
+    float radius = 0.5f;                             // Sphere & Capsule
+    float height = 1.0f;                             // Capsule
+    
+    Ref<Mesh> mesh;                                  // MeshCollider (Custom proxy)
+    bool isConvex = false;                           // MeshCollider
+    bool useModelMesh = true;                        // Auto-extract from ModelComponent
+    std::string meshAssetPath;                       // Serialization
+    
+    // Constraints
+    bool constrain2D = false;                        // JPH::EAllowedDOFs::Plane2D
+
+    // 3. Internal runtime data
     uint32_t bodyID = 0xFFFFFFFF; // JPH::BodyID::mID
+    glm::vec3 initialLinearVelocity = {0.0f, 0.0f, 0.0f};
 
     void serialize(json& j) const {
         j["type"] = static_cast<int>(type);
@@ -316,6 +337,15 @@ struct RigidBodyComponent {
         j["friction"] = friction;
         j["restitution"] = restitution;
         j["initialLinearVelocity"] = initialLinearVelocity;
+
+        j["colliderType"] = static_cast<int>(colliderType);
+        j["boxHalfExtents"] = boxHalfExtents;
+        j["radius"] = radius;
+        j["height"] = height;
+        j["isConvex"] = isConvex;
+        j["useModelMesh"] = useModelMesh;
+        j["meshAssetPath"] = meshAssetPath;
+        j["constrain2D"] = constrain2D;
     }
 
     void deserialize(const json& j) {
@@ -324,40 +354,15 @@ struct RigidBodyComponent {
         if (j.contains("friction")) j.at("friction").get_to(friction);
         if (j.contains("restitution")) j.at("restitution").get_to(restitution);
         if (j.contains("initialLinearVelocity")) j.at("initialLinearVelocity").get_to(initialLinearVelocity);
-    }
-};
 
-struct BoxColliderComponent {
-    glm::vec3 halfExtents = { 0.5f, 0.5f, 0.5f };
-    void serialize(json& j) const { j["halfExtents"] = halfExtents; }
-    void deserialize(const json& j) { if (j.contains("halfExtents")) j.at("halfExtents").get_to(halfExtents); }
-};
-
-struct SphereColliderComponent {
-    float radius = 0.5f;
-    void serialize(json& j) const { j["radius"] = radius; }
-    void deserialize(const json& j) { if (j.contains("radius")) j.at("radius").get_to(radius); }
-};
-
-struct CapsuleColliderComponent {
-    float radius = 0.5f;
-    float height = 1.0f;
-    void serialize(json& j) const { j["radius"] = radius; j["height"] = height; }
-    void deserialize(const json& j) { 
+        if (j.contains("colliderType")) colliderType = static_cast<ColliderType>(j.at("colliderType").get<int>());
+        if (j.contains("boxHalfExtents")) j.at("boxHalfExtents").get_to(boxHalfExtents);
         if (j.contains("radius")) j.at("radius").get_to(radius);
         if (j.contains("height")) j.at("height").get_to(height);
-    }
-};
-
-struct MeshColliderComponent {
-    Ref<Mesh> mesh;
-    bool convex = false;
-    std::string assetPath; // Path of the mesh used as collider
-
-    void serialize(json& j) const { j["convex"] = convex; j["assetPath"] = assetPath; }
-    void deserialize(const json& j) { 
-        if (j.contains("convex")) j.at("convex").get_to(convex);
-        if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath);
+        if (j.contains("isConvex")) j.at("isConvex").get_to(isConvex);
+        if (j.contains("useModelMesh")) j.at("useModelMesh").get_to(useModelMesh);
+        if (j.contains("meshAssetPath")) j.at("meshAssetPath").get_to(meshAssetPath);
+        if (j.contains("constrain2D")) j.at("constrain2D").get_to(constrain2D);
     }
 };
 
@@ -426,21 +431,7 @@ struct TerrainComponent {
     }
 };
 
-/** @brief Particle System Component. */
-struct ParticleSystemComponent {
-    std::string texturePath;
-    int maxParticles = 1000;
 
-    void serialize(json& j) const {
-        j["texturePath"] = texturePath;
-        j["maxParticles"] = maxParticles;
-    }
-
-    void deserialize(const json& j) {
-        if (j.contains("texturePath")) j.at("texturePath").get_to(texturePath);
-        if (j.contains("maxParticles")) j.at("maxParticles").get_to(maxParticles);
-    }
-};
 
 /** @brief Skybox Component (Cubemap). */
 struct SkyboxComponent {
@@ -454,8 +445,15 @@ struct SkyboxComponent {
 struct SkySphereComponent {
     Ref<Texture> texture;
     std::string assetPath;
-    void serialize(json& j) const { j["assetPath"] = assetPath; }
-    void deserialize(const json& j) { if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath); }
+    bool flipY = false;
+    void serialize(json& j) const { 
+        j["assetPath"] = assetPath; 
+        j["flipY"] = flipY;
+    }
+    void deserialize(const json& j) { 
+        if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath); 
+        if (j.contains("flipY")) j.at("flipY").get_to(flipY);
+    }
 };
 
 /** @brief Component for simple procedural animations. */
@@ -523,6 +521,186 @@ struct NativeScriptComponent {
     // Native scripts (function pointers) are not serializable by default
     void serialize(json&) const {} 
     void deserialize(const json&) {}
+};
+
+} // namespace bb3d
+
+// --- Particles ---
+
+namespace bb3d {
+
+struct Particle {
+    glm::vec3 position{ 0.0f };
+    glm::vec3 velocity{ 0.0f };
+    glm::vec4 colorBegin{ 1.0f };
+    glm::vec4 colorEnd{ 1.0f };
+    float sizeBegin = 1.0f;
+    float sizeEnd = 0.0f;
+    float lifeTime = 1.0f;
+    float lifeRemaining = 0.0f;
+
+    // Optional Jolt integration
+    uint32_t physicsEntityId = 0; // 0 if unused
+};
+
+struct ParticleProps {
+    glm::vec3 position;
+    glm::vec3 velocity;
+    glm::vec3 velocityVariation;
+    glm::vec4 colorBegin;
+    glm::vec4 colorEnd;
+    float sizeBegin;
+    float sizeEnd;
+    float sizeVariation;
+    float lifeTime;
+};
+
+/** @brief Component to manage and emit particles. */
+struct ParticleSystemComponent {
+    std::vector<Particle> particlePool;
+    uint32_t poolIndex = 0;
+
+    // Visual
+    Ref<Material> material; // Usually an UnlitMaterial with transparency
+    Ref<Mesh> mesh;         // If null, the Engine will use a default 2D Billboard Quad.
+
+    // Behavior
+    bool injectIntoPhysics = false;
+
+    ParticleSystemComponent(uint32_t maxParticles = 1000) {
+        particlePool.resize(maxParticles);
+        poolIndex = maxParticles - 1;
+    }
+
+    void emit(const ParticleProps& particleProps) {
+        Particle& particle = particlePool[poolIndex];
+        particle.position = particleProps.position;
+        
+        // Add variation
+        float rx = ((rand() % 100) / 100.0f) * 2.0f - 1.0f;
+        float ry = ((rand() % 100) / 100.0f) * 2.0f - 1.0f;
+        float rz = ((rand() % 100) / 100.0f) * 2.0f - 1.0f;
+        
+        particle.velocity = particleProps.velocity + particleProps.velocityVariation * glm::vec3(rx, ry, rz);
+        particle.colorBegin = particleProps.colorBegin;
+        particle.colorEnd = particleProps.colorEnd;
+        particle.lifeTime = particleProps.lifeTime;
+        particle.lifeRemaining = particleProps.lifeTime;
+        
+        particle.sizeBegin = particleProps.sizeBegin + particleProps.sizeVariation * rx;
+        particle.sizeEnd = particleProps.sizeEnd;
+
+        poolIndex = (poolIndex == 0) ? (uint32_t)particlePool.size() - 1 : poolIndex - 1;
+    }
+
+    void serialize(json& j) const {
+        j["injectIntoPhysics"] = injectIntoPhysics;
+        j["maxParticles"] = particlePool.size();
+        // We don't serialize active particles, just the configuration
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("injectIntoPhysics")) j.at("injectIntoPhysics").get_to(injectIntoPhysics);
+        if (j.contains("maxParticles")) {
+            uint32_t maxP = j.at("maxParticles").get<uint32_t>();
+            particlePool.resize(maxP);
+            poolIndex = maxP - 1;
+        }
+    }
+};
+
+// --- Procedural Generation ---
+
+struct BiomeSettings {
+    std::string name;
+    glm::vec3 color = { 1.0f, 1.0f, 1.0f };
+    float heightStart = 0.0f;
+    float heightEnd = 1.0f;
+    
+    // Relief Noise
+    float frequency = 1.0f;
+    float amplitude = 1.0f;
+    uint32_t octaves = 4;
+    float persistence = 0.5f;
+    float lacunarity = 2.0f;
+
+    void serialize(json& j) const {
+        j["name"] = name;
+        j["color"] = color;
+        j["heightStart"] = heightStart;
+        j["heightEnd"] = heightEnd;
+        j["frequency"] = frequency;
+        j["amplitude"] = amplitude;
+        j["octaves"] = octaves;
+        j["persistence"] = persistence;
+        j["lacunarity"] = lacunarity;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("name")) j.at("name").get_to(name);
+        if (j.contains("color")) j.at("color").get_to(color);
+        if (j.contains("heightStart")) j.at("heightStart").get_to(heightStart);
+        if (j.contains("heightEnd")) j.at("heightEnd").get_to(heightEnd);
+        if (j.contains("frequency")) j.at("frequency").get_to(frequency);
+        if (j.contains("amplitude")) j.at("amplitude").get_to(amplitude);
+        if (j.contains("octaves")) j.at("octaves").get_to(octaves);
+        if (j.contains("persistence")) j.at("persistence").get_to(persistence);
+        if (j.contains("lacunarity")) j.at("lacunarity").get_to(lacunarity);
+    }
+};
+
+/** @brief Component for procedural planet generation. */
+struct ProceduralPlanetComponent {
+    uint32_t seed = 42;
+    float radius = 100.0f;
+    uint32_t resolution = 32; // Subdivision of each cube face
+    
+    // Global Noise
+    float globalFrequency = 0.01f;
+    float globalAmplitude = 10.0f;
+    float seaLevel = 0.0f; // Minimum radius for the planet surface (Oceans)
+    
+    std::vector<BiomeSettings> biomes;
+    
+    // Internal State
+    Ref<Model> model;
+    bool needsRebuild = true;
+
+    void serialize(json& j) const {
+        j["seed"] = seed;
+        j["radius"] = radius;
+        j["resolution"] = resolution;
+        j["globalFrequency"] = globalFrequency;
+        j["globalAmplitude"] = globalAmplitude;
+        j["seaLevel"] = seaLevel;
+        
+        json biomesJson = json::array();
+        for (const auto& b : biomes) {
+            json bj;
+            b.serialize(bj);
+            biomesJson.push_back(bj);
+        }
+        j["biomes"] = biomesJson;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("seed")) j.at("seed").get_to(seed);
+        if (j.contains("radius")) j.at("radius").get_to(radius);
+        if (j.contains("resolution")) j.at("resolution").get_to(resolution);
+        if (j.contains("globalFrequency")) j.at("globalFrequency").get_to(globalFrequency);
+        if (j.contains("globalAmplitude")) j.at("globalAmplitude").get_to(globalAmplitude);
+        if (j.contains("seaLevel")) j.at("seaLevel").get_to(seaLevel);
+        
+        if (j.contains("biomes")) {
+            biomes.clear();
+            for (const auto& bj : j.at("biomes")) {
+                BiomeSettings b;
+                b.deserialize(bj);
+                biomes.push_back(b);
+            }
+        }
+        needsRebuild = true;
+    }
 };
 
 } // namespace bb3d

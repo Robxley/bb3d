@@ -4,6 +4,8 @@
 #include "bb3d/scene/Camera.hpp"
 #include "bb3d/core/Engine.hpp"
 #include "bb3d/physics/PhysicsWorld.hpp"
+#include "bb3d/render/ProceduralMeshGenerator.hpp"
+#include "bb3d/render/Material.hpp"
 #include <algorithm>
 
 namespace bb3d {
@@ -265,17 +267,106 @@ void Scene::onUpdate(float deltaTime) {
             }
         }
 
-        if (transformChanged && anim.physicsSync && entity.has<RigidBodyComponent>()) {
-            auto& rb = entity.get<RigidBodyComponent>();
+        if (transformChanged && anim.physicsSync && entity.has<PhysicsComponent>()) {
+            auto& phys = entity.get<PhysicsComponent>();
             // Force Kinematic by default if animating to ensure collision works correctly (pushing player)
             if (!anim.initialized) {
-                if (rb.type != BodyType::Kinematic) {
-                    rb.type = BodyType::Kinematic;
+                if (phys.type != BodyType::Kinematic) {
+                    phys.type = BodyType::Kinematic;
                     m_EngineContext->physics().resetBody(entity);
                 }
                 anim.initialized = true;
             }
             m_EngineContext->physics().updateBodyTransform(entity);
+        }
+    }
+
+    // --- SYSTEM: Procedural Planets ---
+    auto planetView = m_registry.view<ProceduralPlanetComponent>();
+    for (auto entityHandle : planetView) {
+        Entity entity(entityHandle, *this);
+        auto& planet = planetView.get<ProceduralPlanetComponent>(entityHandle);
+        if (planet.needsRebuild) {
+             BB_CORE_INFO("Scene: Rebuilding procedural planet for entity {0}...", (uint32_t)entityHandle);
+            planet.model = ProceduralMeshGenerator::createPlanet(m_EngineContext->graphics(), m_EngineContext->assets(), m_EngineContext->jobs(), planet);
+            
+            // Re-apply PBR material if none exists
+            for (auto& mesh : planet.model->getMeshes()) {
+                if (!mesh->getMaterial()) {
+                    auto pbr = CreateRef<PBRMaterial>(m_EngineContext->graphics());
+                    pbr->setColor({1.0f, 1.0f, 1.0f}); // Use vertex colors
+                    mesh->setMaterial(pbr);
+                }
+            }
+            
+            planet.needsRebuild = false;
+
+            // Link to a standard ModelComponent to simplify rendering and culling
+            if (!entity.has<ModelComponent>()) {
+                entity.add<ModelComponent>(planet.model);
+            } else {
+                entity.get<ModelComponent>().model = planet.model;
+            }
+
+            // If it has physics, we must rebuild the rigid body to match the new mesh
+            if (entity.has<PhysicsComponent>()) {
+                m_EngineContext->physics().destroyRigidBody(entity);
+                m_EngineContext->physics().createRigidBody(entity);
+            }
+        }
+
+        // --- OPTIMIZATION: Horizon Culling ---
+        if (planet.model) {
+            entt::entity activeCamera = entt::null;
+            auto camView = m_registry.view<CameraComponent>();
+            for (auto camEnt : camView) {
+                if (camView.get<CameraComponent>(camEnt).active) {
+                    activeCamera = camEnt;
+                    break;
+                }
+            }
+
+            if (activeCamera != entt::null) {
+                auto& camTransform = m_registry.get<TransformComponent>(activeCamera);
+                glm::vec3 camPos = camTransform.translation;
+                
+                auto& planetTransform = entity.get<TransformComponent>();
+                glm::vec3 planetPos = planetTransform.translation;
+                glm::mat4 planetRotation = glm::toMat4(glm::quat(planetTransform.rotation));
+                
+                // The 6 directions representing the faces of the cube (must match ProceduralMeshGenerator)
+                static const std::vector<glm::vec3> faceDirections = {
+                    { 1.0f,  0.0f,  0.0f}, {-1.0f,  0.0f,  0.0f},
+                    { 0.0f,  1.0f,  0.0f}, { 0.0f, -1.0f,  0.0f},
+                    { 0.0f,  0.0f,  1.0f}, { 0.0f,  0.0f, -1.0f}
+                };
+
+                const auto& meshes = planet.model->getMeshes();
+                for (size_t i = 0; i < meshes.size() && i < faceDirections.size(); ++i) {
+                    glm::vec3 worldNormal = glm::normalize(glm::vec3(planetRotation * glm::vec4(faceDirections[i], 0.0f)));
+                    glm::vec3 toPlanet = glm::normalize(planetPos - camPos);
+                    // Simple Horizon Culling: If the face normal is too far from the camera direction (pointing away)
+                    // We use 0.55f (approx sin(33 deg)) to account for the angular span of a cube face over the sphere.
+                    float dot = glm::dot(worldNormal, toPlanet);
+                    meshes[i]->setVisible(dot < 0.55f);
+                }
+            }
+        }
+    }
+
+    // --- SYSTEM: Particles ---
+    auto particleView = m_registry.view<ParticleSystemComponent>();
+    for (auto entityHandle : particleView) {
+        auto& particleSys = particleView.get<ParticleSystemComponent>(entityHandle);
+        for (auto& p : particleSys.particlePool) {
+            if (p.lifeRemaining <= 0.0f) continue;
+            
+            p.lifeRemaining -= deltaTime;
+            if (p.lifeRemaining > 0.0f) {
+                p.position += p.velocity * deltaTime;
+                
+                // Note: Jolt Physics integration for particles could go here (if particleSys.injectIntoPhysics).
+            }
         }
     }
 
