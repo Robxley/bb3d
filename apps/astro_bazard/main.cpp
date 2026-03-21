@@ -7,6 +7,7 @@
 #include "OrbitalGravity.hpp"
 #include "SpaceshipController.hpp"
 #include "SmartCamera.hpp"
+#include "CommRelay.hpp"
 #include <iostream>
 #include <algorithm>
 
@@ -74,6 +75,7 @@ int main(int argc, char** argv) {
             planetPhys.colliderType = ColliderType::Mesh; 
             planetPhys.useModelMesh = true; // Use the procedural mesh as collision shape
             engine->physics().createRigidBody(planet);
+            planet.add<astrobazard::CommRelayComponent>("Prime Colony");
 
             // 1b. Create Moon
             auto moonEntity = scene->createEntity("Moon");
@@ -95,6 +97,7 @@ int main(int argc, char** argv) {
             moon.needsRebuild = false;
             moonEntity.add<ModelComponent>(moon.model);
             moonEntity.get<TransformComponent>().translation = {25.0f, 0.0f, 0.0f};
+            moonEntity.add<astrobazard::CommRelayComponent>("Moon Station");
 
             // Moon Orbit Behavior (Script)
             moonEntity.add<NativeScriptComponent>([&](Entity entity, float dt) {
@@ -161,6 +164,7 @@ int main(int argc, char** argv) {
 
             auto ship = scene->createEntity("Spaceship");
             ship.get<TransformComponent>().translation = {0.0f, 11.0f, 0.0f}; 
+            ship.add<astrobazard::CommRelayComponent>("Vaisseau Mère");
             
             float baseScale = 0.15f;
             ship.get<TransformComponent>().scale = {baseScale, baseScale, baseScale};
@@ -225,9 +229,9 @@ int main(int argc, char** argv) {
             // Planetary System Logic & Smart Camera
             auto orbitalGravity = std::make_shared<astrobazard::OrbitalGravity>(planet); 
             auto spaceshipCtrl = std::make_shared<astrobazard::SpaceshipController>();
-            auto smartCamera = std::make_shared<astrobazard::SmartCamera>(shipCamera, planet, 6.0f);
+            auto smartCamera = std::make_shared<astrobazard::SmartCamera>(shipCamera, ship, 6.0f);
 
-            scene->createEntity("KerbalLogic").add<NativeScriptComponent>([enginePtr = engine.get(), ship, planet, shipCamera, planetOrbitView, orbitalGravity, spaceshipCtrl, smartCamera](Entity e, float dt) mutable {
+            scene->createEntity("KerbalLogic").add<NativeScriptComponent>([enginePtr = engine.get(), ship, planet, moonEntity, shipCamera, planetOrbitView, orbitalGravity, spaceshipCtrl, smartCamera](Entity e, float dt) mutable {
                 auto& input = enginePtr->input();
 
                 // 0. Toggle Camera (TAB)
@@ -242,6 +246,32 @@ int main(int argc, char** argv) {
                 }
                 tabWasPressed = tabIsPressed;
 
+                // 0b. COMM-LINK Camera Switch (C key)
+                static bool cWasPressed = false;
+                bool cIsPressed = input.isKeyPressed(Key::C);
+                if (cIsPressed && !cWasPressed && shipCamera.get<CameraComponent>().active) {
+                    auto view = enginePtr->GetActiveScene()->getRegistry().view<astrobazard::CommRelayComponent>();
+                    std::vector<bb3d::Entity> targets;
+                    for (auto entityID : view) {
+                        targets.push_back(bb3d::Entity(entityID, *enginePtr->GetActiveScene()));
+                    }
+                    if (!targets.empty()) {
+                        auto currentTarget = smartCamera->getTarget();
+                        auto it = std::find(targets.begin(), targets.end(), currentTarget);
+                        if (it != targets.end()) {
+                            it++;
+                            if (it == targets.end()) it = targets.begin();
+                        } else {
+                            it = targets.begin();
+                        }
+                        if (*it != currentTarget) {
+                            smartCamera->setTarget(*it);
+                            BB_CORE_INFO("COMM-LINK: Basculé sur {0}", (*it).get<astrobazard::CommRelayComponent>().name);
+                        }
+                    }
+                }
+                cWasPressed = cIsPressed;
+
                 // 1. Newton Gravity
                 orbitalGravity->update(ship, enginePtr);
                 
@@ -252,16 +282,29 @@ int main(int argc, char** argv) {
                 // 4. Update Cameras
                 if (shipCamera.get<CameraComponent>().active) {
                     // Update Smart Camera
-                    auto& tf = ship.get<TransformComponent>();
-                    glm::vec3 planetCenter = planet.get<TransformComponent>().translation;
-                    float dist = glm::length(tf.translation - planetCenter);
-                    float altitude = dist - 10.0f;
+                    auto target = smartCamera->getTarget();
+                    float altitude = 0.0f;
+                    glm::vec3 gravityDir = {0.0f, -1.0f, 0.0f}; // Fallback for planets
+
+                    if (target == ship) {
+                        auto& tf = ship.get<TransformComponent>();
+                        glm::vec3 planetCenter = planet.get<TransformComponent>().translation;
+                        float dist = glm::length(tf.translation - planetCenter);
+                        altitude = std::max(0.0f, dist - 10.0f);
+                        gravityDir = orbitalGravity->getCurrentGravityDirection();
+                    } else if (target == moonEntity) {
+                        altitude = 5.0f; 
+                        auto& tf = moonEntity.get<TransformComponent>();
+                        glm::vec3 planetCenter = planet.get<TransformComponent>().translation;
+                        gravityDir = glm::normalize(planetCenter - tf.translation);
+                    }
 
                     float scroll = input.getMouseScroll().y;
                     if (std::abs(scroll) > 0.01f) smartCamera->zoom(scroll);
 
-                    // Pass local offset to aim at the "nose" of the ship (approx +1.0 in Y local scale)
-                    float scaleFactor = smartCamera->update(ship, altitude, orbitalGravity->getCurrentGravityDirection(), glm::vec3(0.0f, 1.0f, 0.0f));
+                    // Pass local offset to aim at the "nose" of the ship, or center for planets
+                    glm::vec3 offset = (target == ship) ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(0.0f);
+                    float scaleFactor = smartCamera->update(altitude, gravityDir, offset);
                     
                     // 5. Illusion: dynamic visual scale
                     spaceshipCtrl->applyVisualScale(ship, scaleFactor);

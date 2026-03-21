@@ -6,16 +6,16 @@
 
 namespace astrobazard {
 
-SmartCamera::SmartCamera(bb3d::Entity camera, bb3d::Entity planet, float baseZoom)
-    : m_camera(camera), m_planet(planet), m_baseZoom(baseZoom) {
+SmartCamera::SmartCamera(bb3d::Entity camera, bb3d::Entity initialTarget, float baseZoom)
+    : m_camera(camera), m_currentTarget(initialTarget), m_baseZoom(baseZoom) {
 }
 
-float SmartCamera::update(bb3d::Entity target, float altitude, const glm::vec3& gravityDir, const glm::vec3& localOffset) {
-    if (!m_camera.has<bb3d::CameraComponent>() || !target.has<bb3d::TransformComponent>()) return 1.0f;
+float SmartCamera::update(float altitude, const glm::vec3& gravityDir, const glm::vec3& localOffset) {
+    if (!m_camera.has<bb3d::CameraComponent>() || !m_currentTarget.has<bb3d::TransformComponent>()) return 1.0f;
 
     auto& camTf = m_camera.get<bb3d::TransformComponent>();
     auto& refCam = m_camera.get<bb3d::CameraComponent>().camera;
-    auto& targetTf = target.get<bb3d::TransformComponent>();
+    auto& targetTf = m_currentTarget.get<bb3d::TransformComponent>();
 
     float targetZoom = (m_baseZoom + std::max(0.0f, altitude * 0.3f)) * m_zoomFactor;
     
