@@ -5,6 +5,7 @@
 #include "bb3d/audio/AudioSystem.hpp"
 #include "bb3d/scene/SceneSerializer.hpp"
 #include "bb3d/render/Material.hpp"
+#include "bb3d/core/PickingSystem.hpp"
 #if defined(BB3D_ENABLE_EDITOR)
 #include "bb3d/core/ImGuiLayer.hpp"
 #endif
@@ -138,6 +139,9 @@ void Engine::Init() {
     }
 
     BB_CORE_INFO("Engine: Initialization complete.");
+
+    // 10. Picking System
+    m_PickingSystem = CreateScope<PickingSystem>(m_Config.modules.pickingMode);
 }
 
 void Engine::Shutdown() {
@@ -151,7 +155,10 @@ void Engine::Shutdown() {
         } catch(...) {}
     }
 
-    // 1. Audio
+    // 1. Picking
+    m_PickingSystem.reset();
+
+    // 2. Audio
     if (m_AudioSystem) {
         m_AudioSystem->shutdown();
         m_AudioSystem.reset();

@@ -62,6 +62,7 @@ Renderer::~Renderer() {
 
         m_internalSkyboxMat.reset();
         m_internalSkySphereMat.reset();
+        m_defaultParticleMat.reset();
         m_fallbackMaterial.reset();
         m_skyboxCube.reset();
         m_particleQuad.reset();

@@ -18,6 +18,7 @@ namespace bb3d {
 
 class PhysicsWorld;
 class AudioSystem;
+class PickingSystem;
 class ImGuiLayer;
 
 /**
@@ -108,6 +109,7 @@ public:
     EventBus& GetEventBus() { return *m_EventBus; }
     PhysicsWorld* GetPhysicsWorld() { return m_PhysicsWorld.get(); }
     AudioSystem* GetAudioSystem() { return m_AudioSystem.get(); }
+    PickingSystem* GetPickingSystem() { return m_PickingSystem.get(); }
 #if defined(BB3D_ENABLE_EDITOR)
     ImGuiLayer* GetImGuiLayer() { return m_ImGuiLayer.get(); }
 #endif
@@ -147,6 +149,7 @@ private:
     Scope<InputManager> m_InputManager;
     Scope<PhysicsWorld> m_PhysicsWorld;
     Scope<AudioSystem> m_AudioSystem;
+    Scope<PickingSystem> m_PickingSystem;
 #if defined(BB3D_ENABLE_EDITOR)
     Scope<ImGuiLayer> m_ImGuiLayer;
 #endif

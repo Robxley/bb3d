@@ -80,6 +80,13 @@ public:
     /** @brief Removes an entity and its components from the registry. */
     void destroyEntity(Entity entity);
 
+    /**
+     * @brief Sélectionne l'entité sous les coordonnées UV du viewport.
+     * @param viewportUV Coordonnées normalisées [0,1] dans le viewport.
+     * @return L'entité sélectionnée, ou Entity{} si rien n'est trouvé.
+     */
+    Entity pickEntity(glm::vec2 viewportUV);
+
     /** @brief Removes all entities from the scene. */
     void clear();
 

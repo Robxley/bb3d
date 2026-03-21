@@ -13,6 +13,15 @@ namespace bb3d {
         {PhysicsBackend::Jolt, "jolt"}
     })
 
+    /** @brief Mode de picking (sélection d'objets à la souris). */
+    enum class PickingMode { None, PhysicsRaycast, ColorPicking };
+
+    NLOHMANN_JSON_SERIALIZE_ENUM(PickingMode, {
+        {PickingMode::None, "none"},
+        {PickingMode::PhysicsRaycast, "physics_raycast"},
+        {PickingMode::ColorPicking, "color_picking"}
+    })
+
     enum class FogType { None, Linear, Exponential, ExponentialHeight };
 
     /**
@@ -105,6 +114,7 @@ namespace bb3d {
         bool enableAudio = true;      ///< Active le système audio (miniaudio/OpenAL).
         bool enableJobSystem = true;  ///< Active le système de threads worker.
         bool enableHotReload = true;  ///< Active le rechargement à chaud des assets (Dev Only).
+        PickingMode pickingMode = PickingMode::None; ///< Mode de picking pour la sélection d'objets à la souris.
 #if defined(BB3D_ENABLE_EDITOR)
         bool enableEditor = true;     ///< Active l'interface ImGui (si compilée).
 #else
@@ -115,8 +125,9 @@ namespace bb3d {
         ModuleConfig& setAudio(bool e) { enableAudio = e; return *this; }
         ModuleConfig& setJobSystem(bool e) { enableJobSystem = e; return *this; }
         ModuleConfig& setEditor(bool e) { enableEditor = e; return *this; }
+        ModuleConfig& setPicking(PickingMode m) { pickingMode = m; return *this; }
 
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(ModuleConfig, physicsBackend, enablePhysics, enableAudio, enableJobSystem, enableHotReload, enableEditor)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(ModuleConfig, physicsBackend, enablePhysics, enableAudio, enableJobSystem, enableHotReload, enableEditor, pickingMode)
     };
 
     /**
@@ -162,6 +173,7 @@ namespace bb3d {
         EngineConfig& resizable(bool r) { window.setResizable(r); return *this; }
         EngineConfig& enableOffscreenRendering(bool e) { graphics.setOffscreenRendering(e); return *this; }
         EngineConfig& enableEditor(bool e) { modules.setEditor(e); return *this; }
+        EngineConfig& enablePicking(PickingMode m) { modules.setPicking(m); return *this; }
         EngineConfig& renderScale(float s) { graphics.setRenderScale(s); return *this; }
         EngineConfig& frontFace(std::string_view f) { rasterizer.frontFace = f; return *this; } // "CW" ou "CCW"
 

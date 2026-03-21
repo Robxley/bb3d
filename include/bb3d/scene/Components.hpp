@@ -750,4 +750,19 @@ struct SpaceshipControllerComponent {
     }
 };
 
+/**
+ * @brief Contrôle si une entité peut être sélectionnée par le système de picking.
+ * 
+ * Par défaut, si le picking est activé, TOUTES les entités sont sélectionnables.
+ * Ajoutez ce composant avec `selectable = false` pour rendre une entité non-sélectionnable (opt-out).
+ */
+struct SelectableComponent {
+    bool selectable = true; ///< Si false, l'entité est ignorée par le picking.
+
+    void serialize(json& j) const { j["selectable"] = selectable; }
+    void deserialize(const json& j) {
+        if (j.contains("selectable")) j.at("selectable").get_to(selectable);
+    }
+};
+
 } // namespace bb3d

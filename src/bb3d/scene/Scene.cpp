@@ -6,6 +6,7 @@
 #include "bb3d/physics/PhysicsWorld.hpp"
 #include "bb3d/render/ProceduralMeshGenerator.hpp"
 #include "bb3d/render/Material.hpp"
+#include "bb3d/core/PickingSystem.hpp"
 #include <algorithm>
 
 namespace bb3d {
@@ -392,5 +393,11 @@ void Scene::clear() {
 }
 
 
+Entity Scene::pickEntity(glm::vec2 viewportUV) {
+    if (!m_EngineContext) return {};
+    auto* pickingSys = m_EngineContext->GetPickingSystem();
+    if (!pickingSys) return {};
+    return pickingSys->pick(viewportUV, *this, *m_EngineContext);
+}
 
 } // namespace bb3d

@@ -31,6 +31,7 @@
 - **Audio System**: Spatialized 3D audio (Miniaudio stub/backend).
 - **Native Scripting**: C++ behaviors via lambda-based components.
 - **Input System**: Multi-backend action mapping (Keyboard/Mouse).
+- **Mouse Picking**: Dual-backend entity selection (Physics Raycast + GPU Color Picking) with per-entity selectability control.
 
 ---
 
@@ -167,6 +168,35 @@ planet.biomes.push_back(ocean);
 planet.model = bb3d::ProceduralMeshGenerator::createPlanet(
     engine->graphics(), engine->assets(), engine->jobs(), planet
 );
+```
+
+---
+
+### 14. Mouse Picking (Entity Selection)
+Dual-backend system for selecting entities by clicking in the viewport.
+
+```cpp
+// Enable picking at engine creation
+bb3d::EngineConfig config;
+config.enablePicking(bb3d::PickingMode::PhysicsRaycast); // Or ColorPicking
+
+auto engine = bb3d::Engine::Create(config);
+auto scene = engine->CreateScene();
+
+// All entities are selectable by default.
+// To make an entity non-selectable (opt-out):
+auto ground = scene->createEntity("Ground");
+ground.add<bb3d::SelectableComponent>({false}); // Ground cannot be picked
+
+// Programmatic picking:
+glm::vec2 viewportUV = {0.5f, 0.5f}; // Center of viewport
+bb3d::Entity picked = scene->pickEntity(viewportUV);
+if (picked) {
+    BB_CORE_INFO("Picked: {}", picked.get<bb3d::TagComponent>().tag);
+}
+
+// Editor integration: Left-click in viewport auto-selects entities
+// (handled internally by ImGuiLayer when picking is enabled)
 ```
 
 ---

@@ -420,10 +420,7 @@ namespace bb3d {
             bodyInterface.DestroyBodies(allBodies.data(), (int)allBodies.size());
         }
 
-        // Remove all characters
-        for (auto& [id, character] : m_impl->characters) {
-            delete character;
-        }
+        // Remove all characters (JPH::Ref handles ref-counting cleanup)
         m_impl->characters.clear();
 
         BB_CORE_INFO("PhysicsWorld: All bodies and characters destroyed.");

@@ -13,6 +13,7 @@
 #include "bb3d/render/TextureGenerator.hpp"
 #include "bb3d/render/Material.hpp"
 #include "bb3d/physics/PhysicsWorld.hpp"
+#include "bb3d/core/PickingSystem.hpp"
 
 #include <imgui_impl_sdl3.h>
 #include <imgui_impl_vulkan.h>
@@ -222,7 +223,7 @@ ImTextureID ImGuiLayer::addTexture(vk::Sampler sampler, vk::ImageView view, vk::
     return (ImTextureID)ImGui_ImplVulkan_AddTexture(sampler, view, static_cast<VkImageLayout>(layout));
 }
 
-void ImGuiLayer::showViewport(RenderTarget* renderTarget, Scene& /*scene*/) {
+void ImGuiLayer::showViewport(RenderTarget* renderTarget, Scene& scene) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0, 0 });
     ImGui::Begin(ICON_FA_IMAGE " Viewport");
 
@@ -257,8 +258,29 @@ void ImGuiLayer::showViewport(RenderTarget* renderTarget, Scene& /*scene*/) {
         m_viewportFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
         m_viewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows);
 
+        // Store viewport content position for picking UV calculation
+        ImVec2 viewportContentPos = ImGui::GetCursorScreenPos();
+
         if (m_viewportTextureID) {
             ImGui::Image(m_viewportTextureID, viewportPanelSize);
+        }
+
+        // --- Mouse Picking (click-to-select in viewport) ---
+        if (m_viewportHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsAnyItemActive()) {
+            ImVec2 mousePos = ImGui::GetMousePos();
+            float uvX = (mousePos.x - viewportContentPos.x) / viewportPanelSize.x;
+            float uvY = (mousePos.y - viewportContentPos.y) / viewportPanelSize.y;
+            
+            // Clamp to valid range
+            if (uvX >= 0.0f && uvX <= 1.0f && uvY >= 0.0f && uvY <= 1.0f) {
+                Entity picked = scene.pickEntity({uvX, uvY});
+                if (picked) {
+                    m_selectedEntity = picked;
+                } else {
+                    // Click on empty space → deselect
+                    m_selectedEntity = {};
+                }
+            }
         }
     } else {
         ImGui::Text("No RenderTarget available (Offscreen Rendering disabled?)");
@@ -510,6 +532,21 @@ void ImGuiLayer::showSceneSettings(Scene& scene) {
     static bool showPhysics = false;
     ImGui::Checkbox("Debug Physics Colliders", &showPhysics);
 
+    ImGui::Separator();
+    if (ImGui::CollapsingHeader(ICON_FA_ARROW_POINTER " Picking & Selection", ImGuiTreeNodeFlags_DefaultOpen)) {
+        auto* pickingSys = scene.getEngineContext() ? scene.getEngineContext()->GetPickingSystem() : nullptr;
+        if (pickingSys) {
+            const char* pickingModes[] = { "None", "Physics Raycast", "Color Picking (GPU)" };
+            int currentMode = static_cast<int>(pickingSys->getMode());
+            if (ImGui::Combo("Picking Mode", &currentMode, pickingModes, IM_ARRAYSIZE(pickingModes))) {
+                pickingSys->setMode(static_cast<PickingMode>(currentMode));
+            }
+            ImGui::TextWrapped("Physics Raycast works on entities with PhysicsComponent. Color Picking works on any mesh.");
+        } else {
+            ImGui::TextDisabled("Picking System not initialized in Engine.");
+        }
+    }
+
     ImGui::End();
 }
 
@@ -558,6 +595,7 @@ void ImGuiLayer::showInspector() {
             DrawCompTreeLeaf("OrbitalGravity", ICON_FA_MAGNET, colLogic, m_selectedEntity.has<OrbitalGravityComponent>());
             DrawCompTreeLeaf("SpaceshipController", ICON_FA_ROCKET, colLogic, m_selectedEntity.has<SpaceshipControllerComponent>());
             DrawCompTreeLeaf("ParticleSystem", ICON_FA_FIRE, colRender, m_selectedEntity.has<bb3d::ParticleSystemComponent>());
+            DrawCompTreeLeaf("Selectable", ICON_FA_ARROW_POINTER, colLogic, m_selectedEntity.has<SelectableComponent>());
 
             ImGui::TreePop();
         }
@@ -957,6 +995,12 @@ void ImGuiLayer::showInspector() {
                     ImGui::Separator();
                     ImGui::Checkbox("Inject into Physics", &ps.injectIntoPhysics);
                 }
+            } else if (m_focusedComponent == "Selectable" && m_selectedEntity.has<SelectableComponent>()) {
+                if (ComponentPropertiesHeader("Selectable", ICON_FA_ARROW_POINTER, colLogic, true, [&](){ m_selectedEntity.remove<SelectableComponent>(); m_focusedComponent = ""; })) {
+                    auto& sel = m_selectedEntity.get<SelectableComponent>();
+                    ImGui::Checkbox("Is Selectable", &sel.selectable);
+                    ImGui::TextWrapped("Entities without this component are selectable by default (Opt-out).");
+                }
             }
         }
 
@@ -979,6 +1023,7 @@ void ImGuiLayer::showInspector() {
             if (ImGui::MenuItem("Orbital Gravity")) m_selectedEntity.add<OrbitalGravityComponent>();
             if (ImGui::MenuItem("Spaceship Controller")) m_selectedEntity.add<SpaceshipControllerComponent>();
             if (ImGui::MenuItem("Particle System")) m_selectedEntity.add<bb3d::ParticleSystemComponent>();
+            if (ImGui::MenuItem("Selectable (Opt-out)")) m_selectedEntity.add<SelectableComponent>();
             ImGui::EndPopup();
         }
     } else { ImGui::TextDisabled("Select an entity to view its properties."); }
