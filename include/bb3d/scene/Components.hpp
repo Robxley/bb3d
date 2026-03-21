@@ -714,20 +714,17 @@ struct ProceduralPlanetComponent {
 
 // --- AstroBazard Specific ---
 
-struct OrbitalGravityComponent {
-    float strength = 25000.0f; // GM constant
-    uint32_t centralBody = 0xFFFFFFFF;
-    
-    OrbitalGravityComponent() = default;
-    OrbitalGravityComponent(float s, uint32_t center) : strength(s), centralBody(center) {}
+struct PointGravitySourceComponent {
+    float strength = 1000.0f; // GM constant
+
+    PointGravitySourceComponent() = default;
+    PointGravitySourceComponent(float s) : strength(s) {}
 
     void serialize(json& j) const {
         j["strength"] = strength;
-        j["centralBody"] = centralBody;
     }
     void deserialize(const json& j) {
         if (j.contains("strength")) j.at("strength").get_to(strength);
-        if (j.contains("centralBody")) j.at("centralBody").get_to(centralBody);
     }
 };
 

@@ -1,4 +1,5 @@
 #include "bb3d/scene/SceneSerializer.hpp"
+#include "bb3d/scene/ComponentRegistry.hpp"
 #include "bb3d/render/MeshGenerator.hpp"
 #include "bb3d/scene/Entity.hpp"
 #include "bb3d/scene/Components.hpp"
@@ -37,6 +38,12 @@ namespace bb3d {
         SerializeComponent<AudioListenerComponent>(j, entity, "AudioListenerComponent");
         SerializeComponent<ParticleSystemComponent>(j, entity, "ParticleSystemComponent");
         SerializeComponent<ProceduralPlanetComponent>(j, entity, "ProceduralPlanetComponent");
+        SerializeComponent<PointGravitySourceComponent>(j, entity, "PointGravitySourceComponent");
+
+        auto& customHandlers = ComponentRegistry::GetHandlers();
+        for (const auto& [compName, handler] : customHandlers) {
+            handler.serialize(entity, j);
+        }
     }
 
     void SceneSerializer::serialize(std::string_view filepath) {
@@ -74,8 +81,11 @@ namespace bb3d {
     }
 
     bool SceneSerializer::deserialize(std::string_view filepath) {
-        std::ifstream stream(filepath.data());
-        if (!stream.is_open()) return false;
+        std::ifstream stream(std::string(filepath).c_str());
+        if (!stream.is_open()) {
+            BB_CORE_ERROR("SceneSerializer: Failed to open file for reading: {0}", filepath);
+            return false;
+        }
 
         json data;
         try {
@@ -104,7 +114,10 @@ namespace bb3d {
             }
         }
 
-        if (!data.contains("Entities")) return false;
+        if (!data.contains("Entities")) {
+            BB_CORE_ERROR("SceneSerializer: JSON does not contain 'Entities' key!");
+            return false;
+        }
 
         auto entities = data["Entities"];
         for (auto& e : entities) {
@@ -186,6 +199,14 @@ namespace bb3d {
             
             if (e.contains("ProceduralPlanetComponent")) {
                 entity.add<ProceduralPlanetComponent>().get<ProceduralPlanetComponent>().deserialize(e["ProceduralPlanetComponent"]);
+            }
+            if (e.contains("PointGravitySourceComponent")) {
+                entity.add<PointGravitySourceComponent>().get<PointGravitySourceComponent>().deserialize(e["PointGravitySourceComponent"]);
+            }
+
+            auto& customHandlers = ComponentRegistry::GetHandlers();
+            for (const auto& [compName, handler] : customHandlers) {
+                handler.deserialize(entity, e);
             }
         }
 

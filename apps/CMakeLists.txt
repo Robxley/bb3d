@@ -16,7 +16,6 @@ endif()
 # AstroBazard Concept App
 add_executable(astro_bazard 
     astro_bazard/main.cpp
-    astro_bazard/OrbitalGravity.cpp
     astro_bazard/SpaceshipController.cpp
     astro_bazard/SmartCamera.cpp
 )

@@ -114,7 +114,7 @@ namespace bb3d {
         bool enableAudio = true;      ///< Active le système audio (miniaudio/OpenAL).
         bool enableJobSystem = true;  ///< Active le système de threads worker.
         bool enableHotReload = true;  ///< Active le rechargement à chaud des assets (Dev Only).
-        PickingMode pickingMode = PickingMode::None; ///< Mode de picking pour la sélection d'objets à la souris.
+        PickingMode pickingMode = PickingMode::ColorPicking; ///< Mode de picking par défaut.
 #if defined(BB3D_ENABLE_EDITOR)
         bool enableEditor = true;     ///< Active l'interface ImGui (si compilée).
 #else

@@ -4,17 +4,21 @@
 #include "bb3d/scene/Components.hpp"
 #include "bb3d/render/MeshGenerator.hpp"
 #include "bb3d/render/ProceduralMeshGenerator.hpp"
-#include "OrbitalGravity.hpp"
 #include "SpaceshipController.hpp"
 #include "SmartCamera.hpp"
 #include "CommRelay.hpp"
 #include <iostream>
 #include <algorithm>
 
+#include "bb3d/scene/ComponentRegistry.hpp"
+
 using namespace bb3d;
 
 int main(int argc, char** argv) {
     try {
+        bb3d::ComponentRegistry::Register<bb3d::SpaceshipControllerComponent>("SpaceshipControllerComponent");
+        bb3d::ComponentRegistry::Register<astrobazard::CommRelayComponent>("CommRelayComponent");
+
         bool enableEditor = false;
 #if defined(BB3D_DEBUG)
         enableEditor = true;
@@ -76,6 +80,8 @@ int main(int argc, char** argv) {
             planetPhys.useModelMesh = true; // Use the procedural mesh as collision shape
             engine->physics().createRigidBody(planet);
             planet.add<astrobazard::CommRelayComponent>("Prime Colony");
+            // The planet acts as the global gravity well
+            planet.add<PointGravitySourceComponent>(1000.0f);
 
             // 1b. Create Moon
             auto moonEntity = scene->createEntity("Moon");
@@ -144,19 +150,6 @@ int main(int argc, char** argv) {
                 astPlanet.model = ProceduralMeshGenerator::createPlanet(engine->graphics(), engine->assets(), engine->jobs(), astPlanet);
                 for (auto& mesh : astPlanet.model->getMeshes()) mesh->setMaterial(asteroidMat);
                 asteroid.add<ModelComponent>(astPlanet.model);
-
-                // Newtonian Radial Gravity (same GM=1000 as the ship)
-                asteroid.add<NativeScriptComponent>([enginePtr = engine.get(), planet](Entity entity, float dt) mutable {
-                    auto& tc = entity.get<TransformComponent>();
-                    glm::vec3 direction = planet.get<TransformComponent>().translation - tc.translation;
-                    float dist = glm::length(direction);
-                    // Clamp minimum distance to prevent singularity explosion
-                    dist = std::max(dist, 5.0f);
-                    float mass = 2.0f; // asteroid mass
-                    // F = mass * GM / dist^2
-                    float forceMag = mass * 1000.0f / (dist * dist);
-                    enginePtr->physics().addForce(entity, glm::normalize(direction) * forceMag);
-                });
             }
 
             // Environment
@@ -209,10 +202,7 @@ int main(int argc, char** argv) {
             auto& ctrl = ship.add<SpaceshipControllerComponent>().get<SpaceshipControllerComponent>();
             ctrl.mainThrustPower = 11.0f;     // 1.1x surface gravity
             ctrl.retroThrustPower = 2.0f;     // Gentle retro
-            ctrl.torquePower = 0.5f;          // Very smooth rotational control
-            // GM = 1000: gives ~10 m/s² at surface of radius-10 planet
-            ship.add<OrbitalGravityComponent>(1000.0f, static_cast<uint32_t>(planet.getHandle()));
-
+            ctrl.torquePower = 0.05f;         // Very smooth rotational control
             // Particles for propulsion
             auto& ps = ship.add<ParticleSystemComponent>().get<ParticleSystemComponent>();
             auto plasmaTex = engine->assets().load<Texture>("assets/textures/particles/PNG (Black background)/flame_02.png", true);
@@ -239,12 +229,11 @@ int main(int argc, char** argv) {
             planetOrbitView.get<CameraComponent>().active = false; // Start inactive
 
             // Planetary System Logic & Smart Camera
-            auto orbitalGravity = std::make_shared<astrobazard::OrbitalGravity>(planet); 
             auto spaceshipCtrl = std::make_shared<astrobazard::SpaceshipController>();
             // Base zoom set to 20.0f so the spaceship doesn't look enormous compared to the planet when landed
             auto smartCamera = std::make_shared<astrobazard::SmartCamera>(shipCamera, ship, 20.0f);
 
-            scene->createEntity("KerbalLogic").add<NativeScriptComponent>([enginePtr = engine.get(), ship, planet, moonEntity, shipCamera, planetOrbitView, orbitalGravity, spaceshipCtrl, smartCamera](Entity e, float dt) mutable {
+            scene->createEntity("KerbalLogic").add<NativeScriptComponent>([enginePtr = engine.get(), ship, planet, moonEntity, shipCamera, planetOrbitView, spaceshipCtrl, smartCamera](Entity e, float dt) mutable {
                 auto& input = enginePtr->input();
 
                 // 0. Toggle Camera (TAB)
@@ -285,8 +274,28 @@ int main(int argc, char** argv) {
                 }
                 cWasPressed = cIsPressed;
 
-                // 1. Newton Gravity
-                orbitalGravity->update(ship, enginePtr);
+                // 1. Newtonian Gravity (Global Loop)
+                auto dynamicBodies = enginePtr->GetActiveScene()->getRegistry().view<bb3d::PhysicsComponent, bb3d::TransformComponent>();
+                auto gravitySources = enginePtr->GetActiveScene()->getRegistry().view<bb3d::PointGravitySourceComponent, bb3d::TransformComponent>();
+                
+                for (auto srcEntity : gravitySources) {
+                    auto& srcGravity = gravitySources.get<bb3d::PointGravitySourceComponent>(srcEntity);
+                    auto& srcTf = gravitySources.get<bb3d::TransformComponent>(srcEntity);
+                    
+                    for (auto dynEntity : dynamicBodies) {
+                        if (srcEntity == dynEntity) continue;
+                        auto& phys = dynamicBodies.get<bb3d::PhysicsComponent>(dynEntity);
+                        if (phys.type != bb3d::BodyType::Dynamic) continue;
+                        
+                        auto& dynTf = dynamicBodies.get<bb3d::TransformComponent>(dynEntity);
+                        glm::vec3 direction = srcTf.translation - dynTf.translation;
+                        float dist = glm::length(direction);
+                        if (dist < 0.1f) dist = 0.1f;
+                        
+                        float forceMag = (srcGravity.strength * phys.mass) / (dist * dist);
+                        enginePtr->physics().addForce(bb3d::Entity(dynEntity, *enginePtr->GetActiveScene()), glm::normalize(direction) * forceMag);
+                    }
+                }
                 
                 // 2. Spaceship Controls in 2D Space
                 spaceshipCtrl->update(ship, dt, enginePtr);
@@ -304,7 +313,7 @@ int main(int argc, char** argv) {
                         glm::vec3 planetCenter = planet.get<TransformComponent>().translation;
                         float dist = glm::length(tf.translation - planetCenter);
                         altitude = std::max(0.0f, dist - 10.0f);
-                        gravityDir = orbitalGravity->getCurrentGravityDirection();
+                        gravityDir = glm::normalize(planetCenter - tf.translation);
                     } else if (target == moonEntity) {
                         altitude = 5.0f; 
                         auto& tf = moonEntity.get<TransformComponent>();

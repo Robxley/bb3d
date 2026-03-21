@@ -446,7 +446,7 @@ void ImGuiLayer::drawComponentList(Entity entity) {
     drawCompNode("AudioListener", ICON_FA_EAR_LISTEN, colAudio, entity.has<AudioListenerComponent>());
     drawCompNode("SimpleAnimation", ICON_FA_FILM, colLogic, entity.has<SimpleAnimationComponent>());
     drawCompNode("NativeScript", ICON_FA_CODE, colLogic, entity.has<NativeScriptComponent>());
-    drawCompNode("OrbitalGravity", ICON_FA_MAGNET, colLogic, entity.has<OrbitalGravityComponent>());
+    drawCompNode("PointGravitySource", ICON_FA_MAGNET, colLogic, entity.has<PointGravitySourceComponent>());
     drawCompNode("SpaceshipController", ICON_FA_ROCKET, colLogic, entity.has<SpaceshipControllerComponent>());
     drawCompNode("ParticleSystem", ICON_FA_FIRE, colRender, entity.has<bb3d::ParticleSystemComponent>());
     drawCompNode("Selectable", ICON_FA_ARROW_POINTER, colLogic, entity.has<SelectableComponent>());
@@ -931,10 +931,10 @@ void ImGuiLayer::showInspector() {
                         }
                     }
                 }
-            } else if (m_focusedComponent == "OrbitalGravity" && m_selectedEntity.has<OrbitalGravityComponent>()) {
-                if (ComponentPropertiesHeader("OrbitalGravity", ICON_FA_MAGNET, colLogic, true, [&](){ m_selectedEntity.remove<OrbitalGravityComponent>(); m_focusedComponent = ""; })) {
-                    auto& ogc = m_selectedEntity.get<OrbitalGravityComponent>();
-                    ImGui::DragFloat("Strength (GM)", &ogc.strength, 5.0f);
+            } else if (m_focusedComponent == "PointGravitySource" && m_selectedEntity.has<PointGravitySourceComponent>()) {
+                if (ComponentPropertiesHeader("PointGravitySource", ICON_FA_MAGNET, colLogic, true, [&](){ m_selectedEntity.remove<PointGravitySourceComponent>(); m_focusedComponent = ""; })) {
+                    auto& pgsc = m_selectedEntity.get<PointGravitySourceComponent>();
+                    ImGui::DragFloat("Strength (GM)", &pgsc.strength, 5.0f);
                 }
             } else if (m_focusedComponent == "SpaceshipController" && m_selectedEntity.has<SpaceshipControllerComponent>()) {
                 if (ComponentPropertiesHeader("SpaceshipController", ICON_FA_ROCKET, colLogic, true, [&](){ m_selectedEntity.remove<SpaceshipControllerComponent>(); m_focusedComponent = ""; })) {
@@ -1012,7 +1012,7 @@ void ImGuiLayer::showInspector() {
             if (ImGui::MenuItem("Audio Source")) m_selectedEntity.add<AudioSourceComponent>();
             if (ImGui::MenuItem("Audio Listener")) m_selectedEntity.add<AudioListenerComponent>();
             if (ImGui::MenuItem("Simple Animation")) m_selectedEntity.add<SimpleAnimationComponent>();
-            if (ImGui::MenuItem("Orbital Gravity")) m_selectedEntity.add<OrbitalGravityComponent>();
+            if (ImGui::MenuItem("Point Gravity Source")) m_selectedEntity.add<PointGravitySourceComponent>();
             if (ImGui::MenuItem("Spaceship Controller")) m_selectedEntity.add<SpaceshipControllerComponent>();
             if (ImGui::MenuItem("Particle System")) m_selectedEntity.add<bb3d::ParticleSystemComponent>();
             if (ImGui::MenuItem("Selectable (Opt-out)")) m_selectedEntity.add<SelectableComponent>();
