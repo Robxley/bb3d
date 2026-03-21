@@ -91,12 +91,30 @@ public:
      */
     void submitAndPresent();
 
+    /**
+     * @brief Renders entity IDs to the picking buffer (GPU Color Picking).
+     * Must be called after render() and before submitAndPresent().
+     */
+    void renderEntityIds(Scene& scene);
+
+    /**
+     * @brief Reads back the entity ID at a specific pixel coordinate from the picking buffer.
+     * @param x Pixel X coordinate.
+     * @param y Pixel Y coordinate.
+     * @return The entity ID (entt::entity cast to uint32_t), or 0xFFFFFFFF if nothing was hit.
+     */
+    uint32_t readEntityIdAt(uint32_t x, uint32_t y);
+
+    /** @brief Returns true if the picking render target is available. */
+    bool hasPickingBuffer() const { return m_pickingReady; }
+
 private:
     void createSyncObjects();
     void createShadowObjects();
     void createGlobalDescriptors();
     void createPipelines(const EngineConfig& config);
     void createCopyPipeline();
+    void createPickingResources();
     
     Ref<Material> getMaterialForTexture(Ref<Texture> texture);
 
@@ -211,6 +229,24 @@ private:
     void compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex);
     void renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboData);
     void updateGlobalUBO(uint32_t currentFrame, Scene& scene);
+
+    // --- GPU Color Picking ---
+    vk::Image m_pickingImage;
+    VmaAllocation m_pickingAllocation = nullptr;
+    vk::ImageView m_pickingImageView;
+    vk::Image m_pickingDepthImage;
+    VmaAllocation m_pickingDepthAllocation = nullptr;
+    vk::ImageView m_pickingDepthImageView;
+    Scope<Buffer> m_pickingStagingBuffer;
+    Scope<GraphicsPipeline> m_pickingPipeline;
+    uint32_t m_pickingWidth = 0;
+    uint32_t m_pickingHeight = 0;
+    bool m_pickingRendered = false; ///< True if entity IDs were rendered this frame.
+    bool m_pickingReady = false;    ///< True once picking resources are created.
+
+    // A separate instance buffer and descriptor set for the picking pass to avoid overwriting main pass data
+    std::vector<Scope<Buffer>> m_pickingInstanceBuffers;
+    std::vector<vk::DescriptorSet> m_pickingDescriptorSets;
 };
 
 } // namespace bb3d

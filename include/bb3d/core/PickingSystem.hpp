@@ -49,6 +49,9 @@ private:
     /** @brief Picking par raycasting physique (Jolt). */
     Entity pickPhysicsRaycast(glm::vec2 viewportUV, Scene& scene, Engine& engine);
 
+    /** @brief Picking par GPU color picking (lecture de l'entityID dans le buffer R32_UINT). */
+    Entity pickColorPicking(glm::vec2 viewportUV, Scene& scene, Engine& engine);
+
     /** @brief Picking par intersection AABB CPU (fallback pour entités sans physique). */
     Entity pickAABBFallback(glm::vec3 rayOrigin, glm::vec3 rayDir, Scene& scene);
 

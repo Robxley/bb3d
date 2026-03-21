@@ -25,10 +25,52 @@ bool PickingSystem::isSelectable(Entity entity) {
 }
 
 Entity PickingSystem::pick(glm::vec2 viewportUV, Scene& scene, Engine& engine) {
+    BB_CORE_INFO("PickingSystem::pick() mode={}", static_cast<int>(m_mode));
     if (m_mode == PickingMode::None) return {};
 
-    // Both modes share the same ray-based approach for now
+    if (m_mode == PickingMode::ColorPicking) {
+        return pickColorPicking(viewportUV, scene, engine);
+    }
+
+    // PhysicsRaycast (default)
     return pickPhysicsRaycast(viewportUV, scene, engine);
+}
+
+Entity PickingSystem::pickColorPicking(glm::vec2 viewportUV, Scene& scene, Engine& engine) {
+    BB_CORE_INFO("PickingSystem: pickColorPicking called (UV: {:.2f}, {:.2f})", viewportUV.x, viewportUV.y);
+    auto& renderer = engine.GetRenderer();
+    if (!renderer.hasPickingBuffer()) {
+        BB_CORE_WARN("PickingSystem: Picking buffer not yet available (hasPickingBuffer=false), falling back to raycast.");
+        return pickPhysicsRaycast(viewportUV, scene, engine);
+    }
+
+    // Convert UV to pixel coordinates in the picking buffer
+    auto* rt = renderer.getRenderTarget();
+    uint32_t width = rt ? rt->getExtent().width : renderer.getSwapChain().getExtent().width;
+    uint32_t height = rt ? rt->getExtent().height : renderer.getSwapChain().getExtent().height;
+    uint32_t px = static_cast<uint32_t>(viewportUV.x * width);
+    uint32_t py = static_cast<uint32_t>(viewportUV.y * height);
+    px = std::min(px, width - 1);
+    py = std::min(py, height - 1);
+
+    uint32_t entityId = renderer.readEntityIdAt(px, py);
+    if (entityId == 0xFFFFFFFF) {
+        BB_CORE_TRACE("PickingSystem: ColorPicking — no entity at pixel ({}, {})", px, py);
+        return {};
+    }
+
+    // Reconstruct entity from ID
+    auto entityHandle = static_cast<entt::entity>(entityId);
+    if (!scene.getRegistry().valid(entityHandle)) {
+        BB_CORE_WARN("PickingSystem: ColorPicking returned invalid entity ID {}", entityId);
+        return {};
+    }
+
+    Entity entity(entityHandle, scene);
+    if (!isSelectable(entity)) return {};
+
+    BB_CORE_INFO("PickingSystem: ColorPicking hit entity ID {} at pixel ({}, {})", entityId, px, py);
+    return entity;
 }
 
 Entity PickingSystem::pickPhysicsRaycast(glm::vec2 viewportUV, Scene& scene, Engine& engine) {
@@ -54,15 +96,14 @@ Entity PickingSystem::pickPhysicsRaycast(glm::vec2 viewportUV, Scene& scene, Eng
     }
 
     // 2. Unproject viewport UV to world-space ray
-    // Convert UV [0,1] to NDC [-1, 1]
     // NOTE: The projection matrix already contains the Vulkan Y-flip (proj[1][1] *= -1)
-    // so we do NOT need to manually flip ndc.y here — the inverse projection handles it.
+    // so we do NOT manually flip ndc.y — the inverse projection handles it.
     glm::vec2 ndc = viewportUV * 2.0f - 1.0f;
 
     glm::mat4 invProj = glm::inverse(projMatrix);
     glm::mat4 invView = glm::inverse(viewMatrix);
 
-    // Near plane point in clip space (Vulkan depth range: [0, 1])
+    // Near/far plane points in clip space (Vulkan depth range: [0, 1])
     glm::vec4 clipNear = glm::vec4(ndc.x, ndc.y, 0.0f, 1.0f);
     glm::vec4 clipFar  = glm::vec4(ndc.x, ndc.y, 1.0f, 1.0f);
 
@@ -78,11 +119,6 @@ Entity PickingSystem::pickPhysicsRaycast(glm::vec2 viewportUV, Scene& scene, Eng
     glm::vec3 rayDir = glm::normalize(worldFar - worldNear);
     glm::vec3 rayOrigin = worldNear;
 
-    BB_CORE_TRACE("PickingSystem: UV({:.2f},{:.2f}) NDC({:.2f},{:.2f}) Origin({:.1f},{:.1f},{:.1f}) Dir({:.2f},{:.2f},{:.2f})",
-        viewportUV.x, viewportUV.y, ndc.x, ndc.y,
-        rayOrigin.x, rayOrigin.y, rayOrigin.z,
-        rayDir.x, rayDir.y, rayDir.z);
-
     float maxDistance = 1000.0f;
 
     // 3. Try physics raycast first (if physics is available)
@@ -90,8 +126,6 @@ Entity PickingSystem::pickPhysicsRaycast(glm::vec2 viewportUV, Scene& scene, Eng
     if (physWorld) {
         auto result = physWorld->raycast(rayOrigin, rayDir, maxDistance);
         if (result.hit) {
-            BB_CORE_INFO("PickingSystem: Physics ray hit! bodyID={} pos({:.1f},{:.1f},{:.1f})", 
-                result.bodyID, result.position.x, result.position.y, result.position.z);
             // Find entity by bodyID
             auto physView = scene.getRegistry().view<PhysicsComponent>();
             for (auto entityHandle : physView) {
@@ -116,7 +150,6 @@ Entity PickingSystem::pickAABBFallback(glm::vec3 rayOrigin, glm::vec3 rayDir, Sc
 
     // Ray-AABB intersection (slab method)
     auto testAABB = [&](const AABB& box) -> float {
-        // Handle rays parallel to axis planes (avoid division by zero)
         glm::vec3 invDir;
         for (int i = 0; i < 3; i++) {
             invDir[i] = (std::abs(rayDir[i]) > 1e-8f) ? (1.0f / rayDir[i]) : 1e8f;
@@ -167,9 +200,6 @@ Entity PickingSystem::pickAABBFallback(glm::vec3 rayOrigin, glm::vec3 rayDir, Sc
         }
     }
 
-    if (closestEntity) {
-        BB_CORE_INFO("PickingSystem: AABB hit entity at distance {:.2f}", closestT);
-    }
     return closestEntity;
 }
 

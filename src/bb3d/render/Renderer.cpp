@@ -82,6 +82,16 @@ Renderer::~Renderer() {
         if (m_highlightMat) m_highlightMat.reset();
         if (m_hoveredMat) m_hoveredMat.reset();
 
+        // Picking cleanup
+        m_pickingPipeline.reset();
+        m_pickingStagingBuffer.reset();
+        if (m_pickingImageView) dev.destroyImageView(m_pickingImageView);
+        if (m_pickingImage) vmaDestroyImage(m_context.getAllocator(), m_pickingImage, m_pickingAllocation);
+        if (m_pickingDepthImageView) dev.destroyImageView(m_pickingDepthImageView);
+        if (m_pickingDepthImage) vmaDestroyImage(m_context.getAllocator(), m_pickingDepthImage, m_pickingDepthAllocation);
+        m_pickingInstanceBuffers.clear();
+        m_pickingDescriptorSets.clear();
+
         if (m_descriptorPool) dev.destroyDescriptorPool(m_descriptorPool);
         if (m_shadowSampler) dev.destroySampler(m_shadowSampler);
         for (auto& cv : m_shadowCascadeViews) if (cv) dev.destroyImageView(cv);
@@ -812,6 +822,275 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
     depthReadBarrier.subresourceRange.layerCount = m_config.graphics.shadowCascades;
 
     cb.pipelineBarrier(vk::PipelineStageFlagBits::eLateFragmentTests, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, depthReadBarrier);
+}
+
+void Renderer::createPickingResources() {
+    auto dev = m_context.getDevice();
+    auto allocator = m_context.getAllocator();
+
+    // Use the same dimensions as the render target (or swapchain if no RT)
+    m_pickingWidth = m_renderTarget ? m_renderTarget->getExtent().width : m_swapChain->getExtent().width;
+    m_pickingHeight = m_renderTarget ? m_renderTarget->getExtent().height : m_swapChain->getExtent().height;
+    m_pickingWidth = std::max(1u, m_pickingWidth);
+    m_pickingHeight = std::max(1u, m_pickingHeight);
+
+    // 1. Create R32_UINT color image for entity IDs
+    VkImageCreateInfo pickImgInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    pickImgInfo.imageType = VK_IMAGE_TYPE_2D;
+    pickImgInfo.format = VK_FORMAT_R32_UINT;
+    pickImgInfo.extent = {m_pickingWidth, m_pickingHeight, 1};
+    pickImgInfo.mipLevels = 1;
+    pickImgInfo.arrayLayers = 1;
+    pickImgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    pickImgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    pickImgInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    pickImgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VmaAllocationCreateInfo pickAllocInfo{};
+    pickAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    VkImage rawPickImg;
+    vmaCreateImage(allocator, &pickImgInfo, &pickAllocInfo, &rawPickImg, &m_pickingAllocation, nullptr);
+    m_pickingImage = rawPickImg;
+
+    vk::ImageViewCreateInfo pickViewInfo({}, m_pickingImage, vk::ImageViewType::e2D, vk::Format::eR32Uint,
+        {}, {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+    m_pickingImageView = dev.createImageView(pickViewInfo);
+
+    // 2. Create depth image for picking pass (shares format with main depth)
+    vk::Format depthFormat = m_renderTarget ? m_renderTarget->getDepthFormat() : m_swapChain->getDepthFormat();
+    VkImageCreateInfo pickDepthInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    pickDepthInfo.imageType = VK_IMAGE_TYPE_2D;
+    pickDepthInfo.format = static_cast<VkFormat>(depthFormat);
+    pickDepthInfo.extent = {m_pickingWidth, m_pickingHeight, 1};
+    pickDepthInfo.mipLevels = 1;
+    pickDepthInfo.arrayLayers = 1;
+    pickDepthInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    pickDepthInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    pickDepthInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    pickDepthInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VmaAllocationCreateInfo pickDepthAllocInfo{};
+    pickDepthAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    VkImage rawPickDepthImg;
+    vmaCreateImage(allocator, &pickDepthInfo, &pickDepthAllocInfo, &rawPickDepthImg, &m_pickingDepthAllocation, nullptr);
+    m_pickingDepthImage = rawPickDepthImg;
+
+    vk::ImageViewCreateInfo pickDepthViewInfo({}, m_pickingDepthImage, vk::ImageViewType::e2D, depthFormat,
+        {}, {vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1});
+    m_pickingDepthImageView = dev.createImageView(pickDepthViewInfo);
+
+    // 3. Create staging buffer for CPU readback (1 pixel = 4 bytes)
+    m_pickingStagingBuffer = CreateScope<Buffer>(m_context, sizeof(uint32_t),
+        vk::BufferUsageFlagBits::eTransferDst, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    // 4. Create picking pipeline
+    auto pickVert = CreateScope<Shader>(m_context, "assets/shaders/picking.vert.spv");
+    auto pickFrag = CreateScope<Shader>(m_context, "assets/shaders/picking.frag.spv");
+    
+    vk::PushConstantRange pushRange(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(uint32_t));
+    
+    m_pickingPipeline = CreateScope<GraphicsPipeline>(
+        m_context, vk::Format::eR32Uint, depthFormat,
+        *pickVert, *pickFrag, m_config,
+        std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout},
+        std::vector<vk::PushConstantRange>{pushRange},
+        true,   // useVertexInput
+        true,   // depthWrite 
+        vk::CompareOp::eLess,
+        std::vector<uint32_t>{0}, // Only position attribute
+        vk::PrimitiveTopology::eTriangleList,
+        BlendMode::Opaque
+    );
+
+    BB_CORE_INFO("Renderer: GPU Color Picking resources created ({}x{}).", m_pickingWidth, m_pickingHeight);
+
+    // 5. Create picking instance buffers and descriptor sets (one per frame)
+    m_pickingInstanceBuffers.clear();
+    m_pickingDescriptorSets.clear();
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        m_pickingInstanceBuffers.push_back(CreateScope<Buffer>(m_context, 
+            MAX_INSTANCES * sizeof(glm::mat4), 
+            vk::BufferUsageFlagBits::eStorageBuffer, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT));
+        
+        vk::DescriptorSetAllocateInfo allocInfo(m_descriptorPool, 1, &m_globalDescriptorLayout);
+        auto sets = dev.allocateDescriptorSets(allocInfo);
+        m_pickingDescriptorSets.push_back(sets[0]);
+
+        // Update picking descriptor set (Set 0 for picking)
+        vk::DescriptorBufferInfo globalUboInfo(m_cameraUbos[i]->getHandle(), 0, VK_WHOLE_SIZE);
+        vk::DescriptorBufferInfo pickingInstanceInfo(m_pickingInstanceBuffers[i]->getHandle(), 0, VK_WHOLE_SIZE);
+
+        std::array<vk::WriteDescriptorSet, 2> pickingWrites = {
+            vk::WriteDescriptorSet(m_pickingDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &globalUboInfo),
+            vk::WriteDescriptorSet(m_pickingDescriptorSets[i], 1, 0, 1, vk::DescriptorType::eStorageBuffer, nullptr, &pickingInstanceInfo)
+        };
+        dev.updateDescriptorSets(pickingWrites, {});
+    }
+
+    m_pickingReady = true;
+}
+
+void Renderer::renderEntityIds(Scene& scene) {
+    if (!m_pickingPipeline) {
+        createPickingResources();
+        if (!m_pickingPipeline) return;
+    }
+
+    // Resize if needed
+    uint32_t targetW = m_renderTarget ? m_renderTarget->getExtent().width : m_swapChain->getExtent().width;
+    uint32_t targetH = m_renderTarget ? m_renderTarget->getExtent().height : m_swapChain->getExtent().height;
+    if (targetW != m_pickingWidth || targetH != m_pickingHeight) {
+        // Cleanup old
+        auto dev = m_context.getDevice();
+        dev.waitIdle();
+        if (m_pickingImageView) dev.destroyImageView(m_pickingImageView);
+        if (m_pickingImage) vmaDestroyImage(m_context.getAllocator(), m_pickingImage, m_pickingAllocation);
+        if (m_pickingDepthImageView) dev.destroyImageView(m_pickingDepthImageView);
+        if (m_pickingDepthImage) vmaDestroyImage(m_context.getAllocator(), m_pickingDepthImage, m_pickingDepthAllocation);
+        m_pickingImage = nullptr; m_pickingDepthImage = nullptr;
+        m_pickingAllocation = nullptr; m_pickingDepthAllocation = nullptr;
+        createPickingResources();
+        if (!m_pickingPipeline) return;
+    }
+
+    auto& cb = m_commandBuffers[m_currentFrame];
+
+    // Transition picking images to attachment
+    vk::ImageMemoryBarrier pickBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, 
+        vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
+        VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, m_pickingImage,
+        {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+    cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, 
+        {}, nullptr, nullptr, pickBarrier);
+
+    vk::ImageMemoryBarrier pickDepthBarrier({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+        vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+        VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, m_pickingDepthImage,
+        {vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1});
+    cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests,
+        {}, nullptr, nullptr, pickDepthBarrier);
+
+    // Begin entity ID rendering pass
+    std::array<uint32_t, 4> clearIdValues = {0xFFFFFFFF, 0, 0, 0};
+    vk::ClearValue clearId;
+    clearId.color = vk::ClearColorValue(clearIdValues);
+    vk::RenderingAttachmentInfo colorAttr(m_pickingImageView, vk::ImageLayout::eColorAttachmentOptimal,
+        vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined,
+        vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, clearId);
+    vk::RenderingAttachmentInfo depthAttr(m_pickingDepthImageView, vk::ImageLayout::eDepthStencilAttachmentOptimal,
+        vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined,
+        vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore,
+        vk::ClearValue(vk::ClearDepthStencilValue(1.0f, 0)));
+
+    vk::Extent2D extent{m_pickingWidth, m_pickingHeight};
+    cb.beginRendering({{}, {{0,0}, extent}, 1, 0, 1, &colorAttr, &depthAttr});
+    cb.setViewport(0, vk::Viewport(0, 0, (float)extent.width, (float)extent.height, 0, 1));
+    cb.setScissor(0, vk::Rect2D({0,0}, extent));
+
+    m_pickingPipeline->bind(cb);
+    cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pickingPipeline->getLayout(), 0, 1,
+        &m_pickingDescriptorSets[m_currentFrame], 0, nullptr);
+
+    // Draw all mesh entities with their entityID as push constant
+    uint32_t instanceOffset = 0;
+    void* mappedInstanceData = m_pickingInstanceBuffers[m_currentFrame]->getMappedData();
+    auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
+    for (auto entity : meshView) {
+        auto& meshComp = meshView.get<MeshComponent>(entity);
+        if (!meshComp.mesh || !meshComp.visible) continue;
+        glm::mat4 transform = meshView.get<TransformComponent>(entity).getTransform();
+        
+        // Write transform to dedicated picking instance SSBO
+        if (instanceOffset >= MAX_INSTANCES) break;
+        void* data = static_cast<char*>(mappedInstanceData) + (instanceOffset * sizeof(glm::mat4));
+        memcpy(data, &transform, sizeof(glm::mat4));
+
+        uint32_t entityId = static_cast<uint32_t>(entity);
+        cb.pushConstants(m_pickingPipeline->getLayout(), 
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(uint32_t), &entityId);
+        meshComp.mesh->draw(cb, 1, instanceOffset);
+        instanceOffset++;
+    }
+
+    // Draw all model entities
+    auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
+    for (auto entity : modelView) {
+        auto& modelComp = modelView.get<ModelComponent>(entity);
+        if (!modelComp.model || !modelComp.visible) continue;
+        glm::mat4 baseTransform = modelView.get<TransformComponent>(entity).getTransform();
+        glm::mat4 transform = glm::translate(baseTransform, modelComp.offset);
+
+        uint32_t entityId = static_cast<uint32_t>(entity);
+        cb.pushConstants(m_pickingPipeline->getLayout(),
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(uint32_t), &entityId);
+
+        for (const auto& mesh : modelComp.model->getMeshes()) {
+            if (!mesh->isVisible()) continue;
+            if (instanceOffset >= MAX_INSTANCES) break;
+            void* data = static_cast<char*>(mappedInstanceData) + (instanceOffset * sizeof(glm::mat4));
+            memcpy(data, &transform, sizeof(glm::mat4));
+            mesh->draw(cb, 1, instanceOffset);
+            instanceOffset++;
+        }
+    }
+
+    cb.endRendering();
+
+    // Transition picking image to transfer src for readback
+    vk::ImageMemoryBarrier readBarrier(vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
+        vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
+        VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, m_pickingImage,
+        {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+    cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer,
+        {}, nullptr, nullptr, readBarrier);
+
+    m_pickingRendered = true;
+}
+
+uint32_t Renderer::readEntityIdAt(uint32_t x, uint32_t y) {
+    if (!m_pickingRendered || !m_pickingImage || !m_pickingStagingBuffer) return 0xFFFFFFFF;
+    if (x >= m_pickingWidth || y >= m_pickingHeight) return 0xFFFFFFFF;
+
+    auto dev = m_context.getDevice();
+    
+    // We need a one-shot command to copy a single pixel from the picking image to the staging buffer
+    vk::CommandBufferAllocateInfo allocInfo(m_commandPool, vk::CommandBufferLevel::ePrimary, 1);
+    auto cmdBufs = dev.allocateCommandBuffers(allocInfo);
+    auto cmd = cmdBufs[0];
+    
+    cmd.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+
+    // Copy single pixel from picking image to staging buffer
+    vk::BufferImageCopy region;
+    region.bufferOffset = 0;
+    region.bufferRowLength = 0;
+    region.bufferImageHeight = 0;
+    region.imageSubresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, 0, 0, 1);
+    region.imageOffset = vk::Offset3D(static_cast<int32_t>(x), static_cast<int32_t>(y), 0);
+    region.imageExtent = vk::Extent3D(1, 1, 1);
+    
+    cmd.copyImageToBuffer(m_pickingImage, vk::ImageLayout::eTransferSrcOptimal, 
+        m_pickingStagingBuffer->getHandle(), region);
+
+    cmd.end();
+
+    vk::SubmitInfo submitInfo({}, {}, cmd, {});
+    m_context.getGraphicsQueue().submit(submitInfo, {});
+    m_context.getGraphicsQueue().waitIdle();
+
+    dev.freeCommandBuffers(m_commandPool, cmdBufs);
+
+    // Read back the value
+    uint32_t entityId = 0xFFFFFFFF;
+    void* mapped = m_pickingStagingBuffer->getMappedData();
+    if (mapped) {
+        memcpy(&entityId, mapped, sizeof(uint32_t));
+    }
+
+    m_pickingRendered = false;
+    return entityId;
 }
 
 } // namespace bb3d

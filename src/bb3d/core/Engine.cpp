@@ -401,6 +401,11 @@ void Engine::Render() {
 
         // 1. Scene Rendering
         frameStarted = m_Renderer->render(*m_ActiveScene);
+
+        // 1b. GPU Color Picking pass (renders entity IDs to a separate buffer)
+        if (frameStarted && m_PickingSystem && m_PickingSystem->getMode() == PickingMode::ColorPicking) {
+            m_Renderer->renderEntityIds(*m_ActiveScene);
+        }
     }
 #if defined(BB3D_ENABLE_EDITOR)
     // 2. UI Rendering (ImGui) overlay

@@ -173,30 +173,30 @@ planet.model = bb3d::ProceduralMeshGenerator::createPlanet(
 ---
 
 ### 14. Mouse Picking (Entity Selection)
-Dual-backend system for selecting entities by clicking in the viewport.
+The engine features a high-performance, dual-backend picking system integrated into the Editor viewport.
+
+- **Backend 1: Physics Raycast** (Default)
+  - Uses `Jolt Physics` for ultra-fast raycasting. 
+  - Works on any entity with a `PhysicsComponent` (Box, Sphere, Mesh Colliders).
+  - Falling back to **AABB Ray Intersection** (CPU-based) for non-physics entities.
+- **Backend 2: GPU Color Picking**
+  - Performs a dedicated rendering pass to an offscreen `R32_UINT` buffer.
+  - Pixel-perfect accuracy: Each pixel stores the `entt::entity` handle.
+  - Highly optimized: Uses dedicated instance buffers and a lightweight picking shader.
+- **Selectability Control**: Opt-out selection via `bb3d::SelectableComponent`.
 
 ```cpp
-// Enable picking at engine creation
+// 1. Configuration (at startup)
 bb3d::EngineConfig config;
-config.enablePicking(bb3d::PickingMode::PhysicsRaycast); // Or ColorPicking
+config.enablePicking(bb3d::PickingMode::ColorPicking); 
 
-auto engine = bb3d::Engine::Create(config);
-auto scene = engine->CreateScene();
-
-// All entities are selectable by default.
-// To make an entity non-selectable (opt-out):
+// 2. Control Selectability (per entity)
 auto ground = scene->createEntity("Ground");
-ground.add<bb3d::SelectableComponent>({false}); // Ground cannot be picked
+ground.add<bb3d::SelectableComponent>({false}); // Immutable environment object
 
-// Programmatic picking:
-glm::vec2 viewportUV = {0.5f, 0.5f}; // Center of viewport
-bb3d::Entity picked = scene->pickEntity(viewportUV);
-if (picked) {
-    BB_CORE_INFO("Picked: {}", picked.get<bb3d::TagComponent>().tag);
-}
-
-// Editor integration: Left-click in viewport auto-selects entities
-// (handled internally by ImGuiLayer when picking is enabled)
+// 3. Scripted Picking (from mouse/UV)
+glm::vec2 mouseUV = getMouseViewportUV();
+bb3d::Entity hit = scene->pickEntity(mouseUV);
 ```
 
 ---
