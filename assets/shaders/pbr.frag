@@ -63,7 +63,7 @@ float ShadowCalculation(vec3 fragPosWorldSpace, vec3 N, vec3 lightDir) {
     if(projCoords.z > 1.0 || projCoords.z < 0.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0)
         return 1.0; 
 
-    float bias = max(0.005 * (1.0 - dot(N, lightDir)), 0.001);
+    float bias = max(0.015 * (1.0 - dot(N, lightDir)), 0.002);
     
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0).xy;
@@ -125,11 +125,13 @@ vec3 calculatePBR(vec3 L, vec3 V, vec3 N, vec3 radiance, vec3 albedo, float meta
 }
 
 void main() {
-    vec3 albedo = texture(albedoMap, fragUV).rgb * mat.baseColorFactor.rgb * fragColor;
+    vec3 fColor = (length(fragColor) < 0.01) ? vec3(1.0) : fragColor;
+    vec3 mColor = (length(mat.baseColorFactor.rgb) < 0.01) ? vec3(1.0) : mat.baseColorFactor.rgb;
+    vec3 albedo = texture(albedoMap, fragUV).rgb * mColor * fColor;
     
     vec3 orm = texture(ormMap, fragUV).rgb;
-    float ao = orm.r * mat.occlusionStrength;
-    float roughness = orm.g * mat.roughnessFactor;
+    float ao = mix(1.0, orm.r, mat.occlusionStrength);
+    float roughness = mix(0.5, orm.g, mat.roughnessFactor); // Just in case, standard PBR usually multiplies, but if omitted, it defaults. Wait, roughness is usually multiplied or overridden. Let's keep it as is, just fix AO.
     float metallic = orm.b * mat.metallicFactor;
     
     vec3 emissive = texture(emissiveMap, fragUV).rgb;

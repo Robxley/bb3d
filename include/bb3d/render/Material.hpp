@@ -8,7 +8,7 @@
 
 namespace bb3d {
 
-enum class MaterialType { PBR, Unlit, Toon, Skybox, SkySphere, Highlight };
+enum class MaterialType { PBR, Unlit, Toon, Skybox, SkySphere, Highlight, Plasma, Particle };
 
 enum class AlphaMode { Opaque = 0, Mask, Blend };
 
@@ -179,6 +179,50 @@ public:
 private:
     void updateDescriptorSet(uint32_t frame);
     Ref<Texture> m_texture;
+    std::array<vk::DescriptorSet, MAX_FRAMES_IN_FLIGHT> m_sets = {nullptr, nullptr, nullptr};
+    std::array<bool, MAX_FRAMES_IN_FLIGHT> m_dirty = {true, true, true};
+};
+
+struct PlasmaParameters {
+    glm::vec4 baseColor = {1.0f, 1.0f, 1.0f, 1.0f};
+    float time = 0.0f;
+    float intensity = 1.0f;
+    float padding1, padding2;
+};
+
+class PlasmaMaterial : public Material {
+public:
+    PlasmaMaterial(VulkanContext& context);
+    ~PlasmaMaterial() override;
+    MaterialType getType() const override { return MaterialType::Plasma; }
+    void setBaseMap(Ref<Texture> texture) { if (m_baseMap != texture) { m_baseMap = texture; m_dirty.fill(true); } }
+    void setTime(float t) { m_parameters.time = t; m_dirty.fill(true); }
+    void setIntensity(float i) { m_parameters.intensity = i; m_dirty.fill(true); }
+    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
+    static vk::DescriptorSetLayout CreateLayout(vk::Device device);
+private:
+    void updateDescriptorSet(uint32_t frame);
+    Ref<Texture> m_baseMap;
+    PlasmaParameters m_parameters;
+    std::array<Scope<UniformBuffer>, MAX_FRAMES_IN_FLIGHT> m_paramBuffers;
+    std::array<vk::DescriptorSet, MAX_FRAMES_IN_FLIGHT> m_sets = {nullptr, nullptr, nullptr};
+    std::array<bool, MAX_FRAMES_IN_FLIGHT> m_dirty = {true, true, true};
+};
+
+class ParticleMaterial : public Material {
+public:
+    ParticleMaterial(VulkanContext& context);
+    ~ParticleMaterial() override;
+    MaterialType getType() const override { return MaterialType::Particle; }
+    void setBaseMap(Ref<Texture> texture) { if (m_baseMap != texture) { m_baseMap = texture; m_dirty.fill(true); } }
+    void setColor(const glm::vec3& color, float alpha = 1.0f) { m_parameters.color = glm::vec4(color, alpha); m_dirty.fill(true); }
+    vk::DescriptorSet getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) override;
+    static vk::DescriptorSetLayout CreateLayout(vk::Device device);
+private:
+    void updateDescriptorSet(uint32_t frame);
+    Ref<Texture> m_baseMap;
+    UnlitParameters m_parameters; // Reuses unlit parameters (vec4 color)
+    std::array<Scope<UniformBuffer>, MAX_FRAMES_IN_FLIGHT> m_paramBuffers;
     std::array<vk::DescriptorSet, MAX_FRAMES_IN_FLIGHT> m_sets = {nullptr, nullptr, nullptr};
     std::array<bool, MAX_FRAMES_IN_FLIGHT> m_dirty = {true, true, true};
 };

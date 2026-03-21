@@ -192,6 +192,7 @@ private:
     Scope<Mesh> m_particleQuad;
     Ref<SkyboxMaterial> m_internalSkyboxMat;
     Ref<SkySphereMaterial> m_internalSkySphereMat;
+    Ref<ParticleMaterial> m_defaultParticleMat;
     Ref<Material> m_fallbackMaterial;
 
     // Highlight

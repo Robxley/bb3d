@@ -171,19 +171,22 @@ struct MeshComponent {
 struct ModelComponent {
     Ref<Model> model;
     std::string assetPath; ///< Path used for serialization.
+    glm::vec3 offset = {0.0f, 0.0f, 0.0f}; ///< Local visual offset applied during rendering.
     bool visible = true;
     bool castShadows = true; ///< If false, all meshes in this model are skipped during rendering.
 
     ModelComponent() = default;
-    ModelComponent(Ref<Model> m, const std::string& path = "") : model(m), assetPath(path) {}
+    ModelComponent(Ref<Model> m, const std::string& path = "", const glm::vec3& off = {0.0f, 0.0f, 0.0f}) : model(m), assetPath(path), offset(off) {}
 
     void serialize(json& j) const {
         j["assetPath"] = assetPath;
+        j["offset"] = offset;
         j["visible"] = visible;
     }
 
     void deserialize(const json& j) {
         if (j.contains("assetPath")) j.at("assetPath").get_to(assetPath);
+        if (j.contains("offset")) j.at("offset").get_to(offset);
         if (j.contains("visible")) j.at("visible").get_to(visible);
     }
 };
@@ -310,6 +313,8 @@ struct PhysicsComponent {
     float mass = 1.0f;
     float friction = 0.5f;
     float restitution = 0.5f;
+    float linearDamping = 0.05f;
+    float angularDamping = 0.05f;
 
     // 2. Collider Properties
     ColliderType colliderType = ColliderType::Box;
@@ -336,6 +341,8 @@ struct PhysicsComponent {
         j["mass"] = mass;
         j["friction"] = friction;
         j["restitution"] = restitution;
+        j["linearDamping"] = linearDamping;
+        j["angularDamping"] = angularDamping;
         j["initialLinearVelocity"] = initialLinearVelocity;
 
         j["colliderType"] = static_cast<int>(colliderType);
@@ -353,6 +360,8 @@ struct PhysicsComponent {
         if (j.contains("mass")) j.at("mass").get_to(mass);
         if (j.contains("friction")) j.at("friction").get_to(friction);
         if (j.contains("restitution")) j.at("restitution").get_to(restitution);
+        if (j.contains("linearDamping")) j.at("linearDamping").get_to(linearDamping);
+        if (j.contains("angularDamping")) j.at("angularDamping").get_to(angularDamping);
         if (j.contains("initialLinearVelocity")) j.at("initialLinearVelocity").get_to(initialLinearVelocity);
 
         if (j.contains("colliderType")) colliderType = static_cast<ColliderType>(j.at("colliderType").get<int>());
@@ -706,7 +715,7 @@ struct ProceduralPlanetComponent {
 // --- AstroBazard Specific ---
 
 struct OrbitalGravityComponent {
-    float strength = 500.0f;
+    float strength = 25000.0f; // GM constant
     uint32_t centralBody = 0xFFFFFFFF;
     
     OrbitalGravityComponent() = default;
@@ -723,9 +732,9 @@ struct OrbitalGravityComponent {
 };
 
 struct SpaceshipControllerComponent {
-    float mainThrustPower = 250.0f;
-    float retroThrustPower = 100.0f;
-    float torquePower = 20.0f;
+    float mainThrustPower = 75.0f;
+    float retroThrustPower = 7.5f;
+    float torquePower = 7.5f;
     
     SpaceshipControllerComponent() = default;
 

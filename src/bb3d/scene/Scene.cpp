@@ -110,7 +110,7 @@ View<LightComponent> Scene::createPointLight(const std::string& name, const glm:
     return View<LightComponent>(entity);
 }
 
-View<SkySphereComponent> Scene::createSkySphere(const std::string& name, const std::string& texturePath) {
+View<SkySphereComponent> Scene::createSkySphere(const std::string& name, const std::string& texturePath, bool flipY) {
     if (!m_EngineContext) {
         BB_CORE_ERROR("Scene: Cannot load skysphere '{0}', Engine context is missing!", name);
         return View<SkySphereComponent>(Entity{});
@@ -124,6 +124,7 @@ View<SkySphereComponent> Scene::createSkySphere(const std::string& name, const s
         auto& comp = entity.get<SkySphereComponent>();
         comp.texture = texture;
         comp.assetPath = texturePath;
+        comp.flipY = flipY;
     } catch (const std::exception& e) {
         BB_CORE_ERROR("Scene: Failed to load skysphere texture '{0}': {1}", texturePath, e.what());
         destroyEntity(entity);

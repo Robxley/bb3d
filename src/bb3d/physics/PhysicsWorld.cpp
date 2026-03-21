@@ -342,6 +342,8 @@ namespace bb3d {
         settings.mLinearVelocity = toJPH(phys.initialLinearVelocity);
         settings.mMassPropertiesOverride.mMass = phys.mass;
         settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
+        settings.mLinearDamping = phys.linearDamping;
+        settings.mAngularDamping = phys.angularDamping;
         
         if (phys.constrain2D) {
             settings.mAllowedDOFs = JPH::EAllowedDOFs::Plane2D;

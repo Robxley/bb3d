@@ -11,6 +11,7 @@
 #include "bb3d/core/Engine.hpp"
 #include "bb3d/render/MeshGenerator.hpp"
 #include "bb3d/render/TextureGenerator.hpp"
+#include "bb3d/render/Material.hpp"
 #include "bb3d/physics/PhysicsWorld.hpp"
 
 #include <imgui_impl_sdl3.h>
@@ -556,6 +557,7 @@ void ImGuiLayer::showInspector() {
             DrawCompTreeLeaf("NativeScript", ICON_FA_CODE, colLogic, m_selectedEntity.has<NativeScriptComponent>());
             DrawCompTreeLeaf("OrbitalGravity", ICON_FA_MAGNET, colLogic, m_selectedEntity.has<OrbitalGravityComponent>());
             DrawCompTreeLeaf("SpaceshipController", ICON_FA_ROCKET, colLogic, m_selectedEntity.has<SpaceshipControllerComponent>());
+            DrawCompTreeLeaf("ParticleSystem", ICON_FA_FIRE, colRender, m_selectedEntity.has<bb3d::ParticleSystemComponent>());
 
             ImGui::TreePop();
         }
@@ -800,6 +802,8 @@ void ImGuiLayer::showInspector() {
                     changed |= ImGui::DragFloat("Mass", &phys.mass, 0.1f, 0.0f, 1000.0f);
                     changed |= ImGui::SliderFloat("Friction", &phys.friction, 0.0f, 1.0f);
                     changed |= ImGui::SliderFloat("Restitution", &phys.restitution, 0.0f, 1.0f);
+                    changed |= ImGui::SliderFloat("Linear Damping", &phys.linearDamping, 0.0f, 10.0f);
+                    changed |= ImGui::SliderFloat("Angular Damping", &phys.angularDamping, 0.0f, 10.0f);
                     changed |= ImGui::Checkbox("Constrain X-Y Plane", &phys.constrain2D);
                     
                     ImGui::Separator();
@@ -909,6 +913,50 @@ void ImGuiLayer::showInspector() {
                     ImGui::DragFloat("Retro Thrust", &sc.retroThrustPower, 2.0f);
                     ImGui::DragFloat("Torque (RCS)", &sc.torquePower, 1.0f);
                 }
+            } else if (m_focusedComponent == "ParticleSystem" && m_selectedEntity.has<bb3d::ParticleSystemComponent>()) {
+                if (ComponentPropertiesHeader("ParticleSystem", ICON_FA_FIRE, colRender, true, [&](){ m_selectedEntity.remove<bb3d::ParticleSystemComponent>(); m_focusedComponent = ""; })) {
+                    auto& ps = m_selectedEntity.get<bb3d::ParticleSystemComponent>();
+                    ImGui::Text("Max Particles: %d", (int)ps.particlePool.size());
+                    
+                    if (ps.material) {
+                        auto partMat = std::dynamic_pointer_cast<bb3d::ParticleMaterial>(ps.material);
+                        if (partMat) {
+                            if (ImGui::TreeNodeEx(ICON_FA_PALETTE " Particle Material", ImGuiTreeNodeFlags_DefaultOpen)) {
+                                auto TextureSlot = [&](const char* label, std::function<void(bb3d::Ref<bb3d::Texture>)> setter) {
+                                    ImGui::PushID(label);
+                                    if (ImGui::Button(ICON_FA_FOLDER_OPEN)) {
+                                        auto selection = pfd::open_file("Load Particle Texture", ".", { "Image Files", "*.png *.jpg *.jpeg *.tga *.bmp" }).result();
+                                        if (!selection.empty()) {
+                                            try {
+                                                auto tex = bb3d::Engine::Get().assets().load<bb3d::Texture>(selection[0], true);
+                                                setter(tex);
+                                            } catch (const std::exception& e) { BB_CORE_ERROR("Failed to load texture: {}", e.what()); }
+                                        }
+                                    }
+                                    ImGui::SameLine(); ImGui::Text("%s", label);
+                                    ImGui::PopID();
+                                };
+
+                                TextureSlot("Base Texture", [&](bb3d::Ref<bb3d::Texture> t){ partMat->setBaseMap(t); });
+                                
+                                // Color / Alpha editing (reusing the same logic as PBR)
+                                // Note: PBRMaterial uses setColor(glm::vec3), ParticleMaterial uses setColor(glm::vec3, float)
+                                // We'll just map to the ParticleMaterial API
+                                // For simplicity, we won't try to get the current color here if it's not easily accessible, 
+                                // but we can add a simple color picker.
+                                static glm::vec4 partCol = {1.0f, 1.0f, 1.0f, 1.0f}; 
+                                if (ImGui::ColorEdit4("Base Tint", &partCol.x)) {
+                                    partMat->setColor({partCol.r, partCol.g, partCol.b}, partCol.a);
+                                }
+
+                                ImGui::TreePop();
+                            }
+                        }
+                    }
+                    
+                    ImGui::Separator();
+                    ImGui::Checkbox("Inject into Physics", &ps.injectIntoPhysics);
+                }
             }
         }
 
@@ -930,6 +978,7 @@ void ImGuiLayer::showInspector() {
             if (ImGui::MenuItem("Simple Animation")) m_selectedEntity.add<SimpleAnimationComponent>();
             if (ImGui::MenuItem("Orbital Gravity")) m_selectedEntity.add<OrbitalGravityComponent>();
             if (ImGui::MenuItem("Spaceship Controller")) m_selectedEntity.add<SpaceshipControllerComponent>();
+            if (ImGui::MenuItem("Particle System")) m_selectedEntity.add<bb3d::ParticleSystemComponent>();
             ImGui::EndPopup();
         }
     } else { ImGui::TextDisabled("Select an entity to view its properties."); }

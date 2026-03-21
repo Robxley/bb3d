@@ -23,9 +23,10 @@ public:
      * @param target The target entity to follow (e.g. the spaceship).
      * @param altitude The current calculated altitude above the surface base.
      * @param gravityDir The current normalized direction of gravity (from target to planet center).
+     * @param localOffset Local offset relative to the target's transform (e.g. to aim at the nose).
      * @return The scale factor to apply to the target for the Kerbal visual illusion.
      */
-    float update(bb3d::Entity target, float altitude, const glm::vec3& gravityDir);
+    float update(bb3d::Entity target, float altitude, const glm::vec3& gravityDir, const glm::vec3& localOffset = {0.0f, 0.0f, 0.0f});
 
     /**
      * @brief Adds a zoom offset (multiplier).

@@ -10,14 +10,14 @@ SmartCamera::SmartCamera(bb3d::Entity camera, bb3d::Entity planet, float baseZoo
     : m_camera(camera), m_planet(planet), m_baseZoom(baseZoom) {
 }
 
-float SmartCamera::update(bb3d::Entity target, float altitude, const glm::vec3& gravityDir) {
+float SmartCamera::update(bb3d::Entity target, float altitude, const glm::vec3& gravityDir, const glm::vec3& localOffset) {
     if (!m_camera.has<bb3d::CameraComponent>() || !target.has<bb3d::TransformComponent>()) return 1.0f;
 
     auto& camTf = m_camera.get<bb3d::TransformComponent>();
     auto& refCam = m_camera.get<bb3d::CameraComponent>().camera;
     auto& targetTf = target.get<bb3d::TransformComponent>();
 
-    float targetZoom = (m_baseZoom + std::max(0.0f, altitude * 0.5f)) * m_zoomFactor;
+    float targetZoom = (m_baseZoom + std::max(0.0f, altitude * 0.3f)) * m_zoomFactor;
     
     // The UP vector of the camera is opposite to gravity
     glm::vec3 camUp = -gravityDir;
@@ -29,8 +29,13 @@ float SmartCamera::update(bb3d::Entity target, float altitude, const glm::vec3& 
     camTf.rotation.x = 0.0f;
     camTf.rotation.y = 0.0f;
     camTf.rotation.z = angle;
-    // Position camera away on the Z axis relative to the target's current position
-    camTf.translation = targetTf.translation + glm::vec3(0.0f, 0.0f, targetZoom); 
+    
+    // Calculate world target position including the offset
+    glm::vec3 worldOffset = glm::rotate(glm::quat(targetTf.rotation), localOffset);
+    glm::vec3 lookAtTarget = targetTf.translation + worldOffset;
+
+    // Position camera away on the Z axis relative to the lookAt target
+    camTf.translation = lookAtTarget + glm::vec3(0.0f, 0.0f, targetZoom); 
 
     // Apply this transform explicitly to the BB3D Camera object's view matrix!
     glm::mat4 camModel = glm::translate(glm::mat4(1.0f), camTf.translation) * glm::toMat4(glm::quat(camTf.rotation));

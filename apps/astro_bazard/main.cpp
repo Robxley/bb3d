@@ -162,10 +162,22 @@ int main(int argc, char** argv) {
             auto ship = scene->createEntity("Spaceship");
             ship.get<TransformComponent>().translation = {0.0f, 11.0f, 0.0f}; 
             
-            // Visual Entity (Manual Sync because no Hierarchy in bb3d yet)
-            auto shipVisual = scene->createEntity("SpaceshipVisual");
-            auto& modelComp = shipVisual.add<ModelComponent>().get<ModelComponent>();
+            float baseScale = 0.15f;
+            ship.get<TransformComponent>().scale = {baseScale, baseScale, baseScale};
+            
+            // Automatic Visual Offset Calculation
+            // We want the visual bottom of the mesh to align with the bottom of the physics collider.
+            bb3d::AABB bounds = shipModel->getBounds();
+            // The BoxCollider has halfExtents of 0.5 on Y, meaning its bottom is at -0.5 local.
+            // The mesh's visual bottom is at bounds.min.y * baseScale.
+            // We calculate an offset to push the mesh up or down so bounds.min.y hits -0.5.
+            float colliderBottomY = -0.5f; 
+            float visualBottomY = bounds.min.y * baseScale;
+            glm::vec3 visualOffset = glm::vec3(0.0f, colliderBottomY - visualBottomY, 0.0f);
+            
+            auto& modelComp = ship.add<ModelComponent>().get<ModelComponent>();
             modelComp.model = shipModel;
+            modelComp.offset = visualOffset;
 
             auto& phys = ship.add<PhysicsComponent>().get<PhysicsComponent>();
             phys.type = BodyType::Dynamic;
@@ -174,21 +186,27 @@ int main(int argc, char** argv) {
             phys.colliderType = ColliderType::Box;
             phys.boxHalfExtents = {0.2f, 0.5f, 0.2f}; 
             phys.constrain2D = true;
+            phys.linearDamping = 0.5f;   // Space resistance
+            phys.angularDamping = 3.0f;  // High rotation stabilization
             engine->physics().createRigidBody(ship);
 
             // Gameplay components
-            ship.add<SpaceshipControllerComponent>();
-            ship.add<OrbitalGravityComponent>(500.0f, static_cast<uint32_t>(planet.getHandle()));
+            auto& ctrl = ship.add<SpaceshipControllerComponent>().get<SpaceshipControllerComponent>();
+            ctrl.mainThrustPower = 60.0f;   // Slower than 75
+            ctrl.retroThrustPower = 5.0f;
+            ctrl.torquePower = 3.0f;        // Much lower than 7.5
+            ship.add<OrbitalGravityComponent>(25000.0f, static_cast<uint32_t>(planet.getHandle()));
 
             // Particles for propulsion
             auto& ps = ship.add<ParticleSystemComponent>().get<ParticleSystemComponent>();
-            auto fireTex = engine->assets().load<Texture>("assets/textures/particles/fire.png", true);
-            auto particleMat = CreateRef<UnlitMaterial>(engine->graphics());
-            if (fireTex) particleMat->setBaseMap(fireTex);
-            particleMat->setColor({2.0f, 1.0f, 0.5f});
+            auto plasmaTex = engine->assets().load<Texture>("assets/textures/particles/exhaust_plasma.png", true);
+
+            auto particleMat = CreateRef<PlasmaMaterial>(engine->graphics());
+            if (plasmaTex) particleMat->setBaseMap(plasmaTex);
+            particleMat->setIntensity(2.5f);
             ps.material = particleMat;
 
-            auto shipNose = scene->createEntity("SpaceshipNose");
+
 
             // Camera 1: Spaceship Follow (SmartCamera)
             auto shipCamera = scene->createEntity("ShipCamera");
@@ -198,7 +216,7 @@ int main(int argc, char** argv) {
             camComp.farPlane = 20000.0f;
             camComp.active = true;
             camComp.camera = CreateRef<Camera>(60.0f, 1280.0f/720.0f, 0.1f, 20000.0f);
-            shipCamera.get<TransformComponent>().translation = {0.0f, 2.0f, 20.0f};
+            shipCamera.get<TransformComponent>().translation = {0.0f, 2.0f, 12.0f};
 
             // Camera 2: Planet Orbit (World View)
             auto planetOrbitView = scene->createOrbitCamera("PlanetOrbitCamera", 60.0f, 1280.0f/720.0f, {0,0,0}, 50.0f);
@@ -206,10 +224,10 @@ int main(int argc, char** argv) {
 
             // Planetary System Logic & Smart Camera
             auto orbitalGravity = std::make_shared<astrobazard::OrbitalGravity>(planet); 
-            auto spaceshipCtrl = std::make_shared<astrobazard::SpaceshipController>(shipNose);
-            auto smartCamera = std::make_shared<astrobazard::SmartCamera>(shipCamera, planet, 10.0f);
+            auto spaceshipCtrl = std::make_shared<astrobazard::SpaceshipController>();
+            auto smartCamera = std::make_shared<astrobazard::SmartCamera>(shipCamera, planet, 6.0f);
 
-            scene->createEntity("KerbalLogic").add<NativeScriptComponent>([enginePtr = engine.get(), ship, shipVisual, planet, shipCamera, planetOrbitView, orbitalGravity, spaceshipCtrl, smartCamera](Entity e, float dt) mutable {
+            scene->createEntity("KerbalLogic").add<NativeScriptComponent>([enginePtr = engine.get(), ship, planet, shipCamera, planetOrbitView, orbitalGravity, spaceshipCtrl, smartCamera](Entity e, float dt) mutable {
                 auto& input = enginePtr->input();
 
                 // 0. Toggle Camera (TAB)
@@ -230,22 +248,6 @@ int main(int argc, char** argv) {
                 // 2. Spaceship Controls in 2D Space
                 spaceshipCtrl->update(ship, dt, enginePtr);
 
-                // 3. Manual Sync Visual Model with Physics Body
-                if (ship.has<TransformComponent>() && shipVisual.has<TransformComponent>()) {
-                    auto& stf = ship.get<TransformComponent>();
-                    auto& vtf = shipVisual.get<TransformComponent>();
-                    
-                    // The Physics BoxCollider has halfExtents of 0.5 on Y. If the visual origin is at the bottom, 
-                    // we need to offset the visual model downwards by halfExtents so its bottom aligns with the collider's bottom.
-                    glm::vec3 shipLocalDown = {std::sin(stf.rotation.z), -std::cos(stf.rotation.z), 0.0f};
-
-                    vtf.translation = stf.translation + shipLocalDown * 0.45f;
-                    vtf.rotation = stf.rotation;
-                    // Removed the hardcoded -90 on X so the longest part (Y axis) aligns with propulsion
-                    // Base scale for the rocket
-                    float baseScale = 0.15f; 
-                    vtf.scale = stf.scale * baseScale;
-                }
 
                 // 4. Update Cameras
                 if (shipCamera.get<CameraComponent>().active) {
@@ -258,7 +260,8 @@ int main(int argc, char** argv) {
                     float scroll = input.getMouseScroll().y;
                     if (std::abs(scroll) > 0.01f) smartCamera->zoom(scroll);
 
-                    float scaleFactor = smartCamera->update(ship, altitude, orbitalGravity->getCurrentGravityDirection());
+                    // Pass local offset to aim at the "nose" of the ship (approx +1.0 in Y local scale)
+                    float scaleFactor = smartCamera->update(ship, altitude, orbitalGravity->getCurrentGravityDirection(), glm::vec3(0.0f, 1.0f, 0.0f));
                     
                     // 5. Illusion: dynamic visual scale
                     spaceshipCtrl->applyVisualScale(ship, scaleFactor);

@@ -5,6 +5,7 @@
 #include "bb3d/core/Config.hpp"
 
 namespace bb3d {
+enum class BlendMode { Opaque, Alpha, Additive };
 
 class GraphicsPipeline {
 public:
@@ -19,7 +20,7 @@ public:
                      vk::CompareOp depthCompareOp = vk::CompareOp::eLess,
                      const std::vector<uint32_t>& enabledAttributes = {},
                      vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList,
-                     bool blendEnable = false);
+                     BlendMode blendMode = BlendMode::Opaque);
 
     // Constructor using explicit formats (offscreen)
     GraphicsPipeline(VulkanContext& context, vk::Format colorFormat, vk::Format depthFormat,
@@ -32,7 +33,7 @@ public:
                      vk::CompareOp depthCompareOp = vk::CompareOp::eLess,
                      const std::vector<uint32_t>& enabledAttributes = {},
                      vk::PrimitiveTopology topology = vk::PrimitiveTopology::eTriangleList,
-                     bool blendEnable = false);
+                     BlendMode blendMode = BlendMode::Opaque);
 
     ~GraphicsPipeline();
 
@@ -50,7 +51,7 @@ private:
     
     void createPipeline(const Shader& vertShader, const Shader& fragShader, const EngineConfig& config, 
                         bool useVertexInput, bool depthWrite, vk::CompareOp depthCompareOp, 
-                        const std::vector<uint32_t>& enabledAttributes, vk::PrimitiveTopology topology, bool blendEnable);
+                        const std::vector<uint32_t>& enabledAttributes, vk::PrimitiveTopology topology, BlendMode blendMode);
 
     VulkanContext& m_context;
     

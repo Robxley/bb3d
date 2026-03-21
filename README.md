@@ -1,222 +1,181 @@
-# biobazard3d 🚀
+# ☣️ biobazard3d (bb3d) - The Ultimate Engine Reference 
 
-**biobazard3d** est un moteur de jeu 3D moderne écrit en C++20, utilisant Vulkan comme backend graphique. Le projet suit une approche de développement séquentiel avec validation par tests unitaires à chaque étape.
+**biobazard3d** is a high-performance, modern 3D game engine and rendering framework written from scratch in **C++20** using the **Vulkan 1.3** API. Engineered to balance "zero-overhead" hardware access with high-level game-ready abstractions, it provides a comprehensive suite of features for rapid 3D application development.
 
-## 📖 À propos
+---
 
-biobazard3d est conçu pour être un moteur de jeu complet avec les caractéristiques suivantes :
+## 🚀 Exhaustive Feature List
 
-- **Architecture moderne** : C++20, Vulkan 1.3, ECS (Entity Component System).
-- **Rendu avancé** : PBR (Physically Based Rendering), gestion des matériaux, ombres dynamiques (Cascaded Shadow Maps avec PCF).
-- **Système de physique** : Intégration performante avec Jolt Physics.
-- **Gestion des ressources** : Chargement asynchrone, cache des assets, empreinte RAM optimisée.
-- **Système de scène** : Sérialisation/deserialization JSON, hiérarchie d'entités.
-- **Outils de développement** : Profiling avec Tracy, logging avec spdlog hautement configurable.
+### 🎨 Rendering & Visuals
+- **Vulkan 1.3 Backend**: Modern rendering using `Vulkan-Hpp` and dynamic rendering (no render passes/framebuffers maintenance).
+- **Physically Based Rendering (PBR)**: Cook-Torrance BRDF workflow (Albedo, Normal, Metallic, Roughness, AO).
+- **Dynamic Shadows (CSM)**: 4-cascade shadow mapping for directional lights with PCF filtering and adaptive bias.
+- **Advanced Materials**: 
+  - `PBRMaterial`: Full photorealistic pipeline.
+  - `ToonMaterial`: Cell-shading with support for discrete shadow steps.
+  - `UnlitMaterial`: Zero-lighting fast rendering.
+  - `ParticleMaterial`: Translucency with additive blending.
+- **Hardware Instancing**: Automatic SSBO-based batching for 10k+ dynamic objects.
+- **Environment**: 4K HDR SkySpheres (Equirectangular) and Cubemaps with IBL support.
+- **Post-Processing**: Offscreen rendering for editor viewports and custom resolution scaling.
 
-## 🔧 Technologies et dépendances
+### ⚙️ Core Architecture
+- **ECS (Entity Component System)**: Powered by `EnTT`.
+- **Custom Job System**: Work-stealing thread pool for async asset loading, culling, and physics.
+- **Event Bus**: Decoupled messaging (Sync/Async) via the Publish/Subscribe pattern.
+- **Resource Cache**: Deduplicated, thread-safe asynchronous loading for all assets.
+- **Serialization**: Complete Save/Load system for scenes in human-readable JSON.
 
-Le projet utilise les technologies et bibliothèques suivantes, toutes gérées automatiquement via CMake FetchContent :
+### 🌍 Simulation & Middleware
+- **Jolt Physics**: Deterministic rigid body simulation (Sphere, Box, Capsule, Mesh Colliders).
+- **Audio System**: Spatialized 3D audio (Miniaudio stub/backend).
+- **Native Scripting**: C++ behaviors via lambda-based components.
+- **Input System**: Multi-backend action mapping (Keyboard/Mouse).
 
-### Dépendances principales
+---
 
-| Technologie | Version | Description | Statut |
-|-------------|---------|-------------|--------|
-| **C++** | 20 | Standard C++20 avec compilation stricte | ✅ Requis |
-| **Vulkan** | 1.3+ | Backend graphique moderne | ✅ Requis |
-| **SDL3** | 3.4.0 | Gestion des fenêtres et des entrées | ✅ Intégré |
-| **spdlog** | 1.17.0 | Système de logging performant (Stripping compile-time) | ✅ Intégré |
-| **nlohmann_json** | 3.12.0 | Parsing et génération JSON | ✅ Intégré |
-| **Tracy** | 0.13.1 | Profiling et optimisation | ✅ Intégré |
-| **VulkanMemoryAllocator** | 3.3.0 | Gestion de la mémoire Vulkan | ✅ Intégré |
-| **GLM** | 1.0.3 | Bibliothèque mathématique pour l'infographie | ✅ Intégré |
-| **stb** | master | Chargement d'images | ✅ Intégré |
-| **fastgltf** | 0.8.0 | Chargement de modèles 3D au format glTF | ✅ Intégré |
-| **tinyobjloader** | release | Chargement de modèles 3D au format OBJ | ✅ Intégré |
-| **EnTT** | 3.13.2 | Bibliothèque ECS (Entity Component System) | ✅ Intégré |
-| **Jolt Physics** | master | Moteur de physique 3D haute performance | ✅ Intégré |
+## 💻 Technical Examples
 
-### Dépendances optionnelles
-
-| Technologie | Version | Description | Statut |
-|-------------|---------|-------------|--------|
-| **miniaudio** | - | Bibliothèque audio légère | ⏳ Prévu |
-| **ImGui** | - | Interface utilisateur immédiate | ⏳ Prévu |
-
-### Outils de développement
-
-| Outil | Version | Description |
-|-------|---------|-------------|
-| **CMake** | 3.20+ | Système de build multiplateforme |
-| **glslc** | Vulkan SDK | Compilateur de shaders GLSL → SPIR-V |
-| **Doxygen** | - | Génération de documentation (optionnel) |
-
-## 📦 Gestion des dépendances
-
-Toutes les dépendances sont automatiquement téléchargées et configurées via CMake FetchContent. Aucune installation manuelle n'est nécessaire à l'exception de :
-
-- **Vulkan SDK** : Doit être installé manuellement et disponible dans le PATH.
-- **CMake 3.20+** : Requis pour le système de build.
-- **Compilateur C++20** : MSVC 2022+, GCC 11+, ou Clang 14+.
-
-## 🛠️ Configuration requise
-
-- **Système d'exploitation** : Windows (testé), Linux (supporté).
-- **Architecture CPU** : X64 (AVX2 recommandé pour Jolt).
-- **Vulkan SDK** : Version 1.3 ou supérieure.
-
-## 🚀 Installation et compilation
-
-### 1. Configurer l'environnement
-
-Assurez-vous que `VULKAN_SDK` est défini et que `glslc` est dans votre PATH.
-
-### 2. Configurer et compiler (Build Rapide)
-
-Le projet utilise les **Unity Builds** pour une compilation ultra-rapide.
-
-```powershell
-# Configuration
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Debug
-
-# Compilation (8 threads)
-cmake --build build --config Debug --parallel 8
-```
-
-### 3. Options de compilation avancées
-
-```powershell
-# Build Release optimisé (Supprime les logs TRACE/DEBUG)
-cmake -B build -S . -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release
-```
-
-## 📁 Structure du projet
-
-```
-bb3d/
-├── include/bb3d/          # En-têtes publics
-│   ├── audio/             # Système audio
-│   ├── core/              # Noyau du moteur
-│   ├── input/             # Gestion des entrées
-│   ├── physics/           # Système de physique
-│   ├── render/            # Rendu graphique
-│   ├── resource/          # Gestion des ressources
-│   └── scene/             # Système de scène et ECS
-│
-├── src/bb3d/             # Implémentations
-│   ├── audio/
-│   ├── core/
-│   ├── input/
-│   ├── physics/
-│   ├── render/
-│   ├── resource/
-│   └── scene/
-│
-├── tests/                # Tests unitaires
-│   ├── unit_test_00_infrastructure.cpp
-│   ├── unit_test_01_window.cpp
-│   ├── ...
-│   └── unit_test_16_materials.cpp
-│
-├── assets/               # Ressources (modèles, textures, shaders)
-│   ├── models/
-│   ├── shaders/
-│   └── textures/
-│
-├── CMakeLists.txt        # Configuration CMake
-├── engine_config.json    # Configuration du moteur
-└── roadmap.md            # Feuille de route du développement
-```
-
-## 🎮 Fonctionnalités principales
-
-### Moteur de rendu Vulkan Haute Performance
-
-- **Unity Build** : Compilation accélérée par regroupement de fichiers source.
-- **JobSystem & Multithreading** : Pool de threads pour le chargement d'assets, le culling, et la création de maillages procéduraux.
-- **GPU Instancing (SSBO)** : Rendu de milliers d'objets en un seul Draw Call.
-- **Batching Automatique** : Optimisation de l'état du pipeline pour réduire les changements de contexte GPU.
-- **RAM Footprint Optimization** : Les données CPU des Meshs sont libérées après l'upload VRAM pour économiser la mémoire système.
-- **Frustum & Horizon Culling** : Élimination précise des objets hors champ (Frustum) et des faces arrières cachées typiques des planètes (Horizon), optimisé sur le CPU.
-- **Post-Process** : Rendu Offscreen avec Render Scale ajustable et Tone Mapping.
-- **Système de matériaux complet** :
-  - **PBR (Physically Based Rendering)** : Workflow optimisé via **ORM Packing**.
-  - **Unlit** : Matériaux simples.
-  - **Toon** : Rendu stylisé.
-- **Éclairage dynamique** : Support de lumières directionnelles (CSM Shadows prévu) et Ponctuelles.
-- **Génération Procédurale** : Support de géométries massives complexes type Cube-Sphères multi-biomes (Planètes).
-
-### Physique & Simulation (Jolt)
-
-- **Intégration complète** : Corps rigides (Static, Dynamic, Kinematic).
-- **Colliders variés** : Box, Sphere, Capsule et MeshCollider (Convexe ou précis).
-- **Performance** : Utilisation intensive du multi-threading pour la simulation.
-
-### Logging & Debugging
-
-- **Macro BB3D_DEBUG** : Vérifications de sécurité actives uniquement en Debug (zero-overhead en Release).
-- **Stripping Automatique** : Les logs de bas niveau (`TRACE`, `DEBUG`) sont supprimés du binaire en mode Release pour une performance maximale.
-- **Verbosité dynamique** : Configurable via `engine_config.json`.
-
-### Système ECS (Entity Component System) puissant
-
-- **EnTT** : Bibliothèque ECS performante et moderne
-- **API Fluent** : Création et manipulation d'entités avec une syntaxe intuitive
-- **Composants riches** : Transform, Mesh, Model, Camera, Light, RigidBody, AudioSource, etc.
-- **Sérialisation complète** : Sauvegarde et chargement de scènes au format JSON
-
-### 🧪 Tests et Démonstrations
-
-| Test | Description | Commande |
-|------|-------------|----------|
-| `unit_test_04_hello_triangle` | Premier triangle Vulkan | `./tests/Debug/unit_test_04_hello_triangle` |
-| `unit_test_06_rotating_cube` | Cube 3D avec éclairage | `./tests/Debug/unit_test_06_rotating_cube` |
-| `unit_test_10_obj_loader` | Chargement de modèles OBJ | `./tests/Debug/unit_test_10_obj_loader` |
-| `unit_test_11_gltf_loader` | Modèles glTF complexes | `./tests/Debug/unit_test_11_gltf_loader` |
-| `unit_test_14_interactive_cameras` | Caméras interactives | `./tests/Debug/unit_test_14_interactive_cameras` |
-| `unit_test_16_materials` | Matériaux PBR/Unlit/Toon | `./tests/Debug/unit_test_16_materials` |
-| `demo_engine` | **DÉMO COMPLÈTE** (Physique, Skybox, Caméras) | `./tests/Debug/demo_engine` |
-
-### Exemple de code - Création d'une scène
+### 1. Engine Initialization & Configuration
+The engine is modular. Check the `Config.hpp` for all available toggles.
 
 ```cpp
-// Création d'une scène
-auto scene = engine->CreateScene();
+#include <bb3d/core/Engine.hpp>
 
-// Ajout d'une caméra orbitale
-auto cameraEntity = scene->createOrbitCamera("MainCamera", 45.0f, 16.0f/9.0f, {0, 5, 10}, 20.0f);
+int main() {
+    bb3d::EngineConfig config;
+    config.title("My BB3D Game")
+          .resolution(1920, 1080)
+          .vsync(true)
+          .enablePhysics(bb3d::PhysicsBackend::Jolt)
+          .enableAudio(true)
+          .enableEditor(true); // Boots the ImGui Inspector
 
-// Chargement d'un modèle glTF et optimisation RAM
-auto model = engine->assets().load<Model>("assets/models/ant.glb");
-model->normalize();
-model->releaseCPUData(); // Libère la RAM après upload GPU
+    auto engine = bb3d::Engine::Create(config);
+    auto scene = engine->CreateScene();
+    engine->SetActiveScene(scene);
 
-// Création d'une entité physique
-auto entity = scene->createEntity("Ant");
-entity.add<ModelComponent>(model);
-entity.add<RigidBodyComponent>().type = BodyType::Dynamic;
-entity.add<BoxColliderComponent>(); // Collider automatique
-engine->physics().createRigidBody(entity);
-
-// Ajout de lumières
-scene->createDirectionalLight("Sun", {1.0f, 1.0f, 0.9f}, 3.0f);
+    engine->Run();
+    return 0;
+}
 ```
 
-## 📜 Règles de Codage & Standards
+---
 
-### Macro BB3D_DEBUG
-Toute vérification de sécurité coûteuse (ex: validation d'état complexe) doit être enveloppée :
+### 2. Cascaded Shadow Maps (CSM)
+To enable shadows, you must set the flag on both the **Light** and the **Meshes** that should project them.
+
 ```cpp
-#if defined(BB3D_DEBUG)
-    // Vérification uniquement en Debug
-    if (mesh->isCPUDataReleased()) BB_CORE_ERROR("...");
-#endif
+// 1. Create Sun with Shadows enabled
+auto sun = scene->createDirectionalLight("Sun", {1.0f, 1.0f, 0.9f}, 3.0f);
+sun.get<bb3d::LightComponent>().castShadows = true;
+
+// 2. Create a Mesh that casts shadows
+auto meshEntity = scene->createEntity("Caster");
+auto& mc = meshEntity.add<bb3d::MeshComponent>(myMesh);
+mc.castShadows = true; // Required to be rendered in the shadow pass
 ```
 
-### Gestion de la RAM Mesh
-Pour les objets statiques, libérez la RAM après initialisation :
+---
+
+### 3. Toon Rendering (Cell-Shading)
+Use the `ToonMaterial` for stylized, anime-like visuals.
+
 ```cpp
-auto model = assets.load<Model>("...");
-model->normalize();
-model->releaseCPUData(); // Libère les vertices/indices du côté CPU
+auto toonMat = bb3d::CreateRef<bb3d::ToonMaterial>(engine->graphics());
+toonMat->setBaseMap(engine->assets().load<bb3d::Texture>("character_diffuse.png"));
+toonMat->setColor({1.0f, 0.5f, 0.5f}); // Tint
+
+auto character = scene->createEntity("ToonChar");
+character.add<bb3d::ModelComponent>(characterModel);
+// Apply toon material to meshes
+for(auto& m : characterModel->getMeshes()) m->setMaterial(toonMat);
 ```
+
+---
+
+### 4. Advanced Event Bus Communication
+Communicate between isolated systems without pointers.
+
+```cpp
+struct PlayerJumpEvent { uint32_t entityID; float height; };
+
+// Subscribe from anywhere (e.g., Audio system)
+engine->events().subscribe<PlayerJumpEvent>([](const PlayerJumpEvent& e) {
+    std::cout << "Player " << e.entityID << " jumped " << e.height << "m!\n";
+});
+
+// Publish synchronously
+engine->events().publish(PlayerJumpEvent{ 42, 1.5f });
+
+// Or Enqueue (processed at end of frame)
+engine->events().enqueue(PlayerJumpEvent{ 42, 1.5f });
+```
+
+---
+
+### 5. Multithreading with JobSystem
+Distribute heavy work across all CPU cores.
+
+```cpp
+// A. Simple async execution
+engine->jobs().execute([]() {
+    // Perform heavy file IO or math here
+});
+
+// B. Parallel For (Dispatch)
+// Splits 1,000,000 operations into batches of 1,000 for the thread pool
+engine->jobs().dispatch(1000000, 1000, [](uint32_t start, uint32_t count) {
+    for(uint32_t i = start; i < start + count; ++i) {
+         // Do parallel work
+    }
+});
+```
+
+---
+
+### 6. Built-in Mesh Highlighting
+The `Renderer` provides built-in support for entity selection/hover highlighting.
+
+```cpp
+auto& renderer = engine->renderer();
+auto& transform = myEntity.get<bb3d::TransformComponent>();
+auto& mesh = myEntity.get<bb3d::MeshComponent>().mesh;
+
+// Highlight the entity (e.g., in the editor)
+renderer.setHighlightBounds(mesh->getBounds().transform(transform.getTransform()), true);
+
+// Or Hover highlight (yellow outline)
+renderer.setHoveredBounds(mesh->getBounds().transform(transform.getTransform()), true);
+```
+
+---
+
+### 7. Procedural Planets & Biomes
+Create worlds using multithreaded procedural generation.
+
+```cpp
+auto planet = scene->createEntity("Planet").add<bb3d::ProceduralPlanetComponent>();
+planet.radius = 50.0f;
+planet.resolution = 64;
+
+bb3d::BiomeSettings ocean;
+ocean.name = "Ocean"; ocean.color = {0, 0, 1}; ocean.heightEnd = 0.4f;
+planet.biomes.push_back(ocean);
+
+// Multithreaded generation
+planet.model = bb3d::ProceduralMeshGenerator::createPlanet(
+    engine->graphics(), engine->assets(), engine->jobs(), planet
+);
+```
+
+---
+
+## 🏗 Resource Pathing
+- `assets/models`: .gltf, .glb, .obj
+- `assets/textures`: .png, .jpg, .hdr (Equirectangular)
+- `assets/shaders`: .spv (SPIR-V binaries)
+
+---
+
+*biobazard3d architecture and codebase developed per standard documentation constraints. All namespaces isolate strictly underneath `bb3d::`.*

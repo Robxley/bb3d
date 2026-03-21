@@ -64,7 +64,16 @@ int main() {
     auto matPBR = bb3d::CreateRef<bb3d::PBRMaterial>(engine->graphics());
     matPBR->setAlbedoMap(albedoTex);
     matPBR->setNormalMap(normalTex);
-    if (roughTex) matPBR->setORMMap(roughTex); // Roughness is in Green channel of ORM
+    if (roughTex) {
+        // Since we don't have a packed ORM map (only grayscale roughness), 
+        // we map it but effectively zero out the metallic contribution and 
+        // ignore the fake AO. (Roughness is read from the Green channel in shader).
+        matPBR->setORMMap(roughTex);
+        bb3d::PBRParameters pbrParams = matPBR->getParameters();
+        pbrParams.metallicFactor = 0.0f;     // The bricks are not metallic
+        pbrParams.occlusionStrength = 0.0f;  // AO isn't in Red channel
+        matPBR->setParameters(pbrParams);
+    }
 
     auto meshPBR = bb3d::Ref<bb3d::Mesh>(bb3d::MeshGenerator::createSphere(engine->graphics(), 1.0f, 64, {1,1,1}).release());
     meshPBR->setMaterial(matPBR);

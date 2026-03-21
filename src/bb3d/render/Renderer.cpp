@@ -36,6 +36,7 @@ Renderer::Renderer(VulkanContext& context, Window& window, JobSystem& jobSystem,
     m_particleQuad = MeshGenerator::createQuad(m_context, 1.0f);
     m_internalSkyboxMat = CreateRef<SkyboxMaterial>(m_context);
     m_internalSkySphereMat = CreateRef<SkySphereMaterial>(m_context);
+    m_defaultParticleMat = CreateRef<ParticleMaterial>(m_context);
     m_fallbackMaterial = CreateRef<PBRMaterial>(m_context);
 
     // Highlight Box setup (Orange color)
@@ -221,10 +222,12 @@ void Renderer::createPipelines(const EngineConfig& config) {
     m_layouts[MaterialType::Skybox] = SkyboxMaterial::CreateLayout(dev);
     m_layouts[MaterialType::SkySphere] = SkySphereMaterial::CreateLayout(dev);
     m_layouts[MaterialType::Highlight] = UnlitMaterial::CreateLayout(dev);
+    m_layouts[MaterialType::Plasma] = PlasmaMaterial::CreateLayout(dev);
+    m_layouts[MaterialType::Particle] = ParticleMaterial::CreateLayout(dev);
 
     m_shaders["shadow.vert"] = CreateScope<Shader>(m_context, "assets/shaders/shadow.vert.spv");
     m_shaders["shadow.frag"] = CreateScope<Shader>(m_context, "assets/shaders/shadow.frag.spv");
-
+    
     // --- Pipeline Shadow ---
     vk::PushConstantRange pushConstant;
     pushConstant.stageFlags = vk::ShaderStageFlagBits::eVertex;
@@ -245,7 +248,7 @@ void Renderer::createPipelines(const EngineConfig& config) {
         vk::CompareOp::eLess,
         std::vector<uint32_t>{0}, // position only
         vk::PrimitiveTopology::eTriangleList,
-        false // no blending
+        BlendMode::Opaque // no blending
     );
 
     m_shaders["pbr.vert"] = CreateScope<Shader>(m_context, "assets/shaders/pbr.vert.spv");
@@ -260,20 +263,23 @@ void Renderer::createPipelines(const EngineConfig& config) {
     m_shaders["skysphere.frag"] = CreateScope<Shader>(m_context, "assets/shaders/skysphere.frag.spv");
     m_shaders["fullscreen.vert"] = CreateScope<Shader>(m_context, "assets/shaders/fullscreen.vert.spv");
     m_shaders["copy.frag"] = CreateScope<Shader>(m_context, "assets/shaders/copy.frag.spv");
+    m_shaders["plasma.frag"] = CreateScope<Shader>(m_context, "assets/shaders/plasma.frag.spv");
+    m_shaders["particle.vert"] = CreateScope<Shader>(m_context, "assets/shaders/particle.vert.spv");
+    m_shaders["particle.frag"] = CreateScope<Shader>(m_context, "assets/shaders/particle.frag.spv");
 
     vk::Format colorFmt = m_config.graphics.enableOffscreenRendering ? m_renderTarget->getColorFormat() : m_swapChain->getImageFormat();
     vk::Format depthFmt = m_config.graphics.enableOffscreenRendering ? m_renderTarget->getDepthFormat() : m_swapChain->getDepthFormat();
 
-    auto createP = [&](MaterialType t, const std::string& v, const std::string& f, const EngineConfig& cfg, bool dWrite, vk::CompareOp op, const std::vector<uint32_t>& attr = {}, vk::PrimitiveTopology top = vk::PrimitiveTopology::eTriangleList, bool blend = false) {
+    auto createP = [&](MaterialType t, const std::string& v, const std::string& f, const EngineConfig& cfg, bool dWrite, vk::CompareOp op, const std::vector<uint32_t>& attr = {}, vk::PrimitiveTopology top = vk::PrimitiveTopology::eTriangleList, BlendMode blend = BlendMode::Opaque) {
         std::vector<vk::DescriptorSetLayout> ls = { m_globalDescriptorLayout, m_layouts[t] };
         return CreateScope<GraphicsPipeline>(m_context, colorFmt, depthFmt, *m_shaders[v], *m_shaders[f], cfg, ls, std::vector<vk::PushConstantRange>{}, true, dWrite, op, attr, top, blend);
     };
 
     m_pipelines[MaterialType::PBR] = createP(MaterialType::PBR, "pbr.vert", "pbr.frag", config, true, vk::CompareOp::eLess);
     EngineConfig envCfg = config; envCfg.rasterizer.setCullMode("None");
-    // Enable Alpha Blending for Unlit (used for particles and some UI elements)
-    // Disable Depth Write to allow correct overlapping of transparent particles
-    m_pipelines[MaterialType::Unlit] = createP(MaterialType::Unlit, "unlit.vert", "unlit.frag", envCfg, false, vk::CompareOp::eLess, {}, vk::PrimitiveTopology::eTriangleList, true);
+    
+    // Standard Unlit (For 3D Models without lighting) - Opaque, Depth Write, Cull Back
+    m_pipelines[MaterialType::Unlit] = createP(MaterialType::Unlit, "unlit.vert", "unlit.frag", config, true, vk::CompareOp::eLess);
     m_pipelines[MaterialType::Toon] = createP(MaterialType::Toon, "toon.vert", "toon.frag", config, true, vk::CompareOp::eLess);
     std::vector<uint32_t> envAttr = { 0, 1, 2, 3, 4 };
     m_pipelines[MaterialType::Skybox] = createP(MaterialType::Skybox, "skybox.vert", "skybox.frag", envCfg, false, vk::CompareOp::eAlways, envAttr);
@@ -285,6 +291,12 @@ void Renderer::createPipelines(const EngineConfig& config) {
     
     // Highlight Pipeline uses LINE_LIST topology
     m_pipelines[MaterialType::Highlight] = createP(MaterialType::Highlight, "unlit.vert", "unlit.frag", envCfg, false, vk::CompareOp::eAlways, {}, vk::PrimitiveTopology::eLineList);
+
+    // Plasma Pipeline: Additive Blending, No Depth Write
+    m_pipelines[MaterialType::Plasma] = createP(MaterialType::Plasma, "unlit.vert", "plasma.frag", envCfg, false, vk::CompareOp::eLess, {}, vk::PrimitiveTopology::eTriangleList, BlendMode::Additive);
+
+    // Particle Pipeline: Additive Blending (best for light/fire FX with black backgrounds), No Depth Write
+    m_pipelines[MaterialType::Particle] = createP(MaterialType::Particle, "particle.vert", "particle.frag", envCfg, false, vk::CompareOp::eLess, {}, vk::PrimitiveTopology::eTriangleList, BlendMode::Additive);
 }
 
 void Renderer::createCopyPipeline() {
@@ -296,7 +308,7 @@ void Renderer::createCopyPipeline() {
     }
     if (!m_copyPipeline) {
         EngineConfig copyConfig = m_config; copyConfig.rasterizer.setCullMode("None");
-        m_copyPipeline = CreateScope<GraphicsPipeline>(m_context, m_swapChain->getImageFormat(), vk::Format::eUndefined, *m_shaders["fullscreen.vert"], *m_shaders["copy.frag"], copyConfig, std::vector<vk::DescriptorSetLayout>{m_copyLayout}, std::vector<vk::PushConstantRange>{}, false, false); 
+        m_copyPipeline = CreateScope<GraphicsPipeline>(m_context, m_swapChain->getImageFormat(), vk::Format::eUndefined, *m_shaders["fullscreen.vert"], *m_shaders["copy.frag"], copyConfig, std::vector<vk::DescriptorSetLayout>{m_copyLayout}, std::vector<vk::PushConstantRange>{}, false, false, vk::CompareOp::eAlways, std::vector<uint32_t>{}, vk::PrimitiveTopology::eTriangleList, BlendMode::Opaque); 
     }
     if (m_copyDescriptorSets.empty() || m_copyDescriptorSets.size() != MAX_FRAMES_IN_FLIGHT) {
         m_copyDescriptorSets.clear();
@@ -557,7 +569,9 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
                 entt::entity entity = modelEntities[i];
                 auto& modelComp = modelView.get<ModelComponent>(entity);
                 if (!modelComp.model || !modelComp.visible) continue;
-                glm::mat4 transform = modelView.get<TransformComponent>(entity).getTransform();
+                glm::mat4 baseTransform = modelView.get<TransformComponent>(entity).getTransform();
+                glm::mat4 transform = glm::translate(baseTransform, modelComp.offset);
+                
                 if (m_config.graphics.enableFrustumCulling) {
                     AABB worldBox = modelComp.model->getBounds().transform(transform);
                     if (!m_frustum.intersects(worldBox)) continue;
@@ -588,10 +602,15 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
         std::vector<RenderCommand> localCommands;
         for (entt::entity entity : particleEntities) {
             auto& particleSys = particleView.get<ParticleSystemComponent>(entity);
-            Material* mat = particleSys.material ? particleSys.material.get() : m_highlightMat.get();
+            Material* mat = particleSys.material ? particleSys.material.get() : m_defaultParticleMat.get();
             Mesh* mesh = particleSys.mesh ? particleSys.mesh.get() : m_particleQuad.get(); 
             
             if (!mesh) mesh = m_highlightCube.get(); // Ultimate fallback
+
+            if (mat->getType() == MaterialType::Plasma) {
+                static_cast<PlasmaMaterial*>(mat)->setTime((float)SDL_GetTicks() / 1000.0f);
+            }
+
             for (const auto& p : particleSys.particlePool) {
                 if (p.lifeRemaining <= 0.0f) continue;
                 

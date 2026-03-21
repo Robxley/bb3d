@@ -15,7 +15,11 @@ layout(location = 6) out vec3 fragColor;
 layout(set = 0, binding = 0) uniform GlobalUBO {
     mat4 view;
     mat4 proj;
+    mat4 shadowCascades[4];
+    vec4 shadowSplitDepths;
     vec4 camPos;
+    vec4 globalParams;
+    vec4 ambientColor;
 } ubo;
 
 // Nouveau : Buffer de stockage pour l'instancing

@@ -4,8 +4,8 @@
 
 namespace astrobazard {
 
-SpaceshipController::SpaceshipController(bb3d::Entity nose, float thrustPower, float retroThrustPower, float torquePower)
-    : m_nose(nose), m_thrustPower(thrustPower), m_retroThrustPower(retroThrustPower), m_torquePower(torquePower) {
+SpaceshipController::SpaceshipController(float thrustPower, float retroThrustPower, float torquePower)
+    : m_thrustPower(thrustPower), m_retroThrustPower(retroThrustPower), m_torquePower(torquePower) {
 }
 
 void SpaceshipController::update(bb3d::Entity ship, float deltaTime, bb3d::Engine* engine) {
@@ -96,21 +96,11 @@ void SpaceshipController::update(bb3d::Entity ship, float deltaTime, bb3d::Engin
             ps.emit(props);
         }
     }
-
-    // Update Visual Nose to follow Body smoothly
-    if (m_nose.has<bb3d::TransformComponent>()) {
-        auto& noseTf = m_nose.get<bb3d::TransformComponent>();
-        noseTf.translation = tf.translation + shipForward * 1.0f; // Offset by half cube + half cone
-        noseTf.rotation = tf.rotation;
-    }
 }
 
 void SpaceshipController::applyVisualScale(bb3d::Entity ship, float scaleFactor) {
     if (ship.has<bb3d::TransformComponent>()) {
         ship.get<bb3d::TransformComponent>().scale = { scaleFactor, scaleFactor, scaleFactor };
-    }
-    if (m_nose.has<bb3d::TransformComponent>()) {
-        m_nose.get<bb3d::TransformComponent>().scale = { scaleFactor, scaleFactor, scaleFactor };
     }
 }
 

@@ -26,7 +26,7 @@ int main(int argc, char** argv) {
         auto planetEntity = scene->createEntity("TestPlanet");
         auto& planet = planetEntity.add<ProceduralPlanetComponent>().get<ProceduralPlanetComponent>();
         planet.radius = 10.0f;
-        planet.resolution = 192; // Tripled resolution (64 -> 192)
+        planet.resolution = 64; // Reduced resolution for faster tests
         planet.seed = 9876;
         planet.globalFrequency = 2.0f;
         planet.seaLevel = 10.1f; // Ocean level

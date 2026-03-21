@@ -231,4 +231,90 @@ void SkySphereMaterial::updateDescriptorSet(uint32_t frame) {
     m_context.getDevice().updateDescriptorSets(1, &w, 0, nullptr);
 }
 
+// --- PlasmaMaterial ---
+PlasmaMaterial::PlasmaMaterial(VulkanContext& context) : Material(context) { 
+    InitDefaults(context); m_baseMap = s_defaultWhite; 
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        m_paramBuffers[i] = CreateScope<UniformBuffer>(context, sizeof(PlasmaParameters));
+    }
+}
+PlasmaMaterial::~PlasmaMaterial() { 
+    for (auto& buffer : m_paramBuffers) buffer.reset(); 
+}
+vk::DescriptorSetLayout PlasmaMaterial::CreateLayout(vk::Device device) {
+    std::vector<vk::DescriptorSetLayoutBinding> b = {
+        {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment},
+        {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}
+    };
+    return device.createDescriptorSetLayout({ {}, (uint32_t)b.size(), b.data() });
+}
+vk::DescriptorSet PlasmaMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
+    uint32_t frame = s_currentFrame;
+    if (!m_sets[frame]) { 
+        m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
+        m_dirty[frame] = true; 
+    }
+    
+    if (m_baseMap && !m_baseMap->isReady()) m_dirty[frame] = true;
+
+    if (m_dirty[frame]) { updateDescriptorSet(frame); m_dirty[frame] = false; }
+    return m_sets[frame];
+}
+void PlasmaMaterial::updateDescriptorSet(uint32_t frame) {
+    m_paramBuffers[frame]->update(&m_parameters, sizeof(PlasmaParameters));
+    vk::DescriptorBufferInfo bInfo(m_paramBuffers[frame]->getHandle(), 0, sizeof(PlasmaParameters));
+    
+    Ref<Texture> tex = (m_baseMap && m_baseMap->isReady()) ? m_baseMap : s_defaultWhite;
+    vk::DescriptorImageInfo iInfo(tex->getSampler(), tex->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    
+    std::vector<vk::WriteDescriptorSet> writes = {
+        { m_sets[frame], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo },
+        { m_sets[frame], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfo }
+    };
+    m_context.getDevice().updateDescriptorSets(writes, {});
+}
+
+// --- ParticleMaterial ---
+ParticleMaterial::ParticleMaterial(VulkanContext& context) : Material(context) { 
+    InitDefaults(context); m_baseMap = s_defaultWhite; 
+    for (uint32_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        m_paramBuffers[i] = CreateScope<UniformBuffer>(context, sizeof(UnlitParameters));
+    }
+}
+ParticleMaterial::~ParticleMaterial() { 
+    for (auto& buffer : m_paramBuffers) buffer.reset(); 
+}
+vk::DescriptorSetLayout ParticleMaterial::CreateLayout(vk::Device device) {
+    std::vector<vk::DescriptorSetLayoutBinding> b = {
+        {0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment},
+        {1, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment}
+    };
+    return device.createDescriptorSetLayout({ {}, (uint32_t)b.size(), b.data() });
+}
+vk::DescriptorSet ParticleMaterial::getDescriptorSet(vk::DescriptorPool pool, vk::DescriptorSetLayout layout) {
+    uint32_t frame = s_currentFrame;
+    if (!m_sets[frame]) { 
+        m_sets[frame] = m_context.getDevice().allocateDescriptorSets({ pool, 1, &layout })[0]; 
+        m_dirty[frame] = true; 
+    }
+    
+    if (m_baseMap && !m_baseMap->isReady()) m_dirty[frame] = true;
+
+    if (m_dirty[frame]) { updateDescriptorSet(frame); m_dirty[frame] = false; }
+    return m_sets[frame];
+}
+void ParticleMaterial::updateDescriptorSet(uint32_t frame) {
+    m_paramBuffers[frame]->update(&m_parameters, sizeof(UnlitParameters));
+    vk::DescriptorBufferInfo bInfo(m_paramBuffers[frame]->getHandle(), 0, sizeof(UnlitParameters));
+    
+    Ref<Texture> tex = (m_baseMap && m_baseMap->isReady()) ? m_baseMap : s_defaultWhite;
+    vk::DescriptorImageInfo iInfo(tex->getSampler(), tex->getImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
+    
+    std::vector<vk::WriteDescriptorSet> writes = {
+        { m_sets[frame], 0, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &bInfo },
+        { m_sets[frame], 1, 0, 1, vk::DescriptorType::eCombinedImageSampler, &iInfo }
+    };
+    m_context.getDevice().updateDescriptorSets(writes, {});
+}
+
 } // namespace bb3d

@@ -75,7 +75,7 @@ public:
      * @brief Creates a SkySphere (panoramic environment) from an HDR/JPG texture.
      * @return View on the SkySphereComponent.
      */
-    View<SkySphereComponent> createSkySphere(const std::string& name, const std::string& texturePath);
+    View<SkySphereComponent> createSkySphere(const std::string& name, const std::string& texturePath, bool flipY = false);
 
     /** @brief Removes an entity and its components from the registry. */
     void destroyEntity(Entity entity);
