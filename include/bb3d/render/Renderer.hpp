@@ -105,6 +105,13 @@ public:
      */
     uint32_t readEntityIdAt(uint32_t x, uint32_t y);
 
+    /**
+     * @brief Captures the current frame and saves it as a PNG file.
+     * @param filepath Path where the screenshot will be saved.
+     * @note This operation is synchronous and will stall the GPU.
+     */
+    void saveScreenshot(const std::string& filepath);
+
     /** @brief Returns true if the picking render target is available. */
     bool hasPickingBuffer() const { return m_pickingReady; }
 

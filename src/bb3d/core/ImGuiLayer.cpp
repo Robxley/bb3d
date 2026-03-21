@@ -22,6 +22,9 @@
 
 #include <SDL3/SDL.h>
 #include <filesystem>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 
 namespace bb3d {
 
@@ -1057,14 +1060,44 @@ void ImGuiLayer::showToolbar() {
         ImGui::PopStyleVar();
         auto& engine = Engine::Get();
         bool paused = engine.isPhysicsPaused();
-        float size = ImGui::CalcTextSize(ICON_FA_PLAY " Play "" " ICON_FA_ARROW_ROTATE_LEFT " Reset Scene ").x;
-        float off = (ImGui::GetContentRegionAvail().x - size) * 0.5f;
+        
+        // Calculate total width for centering
+        float spacing = ImGui::GetStyle().ItemSpacing.x;
+        float playPauseWidth = ImGui::CalcTextSize(paused ? ICON_FA_PLAY " Play" : ICON_FA_PAUSE " Pause").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+        float resetWidth = ImGui::CalcTextSize(ICON_FA_ARROW_ROTATE_LEFT " Reset Scene").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+        float screenshotWidth = ImGui::CalcTextSize(ICON_FA_CAMERA " Screenshot").x + ImGui::GetStyle().FramePadding.x * 2.0f;
+        
+        float totalWidth = playPauseWidth + spacing + resetWidth + spacing + 2.0f + spacing + screenshotWidth;
+        
+        float off = (ImGui::GetContentRegionAvail().x - totalWidth) * 0.5f;
         if (off > 0.0f) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + off);
-        if (paused) { if (ImGui::Button(ICON_FA_PLAY " Play")) engine.setPhysicsPaused(false); }
-        else { if (ImGui::Button(ICON_FA_PAUSE " Pause")) engine.setPhysicsPaused(true); }
+        
+        if (paused) { 
+            if (ImGui::Button(ICON_FA_PLAY " Play")) engine.setPhysicsPaused(false); 
+        } else { 
+            if (ImGui::Button(ICON_FA_PAUSE " Pause")) engine.setPhysicsPaused(true); 
+        }
+        
         ImGui::SameLine();
-        if (ImGui::Button(ICON_FA_ARROW_ROTATE_LEFT " Reset Scene")) { engine.resetScene(); engine.setPhysicsPaused(true); }
-    } else { ImGui::PopStyleVar(); }
+        if (ImGui::Button(ICON_FA_ARROW_ROTATE_LEFT " Reset Scene")) { 
+            engine.resetScene(); 
+            engine.setPhysicsPaused(true); 
+        }
+        
+        ImGui::SameLine();
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine();
+        
+        if (ImGui::Button(ICON_FA_CAMERA " Screenshot")) {
+            auto now = std::chrono::system_clock::now();
+            auto in_time_t = std::chrono::system_clock::to_time_t(now);
+            std::stringstream ss;
+            ss << "screenshots/screenshot_" << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%H%M%S") << ".png";
+            engine.renderer().saveScreenshot(ss.str());
+        }
+    } else { 
+        ImGui::PopStyleVar(); 
+    }
     ImGui::End();
 }
 

@@ -72,7 +72,7 @@ public:
      */
     template<typename Callable>
     void executeSafe(Callable&& job, JobCounter counter = nullptr) {
-        execute([job = std::forward<Callable>(job)](std::stop_token st) {
+        execute([job = std::forward<Callable>(job)](std::stop_token st) mutable {
             try {
                 if constexpr (std::invocable<Callable, std::stop_token>) {
                     job(st);

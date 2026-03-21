@@ -1,0 +1,39 @@
+Version MSBuild 17.14.40+3e7442088 pour .NET Framework
+
+  Checking File Globs
+  Deploying all assets to common binary directory
+  Jolt.vcxproj -> C:\dev\bb3d\build\_deps\jolt-build\Debug\Jolt.lib
+  SDL_uclibc.vcxproj -> C:\dev\bb3d\build\_deps\sdl-build\Debug\SDL_uclibc.lib
+  SDL3-shared.vcxproj -> C:\dev\bb3d\build\bin\SDL3.dll
+  fastgltf.vcxproj -> C:\dev\bb3d\build\_deps\fastgltf-build\Debug\fastgltf.lib
+  freetype.vcxproj -> C:\dev\bb3d\build\_deps\freetype-build\Debug\freetyped.lib
+  glm.vcxproj -> C:\dev\bb3d\build\_deps\glm-build\glm\Debug\glm.lib
+  spdlog.vcxproj -> C:\dev\bb3d\build\_deps\spdlog-build\Debug\spdlogd.lib
+  ImGuiLayer.cpp
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(25,1): error C2059: erreur de syntaxe┬á: 'constante' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(25,5): error C2014: une commande de pr├®processeur doit commencer comme premier espace autre que blanc [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(26,1): error C2059: erreur de syntaxe┬á: 'constante' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(26,5): error C2014: une commande de pr├®processeur doit commencer comme premier espace autre que blanc [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(27,1): error C2059: erreur de syntaxe┬á: 'constante' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(27,5): error C2014: une commande de pr├®processeur doit commencer comme premier espace autre que blanc [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(1095,55): warning C4996: 'localtime': This function or variable may be unsafe. Consider using localtime_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\dev\bb3d\build\biobazard3d.vcxproj]
+  Renderer.cpp
+C:\dev\bb3d\src\bb3d\render\Renderer.cpp(11,1): error C2059: erreur de syntaxe┬á: 'constante' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\Renderer.cpp(11,5): error C2014: une commande de pr├®processeur doit commencer comme premier espace autre que blanc [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\Renderer.cpp(623,67): error C3861: 'SDL_GetTicks'┬á: identificateur introuvable [C:\dev\bb3d\build\biobazard3d.vcxproj]
+  SwapChain.cpp
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(113,4): error C2143: erreur de syntaxe┬á: absence de ';' avant ':' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(113,4): error C2059: erreur de syntaxe┬á: ':' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(113,48): error C2143: erreur de syntaxe┬á: absence de ';' avant '{' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(113,50): error C2059: erreur de syntaxe┬á: ',' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(113,137): error C2059: erreur de syntaxe┬á: ')' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(118,9): error C2065: 'createInfo'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(119,9): error C2065: 'createInfo'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(120,9): error C2065: 'createInfo'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(122,9): error C2065: 'createInfo'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(125,5): error C2065: 'createInfo'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(126,5): error C2065: 'createInfo'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(127,5): error C2065: 'createInfo'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(128,5): error C2065: 'createInfo'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\render\SwapChain.cpp(130,45): error C2065: 'createInfo'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+  G├®n├®ration de code en cours...

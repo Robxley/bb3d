@@ -109,7 +109,8 @@ void SwapChain::createSwapChain(int width, int height) {
         imageCount = capabilities.maxImageCount;
     }
 
-    vk::SwapchainCreateInfoKHR createInfo({}, surface, imageCount, surfaceFormat.format, surfaceFormat.colorSpace, extent, 1, vk::ImageUsageFlagBits::eColorAttachment);
+    vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc;
+    vk::SwapchainCreateInfoKHR createInfo({}, surface, imageCount, surfaceFormat.format, surfaceFormat.colorSpace, extent, 1, usage);
 
     uint32_t queueFamilyIndices[] = { m_context.getGraphicsQueueFamily(), m_context.getPresentQueueFamily() };
 

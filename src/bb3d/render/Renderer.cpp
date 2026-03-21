@@ -7,7 +7,9 @@
 #include "bb3d/render/MeshGenerator.hpp"
 #include <array>
 #include <algorithm>
+#include <stb_image_write.h>
 #include <SDL3/SDL.h>
+#include <filesystem>
 
 namespace bb3d {
 
@@ -1091,6 +1093,71 @@ uint32_t Renderer::readEntityIdAt(uint32_t x, uint32_t y) {
 
     m_pickingRendered = false;
     return entityId;
+}
+
+void Renderer::saveScreenshot(const std::string& filepath) {
+    auto device = m_context.getDevice();
+    device.waitIdle();
+
+    uint32_t imageIndex = m_swapChain->getCurrentImageIndex();
+    vk::Image srcImage = m_swapChain->getImage(imageIndex);
+    vk::Extent2D extent = m_swapChain->getExtent();
+    vk::Format format = m_swapChain->getImageFormat();
+
+    vk::DeviceSize imageSize = extent.width * extent.height * 4;
+    Buffer stagingBuffer(m_context, imageSize, vk::BufferUsageFlagBits::eTransferDst, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+
+    vk::CommandBuffer cb = m_context.beginSingleTimeCommands();
+
+    // Transition swapchain image to TransferSrc (current layout is PresentSrc)
+    vk::ImageMemoryBarrier barrier({}, vk::AccessFlagBits::eTransferRead, vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eTransferSrcOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, srcImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
+    cb.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, nullptr, nullptr, barrier);
+
+    vk::BufferImageCopy region(0, 0, 0, { vk::ImageAspectFlagBits::eColor, 0, 0, 1 }, { 0, 0, 0 }, { extent.width, extent.height, 1 });
+    cb.copyImageToBuffer(srcImage, vk::ImageLayout::eTransferSrcOptimal, stagingBuffer.getHandle(), region);
+
+    // Transition back to PresentSrc
+    barrier.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
+    barrier.newLayout = vk::ImageLayout::ePresentSrcKHR;
+    barrier.srcAccessMask = vk::AccessFlagBits::eTransferRead;
+    barrier.dstAccessMask = vk::AccessFlagBits::eMemoryRead;
+    cb.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, nullptr, nullptr, barrier);
+
+    m_context.endSingleTimeCommands(cb);
+
+    // Copy to vector to free up the Vulkan buffer immediately and pass to thread
+    uint8_t* mapped = static_cast<uint8_t*>(stagingBuffer.getMappedData());
+    if (!mapped) {
+        BB_CORE_ERROR("Renderer: Failed to map staging buffer for screenshot.");
+        return;
+    }
+    
+    std::vector<uint8_t> pixelData(mapped, mapped + imageSize);
+
+    // Launch background job for pixel processing and saving
+    m_jobSystem.executeSafe([data = std::move(pixelData), extent, format, filepath]() mutable {
+        // 1. Swizzle BGRA to RGBA if format is BGR (common for Windows swapchain)
+        if (format == vk::Format::eB8G8R8A8Srgb || format == vk::Format::eB8G8R8A8Unorm || format == vk::Format::eB8G8R8A8Uint) {
+            for (uint32_t i = 0; i < extent.width * extent.height; ++i) {
+                uint8_t temp = data[i * 4 + 0];
+                data[i * 4 + 0] = data[i * 4 + 2];
+                data[i * 4 + 2] = temp;
+            }
+        }
+
+        // 2. Ensure directory exists if path contains directories
+        std::filesystem::path p(filepath);
+        if (p.has_parent_path()) {
+            std::filesystem::create_directories(p.parent_path());
+        }
+
+        // 3. Save as PNG
+        if (stbi_write_png(filepath.c_str(), extent.width, extent.height, 4, data.data(), extent.width * 4)) {
+            BB_CORE_INFO("Screenshot saved asynchronously to: {0}", filepath);
+        } else {
+            BB_CORE_ERROR("Failed to save screenshot asynchronously to: {0}", filepath);
+        }
+    });
 }
 
 } // namespace bb3d
