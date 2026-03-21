@@ -16,8 +16,11 @@ float SmartCamera::update(float altitude, const glm::vec3& gravityDir, const glm
     auto& camTf = m_camera.get<bb3d::TransformComponent>();
     auto& refCam = m_camera.get<bb3d::CameraComponent>().camera;
     auto& targetTf = m_currentTarget.get<bb3d::TransformComponent>();
-
-    float targetZoom = (m_baseZoom + std::max(0.0f, altitude * 0.3f)) * m_zoomFactor;
+    
+    // Auto-framing: zoom out dynamically based on altitude.
+    // A multiplier of 2.0f ensures the planet center stays precisely at the bottom of the screen
+    // visually, keeping both ship and planet in the same view.
+    float targetZoom = m_baseZoom + std::max(0.0f, altitude * 2.0f);
     
     // The UP vector of the camera is opposite to gravity
     glm::vec3 camUp = -gravityDir;

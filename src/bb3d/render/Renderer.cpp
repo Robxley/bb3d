@@ -10,6 +10,8 @@
 #include <stb_image_write.h>
 #include <SDL3/SDL.h>
 #include <filesystem>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 namespace bb3d {
 
@@ -49,6 +51,10 @@ Renderer::Renderer(VulkanContext& context, Window& window, JobSystem& jobSystem,
     // Hover setup (Light Blue color)
     m_hoveredMat = CreateRef<UnlitMaterial>(m_context);
     m_hoveredMat->setColor({0.3f, 0.6f, 1.0f});
+
+    // Debug Physics Collider setup (Green color)
+    m_debugColliderMat = CreateRef<UnlitMaterial>(m_context);
+    m_debugColliderMat->setColor({0.0f, 1.0f, 0.3f});
 }
 
 Renderer::~Renderer() {
@@ -650,6 +656,36 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
     // Add Hover as a render command 
     if (m_hoveredActive && m_highlightCube && m_hoveredMat) {
         m_renderCommands.push_back({ MaterialType::Highlight, m_hoveredMat.get(), m_highlightCube.get(), m_hoveredTransform });
+    }
+
+    // Debug Physics Colliders: render wireframe for ALL entities with PhysicsComponent
+    if (m_debugPhysicsEnabled && m_highlightCube && m_debugColliderMat) {
+        auto physView = scene.getRegistry().view<PhysicsComponent, TransformComponent>();
+        for (auto entity : physView) {
+            auto& phys = physView.get<PhysicsComponent>(entity);
+            auto& tf = physView.get<TransformComponent>(entity);
+
+            glm::vec3 colliderScale(1.0f);
+            if (phys.colliderType == ColliderType::Box) {
+                colliderScale = phys.boxHalfExtents * tf.scale * 2.0f;
+            } else if (phys.colliderType == ColliderType::Sphere) {
+                float maxS = glm::max(tf.scale.x, glm::max(tf.scale.y, tf.scale.z));
+                float d = phys.radius * maxS * 2.0f;
+                colliderScale = glm::vec3(d);
+            } else if (phys.colliderType == ColliderType::Capsule) {
+                float rScaled = phys.radius * glm::max(tf.scale.x, tf.scale.z) * 2.0f;
+                float hScaled = phys.height * tf.scale.y;
+                colliderScale = glm::vec3(rScaled, hScaled, rScaled);
+            } else {
+                // Mesh collider: use entity scale as approximation
+                colliderScale = tf.scale;
+            }
+
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), tf.translation)
+                            * glm::toMat4(glm::quat(tf.rotation))
+                            * glm::scale(glm::mat4(1.0f), colliderScale);
+            m_renderCommands.push_back({ MaterialType::Highlight, m_debugColliderMat.get(), m_highlightCube.get(), model });
+        }
     }
 
     std::ranges::sort(m_renderCommands, [](const RenderCommand& a, const RenderCommand& b) {

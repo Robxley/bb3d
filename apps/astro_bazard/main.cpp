@@ -118,17 +118,22 @@ int main(int argc, char** argv) {
             asteroidMat->setColor({0.4f, 0.35f, 0.3f});
             for (int i = 0; i < 20; i++) {
                 auto asteroid = scene->createEntity("Asteroid_" + std::to_string(i));
-                float radius = 15.0f + (rand() % 100) / 10.0f;
+                float orbitalRadius = 18.0f + (rand() % 100) / 10.0f;
                 float angle = (rand() % 360) * glm::pi<float>() / 180.0f;
-                asteroid.get<TransformComponent>().translation = { std::cos(angle) * radius, 0.0f, std::sin(angle) * radius };
-                asteroid.get<TransformComponent>().scale = glm::vec3(0.3f + (rand() % 10) / 20.0f);
+                asteroid.get<TransformComponent>().translation = { std::cos(angle) * orbitalRadius, 0.0f, std::sin(angle) * orbitalRadius };
+                float astScale = 0.3f + (rand() % 10) / 20.0f;
+                asteroid.get<TransformComponent>().scale = glm::vec3(astScale);
 
                 auto& phys = asteroid.add<PhysicsComponent>().get<PhysicsComponent>();
                 phys.type = BodyType::Dynamic;
                 phys.colliderType = ColliderType::Sphere;
                 phys.radius = 0.5f;
-                phys.mass = 1.0f;
-                phys.initialLinearVelocity = glm::vec3(std::cos(angle+1.5f), 0.0f, std::sin(angle+1.5f)) * 5.0f;
+                phys.mass = 2.0f;
+                phys.linearDamping = 0.02f;   // Very light space drag
+                phys.angularDamping = 0.1f;
+                // Initial tangential velocity for stable orbit: v = sqrt(GM/r)
+                float orbitalSpeed = std::sqrt(1000.0f / orbitalRadius);
+                phys.initialLinearVelocity = glm::vec3(std::cos(angle + glm::half_pi<float>()), 0.0f, std::sin(angle + glm::half_pi<float>())) * orbitalSpeed;
                 engine->physics().createRigidBody(asteroid);
 
                 // Asteroid Visual
@@ -140,15 +145,17 @@ int main(int argc, char** argv) {
                 for (auto& mesh : astPlanet.model->getMeshes()) mesh->setMaterial(asteroidMat);
                 asteroid.add<ModelComponent>(astPlanet.model);
 
-                // Radial Gravity
+                // Newtonian Radial Gravity (same GM=1000 as the ship)
                 asteroid.add<NativeScriptComponent>([enginePtr = engine.get(), planet](Entity entity, float dt) mutable {
                     auto& tc = entity.get<TransformComponent>();
                     glm::vec3 direction = planet.get<TransformComponent>().translation - tc.translation;
-                    float distanceSq = glm::dot(direction, direction);
-                    if (distanceSq > 1.0f) {
-                        glm::vec3 force = glm::normalize(direction) * (500.0f / distanceSq);
-                        enginePtr->physics().addForce(entity, force);
-                    }
+                    float dist = glm::length(direction);
+                    // Clamp minimum distance to prevent singularity explosion
+                    dist = std::max(dist, 5.0f);
+                    float mass = 2.0f; // asteroid mass
+                    // F = mass * GM / dist^2
+                    float forceMag = mass * 1000.0f / (dist * dist);
+                    enginePtr->physics().addForce(entity, glm::normalize(direction) * forceMag);
                 });
             }
 
@@ -163,7 +170,7 @@ int main(int argc, char** argv) {
             shipModel->normalize(glm::vec3(1.0f)); 
 
             auto ship = scene->createEntity("Spaceship");
-            ship.get<TransformComponent>().translation = {0.0f, 11.0f, 0.0f}; 
+            ship.get<TransformComponent>().translation = {0.0f, 13.0f, 0.0f}; // Just above the surface (planet radius ~10 + terrain)
             ship.add<astrobazard::CommRelayComponent>("Vaisseau Mère");
             
             float baseScale = 0.15f;
@@ -171,12 +178,12 @@ int main(int argc, char** argv) {
             
             // Automatic Visual Offset Calculation
             // We want the visual bottom of the mesh to align with the bottom of the physics collider.
+            // The renderer applies the ModelComponent offset BEFORE the TransformComponent scale.
+            // So we calculate the offset entirely in un-scaled local space.
             bb3d::AABB bounds = shipModel->getBounds();
-            // The BoxCollider has halfExtents of 0.5 on Y, meaning its bottom is at -0.5 local.
-            // The mesh's visual bottom is at bounds.min.y * baseScale.
-            // We calculate an offset to push the mesh up or down so bounds.min.y hits -0.5.
+            // phys.boxHalfExtents.y is 0.5f, so the collider bottom is at -0.5f local.
             float colliderBottomY = -0.5f; 
-            float visualBottomY = bounds.min.y * baseScale;
+            float visualBottomY = bounds.min.y;
             glm::vec3 visualOffset = glm::vec3(0.0f, colliderBottomY - visualBottomY, 0.0f);
             
             auto& modelComp = ship.add<ModelComponent>().get<ModelComponent>();
@@ -185,25 +192,30 @@ int main(int argc, char** argv) {
 
             auto& phys = ship.add<PhysicsComponent>().get<PhysicsComponent>();
             phys.type = BodyType::Dynamic;
-            phys.mass = 5.0f;
-            phys.friction = 0.5f;
+            phys.mass = 1.0f;            // Light ship for responsive physics
+            phys.friction = 0.3f;
+            phys.restitution = 0.05f;    // Almost no bounce on surface contact
             phys.colliderType = ColliderType::Box;
-            phys.boxHalfExtents = {0.2f, 0.5f, 0.2f}; 
+            phys.boxHalfExtents = {0.3f, 0.5f, 0.3f}; // Flat bottom for stable landing
             phys.constrain2D = true;
-            phys.linearDamping = 0.5f;   // Space resistance
-            phys.angularDamping = 3.0f;  // High rotation stabilization
+            phys.linearDamping = 0.3f;   // Light space drag
+            phys.angularDamping = 8.0f;  // Very strong rotation stabilization
+            phys.initialLinearVelocity = {0.0f, 1.0f, 0.0f}; // Small upward push to avoid slamming
             engine->physics().createRigidBody(ship);
 
-            // Gameplay components
+            // Surface gravity acceleration: GM/r² = 1000/100 = 10 m/s²
+            // Ship weight at surface: mass * 10 = 10 N
+            // Main thrust = 1.1 * weight = 11 N (just barely lifts off)
             auto& ctrl = ship.add<SpaceshipControllerComponent>().get<SpaceshipControllerComponent>();
-            ctrl.mainThrustPower = 60.0f;   // Slower than 75
-            ctrl.retroThrustPower = 5.0f;
-            ctrl.torquePower = 3.0f;        // Much lower than 7.5
-            ship.add<OrbitalGravityComponent>(25000.0f, static_cast<uint32_t>(planet.getHandle()));
+            ctrl.mainThrustPower = 11.0f;     // 1.1x surface gravity
+            ctrl.retroThrustPower = 2.0f;     // Gentle retro
+            ctrl.torquePower = 0.5f;          // Very smooth rotational control
+            // GM = 1000: gives ~10 m/s² at surface of radius-10 planet
+            ship.add<OrbitalGravityComponent>(1000.0f, static_cast<uint32_t>(planet.getHandle()));
 
             // Particles for propulsion
             auto& ps = ship.add<ParticleSystemComponent>().get<ParticleSystemComponent>();
-            auto plasmaTex = engine->assets().load<Texture>("assets/textures/particles/exhaust_plasma.png", true);
+            auto plasmaTex = engine->assets().load<Texture>("assets/textures/particles/PNG (Black background)/flame_02.png", true);
 
             auto particleMat = CreateRef<PlasmaMaterial>(engine->graphics());
             if (plasmaTex) particleMat->setBaseMap(plasmaTex);
@@ -229,7 +241,8 @@ int main(int argc, char** argv) {
             // Planetary System Logic & Smart Camera
             auto orbitalGravity = std::make_shared<astrobazard::OrbitalGravity>(planet); 
             auto spaceshipCtrl = std::make_shared<astrobazard::SpaceshipController>();
-            auto smartCamera = std::make_shared<astrobazard::SmartCamera>(shipCamera, ship, 6.0f);
+            // Base zoom set to 20.0f so the spaceship doesn't look enormous compared to the planet when landed
+            auto smartCamera = std::make_shared<astrobazard::SmartCamera>(shipCamera, ship, 20.0f);
 
             scene->createEntity("KerbalLogic").add<NativeScriptComponent>([enginePtr = engine.get(), ship, planet, moonEntity, shipCamera, planetOrbitView, orbitalGravity, spaceshipCtrl, smartCamera](Entity e, float dt) mutable {
                 auto& input = enginePtr->input();
@@ -298,9 +311,6 @@ int main(int argc, char** argv) {
                         glm::vec3 planetCenter = planet.get<TransformComponent>().translation;
                         gravityDir = glm::normalize(planetCenter - tf.translation);
                     }
-
-                    float scroll = input.getMouseScroll().y;
-                    if (std::abs(scroll) > 0.01f) smartCamera->zoom(scroll);
 
                     // Pass local offset to aim at the "nose" of the ship, or center for planets
                     glm::vec3 offset = (target == ship) ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(0.0f);

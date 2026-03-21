@@ -3,6 +3,7 @@
 #include "bb3d/scene/Scene.hpp"
 #include "bb3d/scene/Entity.hpp"
 #include "bb3d/scene/Components.hpp"
+#include <algorithm>
 
 // Jolt includes
 #include <Jolt/Jolt.h>
@@ -174,8 +175,19 @@ namespace bb3d {
             ++it;
         }
 
-        // 3. Simulation Step (Calculate collisions and forces)
-        m_impl->physicsSystem->Update(deltaTime, 1, m_impl->tempAllocator.get(), m_impl->jobSystem.get());
+        // 3. Simulation Step — Fixed-timestep accumulator for stability
+        //    Jolt requires consistent time steps to prevent tunneling and jitter.
+        //    We accumulate real time and step in fixed increments.
+        constexpr float fixedDt = 1.0f / 60.0f;        // 60 Hz physics
+        constexpr int maxSubSteps = 4;                  // Cap to prevent spiral of death
+        static float accumulator = 0.0f;
+        accumulator += std::min(deltaTime, 0.1f);       // Clamp input to 100ms max
+        int steps = 0;
+        while (accumulator >= fixedDt && steps < maxSubSteps) {
+            m_impl->physicsSystem->Update(fixedDt, 1, m_impl->tempAllocator.get(), m_impl->jobSystem.get());
+            accumulator -= fixedDt;
+            steps++;
+        }
 
         // 3. Create missing Jolt bodies (for new components added this frame)
         auto newBodiesView = scene.getRegistry().view<PhysicsComponent>();
@@ -344,6 +356,12 @@ namespace bb3d {
         settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
         settings.mLinearDamping = phys.linearDamping;
         settings.mAngularDamping = phys.angularDamping;
+
+        // Enable CCD (Continuous Collision Detection) for dynamic bodies
+        // Prevents tunneling through thin colliders (e.g. procedural planet mesh)
+        if (phys.type == BodyType::Dynamic) {
+            settings.mMotionQuality = JPH::EMotionQuality::LinearCast;
+        }
         
         if (phys.constrain2D) {
             settings.mAllowedDOFs = JPH::EAllowedDOFs::Plane2D;

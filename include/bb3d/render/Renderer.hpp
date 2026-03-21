@@ -66,6 +66,10 @@ public:
     /** @brief Définit la zone de surbrillance pour l'identité survolée. */
     void setHoveredBounds(const AABB& bounds, bool active);
 
+    /** @brief Enable/disable debug physics collider wireframe rendering. */
+    void setDebugPhysicsColliders(bool enabled) { m_debugPhysicsEnabled = enabled; }
+    bool isDebugPhysicsEnabled() const { return m_debugPhysicsEnabled; }
+
     /** @brief Récupère la SwapChain actuelle. */
     SwapChain& getSwapChain() { return *m_swapChain; }
 
@@ -230,6 +234,10 @@ private:
     Ref<UnlitMaterial> m_hoveredMat;
     bool m_hoveredActive = false;
     glm::mat4 m_hoveredTransform = glm::mat4(1.0f);
+
+    // Debug Physics Colliders
+    bool m_debugPhysicsEnabled = false;
+    Ref<UnlitMaterial> m_debugColliderMat;
 
     void renderSkybox(vk::CommandBuffer cb, Scene& scene);
     void drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView colorView, vk::ImageView depthView, vk::Extent2D extent);

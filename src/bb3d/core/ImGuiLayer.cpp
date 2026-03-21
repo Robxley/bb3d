@@ -407,6 +407,51 @@ void ImGuiLayer::showSceneHierarchy(Scene& scene) {
     ImGui::End();
 }
 
+void ImGuiLayer::drawComponentList(Entity entity) {
+    auto drawCompNode = [&](const char* name, const char* compIcon, ImVec4 color, bool hasComp) {
+        if (!hasComp) return;
+        ImGuiTreeNodeFlags compFlags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
+        if (m_selectedEntity == entity && m_focusedComponent == name) compFlags |= ImGuiTreeNodeFlags_Selected;
+        
+        // Use a unique ID based on entity and component name
+        ImGui::PushID((void*)name);
+        ImGui::TreeNodeEx("##CompNode", compFlags, "");
+        if (ImGui::IsItemClicked()) { m_selectedEntity = entity; m_focusedComponent = name; }
+        
+        ImGui::SameLine();
+        ImGui::TextColored(color, "%s", compIcon);
+        ImGui::SameLine();
+        ImGui::Text("%s", name);
+        ImGui::PopID();
+    };
+
+    ImVec4 colTransform = ImVec4(0.3f, 0.8f, 1.0f, 1.0f);
+    ImVec4 colRender = ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
+    ImVec4 colPhysics = ImVec4(0.4f, 1.0f, 0.4f, 1.0f);
+    ImVec4 colLight = ImVec4(1.0f, 0.9f, 0.2f, 1.0f);
+    ImVec4 colAudio = ImVec4(1.0f, 0.6f, 0.2f, 1.0f);
+    ImVec4 colLogic = ImVec4(0.6f, 0.4f, 1.0f, 1.0f);
+
+    drawCompNode("Transform", ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT, colTransform, entity.has<TransformComponent>());
+    drawCompNode("Camera", ICON_FA_VIDEO, colTransform, entity.has<CameraComponent>());
+    drawCompNode("OrbitController", ICON_FA_CROSSHAIRS, colTransform, entity.has<OrbitControllerComponent>());
+    drawCompNode("FPSController", ICON_FA_GAMEPAD, colTransform, entity.has<FPSControllerComponent>());
+    drawCompNode("Mesh", ICON_FA_CUBE, colRender, entity.has<MeshComponent>());
+    drawCompNode("Model", ICON_FA_CUBES, colRender, entity.has<ModelComponent>());
+    drawCompNode("Light", ICON_FA_LIGHTBULB, colLight, entity.has<LightComponent>());
+    drawCompNode("Skybox", ICON_FA_CLOUD, colLight, entity.has<SkyboxComponent>());
+    drawCompNode("SkySphere", ICON_FA_GLOBE, colLight, entity.has<SkySphereComponent>());
+    drawCompNode("PhysicsBody", ICON_FA_BOX, colPhysics, entity.has<PhysicsComponent>());
+    drawCompNode("AudioSource", ICON_FA_VOLUME_HIGH, colAudio, entity.has<AudioSourceComponent>());
+    drawCompNode("AudioListener", ICON_FA_EAR_LISTEN, colAudio, entity.has<AudioListenerComponent>());
+    drawCompNode("SimpleAnimation", ICON_FA_FILM, colLogic, entity.has<SimpleAnimationComponent>());
+    drawCompNode("NativeScript", ICON_FA_CODE, colLogic, entity.has<NativeScriptComponent>());
+    drawCompNode("OrbitalGravity", ICON_FA_MAGNET, colLogic, entity.has<OrbitalGravityComponent>());
+    drawCompNode("SpaceshipController", ICON_FA_ROCKET, colLogic, entity.has<SpaceshipControllerComponent>());
+    drawCompNode("ParticleSystem", ICON_FA_FIRE, colRender, entity.has<bb3d::ParticleSystemComponent>());
+    drawCompNode("Selectable", ICON_FA_ARROW_POINTER, colLogic, entity.has<SelectableComponent>());
+}
+
 void ImGuiLayer::drawEntityNode(Entity entity) {
     auto& tag = entity.get<TagComponent>().tag;
     ImGui::PushID((int)(entt::entity)entity);
@@ -459,40 +504,7 @@ void ImGuiLayer::drawEntityNode(Entity entity) {
     ImGui::Text("%s", tag.c_str());
 
     if (node_open) {
-        auto drawCompNode = [&](const char* name, const char* compIcon, ImVec4 color, bool hasComp) {
-            if (!hasComp) return;
-            ImGuiTreeNodeFlags compFlags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
-            if (m_selectedEntity == entity && m_focusedComponent == name) compFlags |= ImGuiTreeNodeFlags_Selected;
-            ImGui::TreeNodeEx((std::string("##Comp") + name).c_str(), compFlags, "");
-            if (ImGui::IsItemClicked()) { m_selectedEntity = entity; m_focusedComponent = name; }
-            ImGui::SameLine();
-            ImGui::TextColored(color, "%s", compIcon);
-            ImGui::SameLine();
-            ImGui::Text("%s", name);
-        };
-
-        ImVec4 colTransform = ImVec4(0.3f, 0.8f, 1.0f, 1.0f);
-        ImVec4 colRender = ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
-        ImVec4 colPhysics = ImVec4(0.4f, 1.0f, 0.4f, 1.0f);
-        ImVec4 colLight = ImVec4(1.0f, 0.9f, 0.2f, 1.0f);
-        ImVec4 colAudio = ImVec4(1.0f, 0.6f, 0.2f, 1.0f);
-        ImVec4 colLogic = ImVec4(0.6f, 0.4f, 1.0f, 1.0f);
-
-        drawCompNode("Transform", ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT, colTransform, entity.has<TransformComponent>());
-        drawCompNode("Camera", ICON_FA_VIDEO, colTransform, entity.has<CameraComponent>());
-        drawCompNode("OrbitController", ICON_FA_CROSSHAIRS, colTransform, entity.has<OrbitControllerComponent>());
-        drawCompNode("FPSController", ICON_FA_GAMEPAD, colTransform, entity.has<FPSControllerComponent>());
-        drawCompNode("Mesh", ICON_FA_CUBE, colRender, entity.has<MeshComponent>());
-        drawCompNode("Model", ICON_FA_CUBES, colRender, entity.has<ModelComponent>());
-        drawCompNode("Light", ICON_FA_LIGHTBULB, colLight, entity.has<LightComponent>());
-        drawCompNode("Skybox", ICON_FA_CLOUD, colLight, entity.has<SkyboxComponent>());
-        drawCompNode("SkySphere", ICON_FA_GLOBE, colLight, entity.has<SkySphereComponent>());
-        drawCompNode("PhysicsBody", ICON_FA_BOX, colPhysics, entity.has<PhysicsComponent>());
-        drawCompNode("AudioSource", ICON_FA_VOLUME_HIGH, colAudio, entity.has<AudioSourceComponent>());
-        drawCompNode("AudioListener", ICON_FA_EAR_LISTEN, colAudio, entity.has<AudioListenerComponent>());
-        drawCompNode("SimpleAnimation", ICON_FA_FILM, colLogic, entity.has<SimpleAnimationComponent>());
-        drawCompNode("NativeScript", ICON_FA_CODE, colLogic, entity.has<NativeScriptComponent>());
-
+        drawComponentList(entity);
         ImGui::TreePop();
     }
 
@@ -534,6 +546,9 @@ void ImGuiLayer::showSceneSettings(Scene& scene) {
     ImGui::Checkbox("Show Grid", &showGrid);
     static bool showPhysics = false;
     ImGui::Checkbox("Debug Physics Colliders", &showPhysics);
+    if (scene.getEngineContext()) {
+        scene.getEngineContext()->renderer().setDebugPhysicsColliders(showPhysics);
+    }
 
     ImGui::Separator();
     if (ImGui::CollapsingHeader(ICON_FA_ARROW_POINTER " Picking & Selection", ImGuiTreeNodeFlags_DefaultOpen)) {
@@ -572,33 +587,7 @@ void ImGuiLayer::showInspector() {
             ImGui::TreeNodeEx((tag + "##InspectorTree").c_str(), entityFlags | ImGuiTreeNodeFlags_NoTreePushOnOpen, ICON_FA_CUBE " %s", tag.c_str());
             if (ImGui::IsItemClicked()) m_focusedComponent = "";
 
-            auto DrawCompTreeLeaf = [&](const char* name, const char* icon, ImVec4 color, bool hasComp) {
-                if (!hasComp) return;
-                ImGuiTreeNodeFlags flags = (m_focusedComponent == name ? ImGuiTreeNodeFlags_Selected : 0) | ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
-                ImGui::PushStyleColor(ImGuiCol_Text, color);
-                ImGui::TreeNodeEx((std::string("##Tree") + name).c_str(), flags, "%s %s", icon, name);
-                ImGui::PopStyleColor();
-                if (ImGui::IsItemClicked()) m_focusedComponent = name;
-            };
-
-            DrawCompTreeLeaf("Transform", ICON_FA_ARROWS_UP_DOWN_LEFT_RIGHT, colTransform, m_selectedEntity.has<TransformComponent>());
-            DrawCompTreeLeaf("Camera", ICON_FA_VIDEO, colTransform, m_selectedEntity.has<CameraComponent>());
-            DrawCompTreeLeaf("OrbitController", ICON_FA_CROSSHAIRS, colTransform, m_selectedEntity.has<OrbitControllerComponent>());
-            DrawCompTreeLeaf("FPSController", ICON_FA_GAMEPAD, colTransform, m_selectedEntity.has<FPSControllerComponent>());
-            DrawCompTreeLeaf("Mesh", ICON_FA_CUBE, colRender, m_selectedEntity.has<MeshComponent>());
-            DrawCompTreeLeaf("Model", ICON_FA_CUBES, colRender, m_selectedEntity.has<ModelComponent>());
-            DrawCompTreeLeaf("Light", ICON_FA_LIGHTBULB, colLight, m_selectedEntity.has<LightComponent>());
-            DrawCompTreeLeaf("Skybox", ICON_FA_CLOUD, colLight, m_selectedEntity.has<SkyboxComponent>());
-            DrawCompTreeLeaf("SkySphere", ICON_FA_GLOBE, colLight, m_selectedEntity.has<SkySphereComponent>());
-            DrawCompTreeLeaf("PhysicsBody", ICON_FA_BOX, colPhysics, m_selectedEntity.has<PhysicsComponent>());
-            DrawCompTreeLeaf("AudioSource", ICON_FA_VOLUME_HIGH, colAudio, m_selectedEntity.has<AudioSourceComponent>());
-            DrawCompTreeLeaf("AudioListener", ICON_FA_EAR_LISTEN, colAudio, m_selectedEntity.has<AudioListenerComponent>());
-            DrawCompTreeLeaf("SimpleAnimation", ICON_FA_FILM, colLogic, m_selectedEntity.has<SimpleAnimationComponent>());
-            DrawCompTreeLeaf("NativeScript", ICON_FA_CODE, colLogic, m_selectedEntity.has<NativeScriptComponent>());
-            DrawCompTreeLeaf("OrbitalGravity", ICON_FA_MAGNET, colLogic, m_selectedEntity.has<OrbitalGravityComponent>());
-            DrawCompTreeLeaf("SpaceshipController", ICON_FA_ROCKET, colLogic, m_selectedEntity.has<SpaceshipControllerComponent>());
-            DrawCompTreeLeaf("ParticleSystem", ICON_FA_FIRE, colRender, m_selectedEntity.has<bb3d::ParticleSystemComponent>());
-            DrawCompTreeLeaf("Selectable", ICON_FA_ARROW_POINTER, colLogic, m_selectedEntity.has<SelectableComponent>());
+            drawComponentList(m_selectedEntity);
 
             ImGui::TreePop();
         }

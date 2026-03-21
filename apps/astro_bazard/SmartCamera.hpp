@@ -36,13 +36,12 @@ public:
     /**
      * @brief Adds a zoom offset (multiplier).
      */
-    void zoom(float delta) { m_zoomFactor = std::clamp(m_zoomFactor - delta * 0.1f, 0.1f, 10.0f); }
+    // void zoom(float delta) { m_zoomFactor = std::clamp(m_zoomFactor - delta * 0.1f, 0.1f, 10.0f); }
 
 private:
     bb3d::Entity m_camera;
     bb3d::Entity m_currentTarget;
     float m_baseZoom;
-    float m_zoomFactor = 1.0f;
 };
 
 } // namespace astrobazard

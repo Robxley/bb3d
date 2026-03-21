@@ -1,0 +1,98 @@
+Version MSBuild 17.14.40+3e7442088 pour .NET Framework
+
+  Checking File Globs
+  Deploying all assets to common binary directory
+  Jolt.vcxproj -> C:\dev\bb3d\build\_deps\jolt-build\Debug\Jolt.lib
+  SDL_uclibc.vcxproj -> C:\dev\bb3d\build\_deps\sdl-build\Debug\SDL_uclibc.lib
+  SDL3-shared.vcxproj -> C:\dev\bb3d\build\bin\SDL3.dll
+  fastgltf.vcxproj -> C:\dev\bb3d\build\_deps\fastgltf-build\Debug\fastgltf.lib
+  freetype.vcxproj -> C:\dev\bb3d\build\_deps\freetype-build\Debug\freetyped.lib
+  glm.vcxproj -> C:\dev\bb3d\build\_deps\glm-build\glm\Debug\glm.lib
+  spdlog.vcxproj -> C:\dev\bb3d\build\_deps\spdlog-build\Debug\spdlogd.lib
+  ImGuiLayer.cpp
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(506,5): error C2065: 'i'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(506,14): error C2146: erreur de syntaxe┬á: absence de ';' avant l'identificateur 'drawComponentList' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(508,26): error C2653: 'mGui'┬á: n'est pas un nom de classe ni d'espace de noms [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(508,32): error C3861: 'TreePop'┬á: identificateur introuvable [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(511,5): error C2059: erreur de syntaxe┬á: 'if' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(511,60): error C2143: erreur de syntaxe┬á: absence de ';' avant '{' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(511,60): error C2447: '{'┬á: en-t├¬te de fonction manquant (liste formelle ├á l'ancien format┬á?) [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(518,12): error C4430: sp├®cificateur de type manquant - int est pris en compte par d├®faut. Remarque┬á: C++ ne prend pas en charge int par d├®faut [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(518,12): error C2556: 'int PopID(void)' : la fonction surcharg├®e ne diff├¿re que par le type de retour de 'void ImGui::PopID(void)' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+      C:\dev\bb3d\build\_deps\imgui-src\imgui.h(535,29):
+      voir la d├®claration de 'ImGui::PopID'
+  
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(518,12): error C2371: 'ImGui::PopID'┬á: red├®finition┬á; types de base diff├®rents [C:\dev\bb3d\build\biobazard3d.vcxproj]
+      C:\dev\bb3d\build\_deps\imgui-src\imgui.h(535,29):
+      voir la d├®claration de 'ImGui::PopID'
+  
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(521,6): error C2653: 'ImGuiLayer'┬á: n'est pas un nom de classe ni d'espace de noms [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(521,18): error C2182: ┬½ showSceneSettings ┬╗ : cette utilisation de ┬½ void ┬╗ nÔÇÖest pas valide [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(521,36): error C2065: 'Scene'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(521,43): error C2065: 'scene'┬á: identificateur non d├®clar├® [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(521,50): error C2143: erreur de syntaxe┬á: absence de ';' avant '{' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(522,12): error C4430: sp├®cificateur de type manquant - int est pris en compte par d├®faut. Remarque┬á: C++ ne prend pas en charge int par d├®faut [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(522,12): error C2365: 'ImGui::Begin'┬á: red├®finition┬á; la pr├®c├®dente d├®finition ├®tait 'fonction' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+      C:\dev\bb3d\build\_deps\imgui-src\imgui.h(377,29):
+      voir la d├®claration de 'ImGui::Begin'
+  
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(524,5): error C2059: erreur de syntaxe┬á: 'if' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(524,96): error C2143: erreur de syntaxe┬á: absence de ';' avant '{' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(524,96): error C2447: '{'┬á: en-t├¬te de fonction manquant (liste formelle ├á l'ancien format┬á?) [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(544,12): error C4430: sp├®cificateur de type manquant - int est pris en compte par d├®faut. Remarque┬á: C++ ne prend pas en charge int par d├®faut [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(544,12): error C2556: 'int Separator(void)' : la fonction surcharg├®e ne diff├¿re que par le type de retour de 'void ImGui::Separator(void)' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+      C:\dev\bb3d\build\_deps\imgui-src\imgui.h(505,29):
+      voir la d├®claration de 'ImGui::Separator'
+  
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(544,12): error C2371: 'ImGui::Separator'┬á: red├®finition┬á; types de base diff├®rents [C:\dev\bb3d\build\biobazard3d.vcxproj]
+      C:\dev\bb3d\build\_deps\imgui-src\imgui.h(505,29):
+      voir la d├®claration de 'ImGui::Separator'
+  
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(546,12): error C4430: sp├®cificateur de type manquant - int est pris en compte par d├®faut. Remarque┬á: C++ ne prend pas en charge int par d├®faut [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(546,12): error C2365: 'ImGui::Checkbox'┬á: red├®finition┬á; la pr├®c├®dente d├®finition ├®tait 'fonction' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+      C:\dev\bb3d\build\_deps\imgui-src\imgui.h(564,29):
+      voir la d├®claration de 'ImGui::Checkbox'
+  
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(548,12): error C4430: sp├®cificateur de type manquant - int est pris en compte par d├®faut. Remarque┬á: C++ ne prend pas en charge int par d├®faut [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(548,12): error C2365: 'ImGui::Checkbox'┬á: red├®finition┬á; la pr├®c├®dente d├®finition ├®tait 'fonction' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+      C:\dev\bb3d\build\_deps\imgui-src\imgui.h(564,29):
+      voir la d├®claration de 'ImGui::Checkbox'
+  
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(549,5): error C2059: erreur de syntaxe┬á: 'if' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(549,35): error C2143: erreur de syntaxe┬á: absence de ';' avant '{' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(549,35): error C2447: '{'┬á: en-t├¬te de fonction manquant (liste formelle ├á l'ancien format┬á?) [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(553,12): error C4430: sp├®cificateur de type manquant - int est pris en compte par d├®faut. Remarque┬á: C++ ne prend pas en charge int par d├®faut [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(553,12): error C2556: 'int Separator(void)' : la fonction surcharg├®e ne diff├¿re que par le type de retour de 'void ImGui::Separator(void)' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+      C:\dev\bb3d\build\_deps\imgui-src\imgui.h(505,29):
+      voir la d├®claration de 'ImGui::Separator'
+  
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(553,12): error C2371: 'ImGui::Separator'┬á: red├®finition┬á; types de base diff├®rents [C:\dev\bb3d\build\biobazard3d.vcxproj]
+      C:\dev\bb3d\build\_deps\imgui-src\imgui.h(505,29):
+      voir la d├®claration de 'ImGui::Separator'
+  
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(554,5): error C2059: erreur de syntaxe┬á: 'if' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(554,112): error C2143: erreur de syntaxe┬á: absence de ';' avant '{' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(554,112): error C2447: '{'┬á: en-t├¬te de fonction manquant (liste formelle ├á l'ancien format┬á?) [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(568,12): error C4430: sp├®cificateur de type manquant - int est pris en compte par d├®faut. Remarque┬á: C++ ne prend pas en charge int par d├®faut [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(568,12): error C2556: 'int End(void)' : la fonction surcharg├®e ne diff├¿re que par le type de retour de 'void ImGui::End(void)' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+      C:\dev\bb3d\build\_deps\imgui-src\imgui.h(378,29):
+      voir la d├®claration de 'ImGui::End'
+  
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(568,12): error C2371: 'ImGui::End'┬á: red├®finition┬á; types de base diff├®rents [C:\dev\bb3d\build\biobazard3d.vcxproj]
+      C:\dev\bb3d\build\_deps\imgui-src\imgui.h(378,29):
+      voir la d├®claration de 'ImGui::End'
+  
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(569,1): error C2059: erreur de syntaxe┬á: '}' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(569,1): error C2143: erreur de syntaxe┬á: absence de ';' avant '}' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(571,6): error C2653: 'ImGuiLayer'┬á: n'est pas un nom de classe ni d'espace de noms [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(571,34): error C2143: erreur de syntaxe┬á: absence de ';' avant '{' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(571,34): error C2447: '{'┬á: en-t├¬te de fonction manquant (liste formelle ├á l'ancien format┬á?) [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(1025,6): error C2653: 'ImGuiLayer'┬á: n'est pas un nom de classe ni d'espace de noms [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(1028,28): error C2653: 'Engine'┬á: n'est pas un nom de classe ni d'espace de noms [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(1028,36): error C3861: 'Get'┬á: identificateur introuvable [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(1045,6): error C2653: 'ImGuiLayer'┬á: n'est pas un nom de classe ni d'espace de noms [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(1050,24): error C2653: 'Engine'┬á: n'est pas un nom de classe ni d'espace de noms [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(1050,32): error C3861: 'Get'┬á: identificateur introuvable [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(1084,67): warning C4996: 'localtime': This function or variable may be unsafe. Consider using localtime_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details. [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(1093,1): error C2059: erreur de syntaxe┬á: '}' [C:\dev\bb3d\build\biobazard3d.vcxproj]
+C:\dev\bb3d\src\bb3d\core\ImGuiLayer.cpp(1093,1): error C2143: erreur de syntaxe┬á: absence de ';' avant '}' [C:\dev\bb3d\build\biobazard3d.vcxproj]

@@ -115,6 +115,9 @@ private:
     /** @brief Dessine récursivement (bientôt) un noeud d'entité. */
     void drawEntityNode(Entity entity);
 
+    /** @brief Factorise l'affichage des composants d'une entité (Hierarchy / Inspector). */
+    void drawComponentList(Entity entity);
+
     VulkanContext& m_context;
     Window& m_window;
     vk::DescriptorPool m_descriptorPool;
