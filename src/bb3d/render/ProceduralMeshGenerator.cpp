@@ -114,58 +114,79 @@ ProceduralMeshGenerator::FaceData ProceduralMeshGenerator::generateFaceData(
 
     glm::vec3 axisA(localUp.y, localUp.z, localUp.x);
     glm::vec3 axisB = glm::cross(localUp, axisA);
-    float epsilon = 0.001f;
 
+    // --- Optimization: Cache elevations in a grid ---
+    // This avoids sampling noise 3x per vertex for normal estimation.
+    std::vector<float> elevations(vCount);
+    
+    auto getPointOnSphere = [&](float px, float py) {
+        glm::vec3 p = localUp + (px - 0.5f) * 2.0f * axisA + (py - 0.5f) * 2.0f * axisB;
+        return glm::normalize(p);
+    };
+
+    // Phase 1: Sample all elevations
     for (uint32_t y = 0; y <= resolution; y++) {
         for (uint32_t x = 0; x <= resolution; x++) {
             glm::vec2 percent = glm::vec2(x, y) / (float)resolution;
-            auto getPointOnSphere = [&](float px, float py) {
-                glm::vec3 p = localUp + (px - 0.5f) * 2.0f * axisA + (py - 0.5f) * 2.0f * axisB;
-                return glm::normalize(p);
-            };
+            glm::vec3 p = getPointOnSphere(percent.x, percent.y);
+            elevations[x + y * (resolution + 1)] = getElevationAt(p, component);
+        }
+    }
 
+    // Phase 2: Compute vertices (Positions and Normals)
+    for (uint32_t y = 0; y <= resolution; y++) {
+        for (uint32_t x = 0; x <= resolution; x++) {
+            uint32_t idx = x + y * (resolution + 1);
+            glm::vec2 percent = glm::vec2(x, y) / (float)resolution;
             glm::vec3 p0 = getPointOnSphere(percent.x, percent.y);
-            float h0 = getElevationAt(p0, component);
+            
+            float h0 = elevations[idx];
             float finalRadius0 = std::max(component.radius + h0, component.seaLevel);
             glm::vec3 pos0 = p0 * finalRadius0;
 
-            glm::vec3 n_sphere = p0; 
-            glm::vec3 t1;
-            if (std::abs(n_sphere.x) > 0.9f) t1 = glm::vec3(0, 1, 0);
-            else t1 = glm::vec3(1, 0, 0);
-            
-            t1 = glm::normalize(glm::cross(t1, n_sphere));
-            glm::vec3 t2 = glm::cross(n_sphere, t1);
-
-            float adaptiveEpsilon = std::max(epsilon, 2.0f / (float)resolution);
-            glm::vec3 p1 = glm::normalize(p0 + t1 * adaptiveEpsilon);
-            glm::vec3 p2 = glm::normalize(p0 + t2 * adaptiveEpsilon);
-            
-            float h1 = getElevationAt(p1, component);
-            float h2 = getElevationAt(p2, component);
-
-            float finalRadius1 = std::max(component.radius + h1, component.seaLevel);
-            float finalRadius2 = std::max(component.radius + h2, component.seaLevel);
-
-            glm::vec3 pos1 = p1 * finalRadius1;
-            glm::vec3 pos2 = p2 * finalRadius2;
-
+            // Normal estimation using central differences from our cached grid
+            // We use neighbor vertices to estimate the surface tangent
             glm::vec3 normal;
-            if (finalRadius0 <= component.seaLevel + 1e-4f && 
-                finalRadius1 <= component.seaLevel + 1e-4f && 
-                finalRadius2 <= component.seaLevel + 1e-4f) {
-                normal = n_sphere;
+            if (x < resolution && y < resolution) {
+                // Get neighbors in the grid
+                float hRight = elevations[(x + 1) + y * (resolution + 1)];
+                float hDown = elevations[x + (y + 1) * (resolution + 1)];
+                
+                glm::vec3 pRight = getPointOnSphere(percent.x + 1.0f/resolution, percent.y);
+                glm::vec3 pDown = getPointOnSphere(percent.x, percent.y + 1.0f/resolution);
+                
+                glm::vec3 posRight = pRight * std::max(component.radius + hRight, component.seaLevel);
+                glm::vec3 posDown = pDown * std::max(component.radius + hDown, component.seaLevel);
+                
+                normal = glm::normalize(glm::cross(posRight - pos0, posDown - pos0));
+                // Ensure it faces outward (normalization might flip it depending on cross order)
+                if (glm::dot(normal, p0) < 0) normal = -normal;
+            } else if (x > 0 && y > 0) {
+                // Use reverse neighbors for the edges
+                float hLeft = elevations[(x - 1) + y * (resolution + 1)];
+                float hUp = elevations[x + (y - 1) * (resolution + 1)];
+                
+                glm::vec3 pLeft = getPointOnSphere(percent.x - 1.0f/resolution, percent.y);
+                glm::vec3 pUp = getPointOnSphere(percent.x, percent.y - 1.0f/resolution);
+                
+                glm::vec3 posLeft = pLeft * std::max(component.radius + hLeft, component.seaLevel);
+                glm::vec3 posUp = pUp * std::max(component.radius + hUp, component.seaLevel);
+                
+                normal = glm::normalize(glm::cross(posUp - pos0, posLeft - pos0));
+                if (glm::dot(normal, p0) < 0) normal = -normal;
             } else {
-                normal = glm::normalize(glm::cross(pos1 - pos0, pos2 - pos0));
-                if (glm::dot(normal, n_sphere) < 0) normal = -normal;
+                // Fallback for tricky corners: use sphere normal
+                normal = p0;
             }
 
+            // Ocean color logic
             glm::vec3 color = getBiomeColorAt(p0, component);
             if (finalRadius0 <= component.seaLevel + 1e-5f) {
                 color = glm::vec3(0.05f, 0.15f, 0.5f);
+                normal = p0; // Sea is flat/sphere-aligned
             }
 
-            data.vertices[x + y * (resolution + 1)] = {
+            data.vertices[idx] = {
                 pos0, normal, color, percent, glm::vec4(axisA, 1.0f)
             };
         }

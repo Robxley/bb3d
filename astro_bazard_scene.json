@@ -1,0 +1,2466 @@
+{
+    "Entities": [
+        {
+            "NativeScriptComponent": {
+                "name": "AstroBazardLogic"
+            },
+            "TagComponent": {
+                "tag": "KerbalLogic"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "translation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                }
+            }
+        },
+        {
+            "CameraComponent": {
+                "active": false,
+                "aspect": 1.7777777910232544,
+                "farPlane": 1000.0,
+                "fov": 60.0,
+                "nearPlane": 0.10000000149011612
+            },
+            "OrbitControllerComponent": {
+                "distance": 50.0,
+                "pitch": 0.0,
+                "rotationSpeed": {
+                    "x": 0.20000000298023224,
+                    "y": 0.20000000298023224
+                },
+                "target": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "yaw": 0.0,
+                "zoomSpeed": 0.5
+            },
+            "TagComponent": {
+                "tag": "PlanetOrbitCamera"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "translation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                }
+            }
+        },
+        {
+            "CameraComponent": {
+                "active": true,
+                "aspect": 1.7699999809265137,
+                "farPlane": 20000.0,
+                "fov": 60.0,
+                "nearPlane": 0.10000000149011612
+            },
+            "TagComponent": {
+                "tag": "ShipCamera"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": -0.06699473410844803
+                },
+                "scale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "translation": {
+                    "x": 1.0059887170791626,
+                    "y": 12.804418563842773,
+                    "z": 27.664487838745117
+                }
+            }
+        },
+        {
+            "CommRelayComponent": {
+                "isActive": true,
+                "name": "Vaisseau Mère"
+            },
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": -2.9802322387695313e-08,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "ParticleSystemComponent": {
+                "injectIntoPhysics": false,
+                "maxParticles": 1000
+            },
+            "PhysicsComponent": {
+                "angularDamping": 8.0,
+                "boxHalfExtents": {
+                    "x": 0.30000001192092896,
+                    "y": 0.5,
+                    "z": 0.30000001192092896
+                },
+                "colliderType": 0,
+                "constrain2D": true,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": 0.0,
+                    "y": 1.0,
+                    "z": 0.0
+                },
+                "isConvex": false,
+                "linearDamping": 0.30000001192092896,
+                "mass": 1.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "SpaceshipControllerComponent": {
+                "mainThrustPower": 11.0,
+                "retroThrustPower": 2.0,
+                "torquePower": 0.05000000074505806
+            },
+            "TagComponent": {
+                "tag": "Spaceship"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": -3.0615129470825195
+                },
+                "scale": {
+                    "x": 1.383224368095398,
+                    "y": 1.383224368095398,
+                    "z": 1.383224368095398
+                },
+                "translation": {
+                    "x": 0.9555038213729858,
+                    "y": 13.434611320495605,
+                    "z": 0.0
+                }
+            }
+        },
+        {
+            "LightComponent": {
+                "castShadows": false,
+                "color": {
+                    "x": 1.0,
+                    "y": 0.949999988079071,
+                    "z": 0.800000011920929
+                },
+                "intensity": 5.0,
+                "range": 10.0,
+                "type": 0
+            },
+            "TagComponent": {
+                "tag": "Sun"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.013962633907794952,
+                    "y": -0.010471975430846214,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "translation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                }
+            }
+        },
+        {
+            "SkySphereComponent": {
+                "assetPath": "assets/textures/skybox_sphere/ringed_gas_giant_planet.png",
+                "flipY": false
+            },
+            "TagComponent": {
+                "tag": "Cosmos"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "translation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -1.2835192680358887,
+                    "y": 0.0,
+                    "z": -6.603139400482178
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 61
+            },
+            "TagComponent": {
+                "tag": "Asteroid_19"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.7000000476837158,
+                    "y": 0.7000000476837158,
+                    "z": 0.7000000476837158
+                },
+                "translation": {
+                    "x": -50.31358337402344,
+                    "y": 0.0,
+                    "z": -143.0187530517578
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": 6.663719654083252,
+                    "y": 0.0,
+                    "z": -1.2952938079833984
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 60
+            },
+            "TagComponent": {
+                "tag": "Asteroid_18"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 3.1415927410125732,
+                    "y": -0.12294215708971024,
+                    "z": 3.1415927410125732
+                },
+                "scale": {
+                    "x": 0.45000001788139343,
+                    "y": 0.45000001788139343,
+                    "z": 0.45000001788139343
+                },
+                "translation": {
+                    "x": 140.83267211914063,
+                    "y": 0.0,
+                    "z": -48.5853385925293
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": 6.616506576538086,
+                    "y": 0.0,
+                    "z": -0.9298893213272095
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 59
+            },
+            "TagComponent": {
+                "tag": "Asteroid_17"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.6499999761581421,
+                    "y": 0.6499999761581421,
+                    "z": 0.6499999761581421
+                },
+                "translation": {
+                    "x": 144.41632080078125,
+                    "y": 0.0,
+                    "z": -42.91658020019531
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -3.075610637664795,
+                    "y": 0.0,
+                    "z": 5.784381866455078
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 58
+            },
+            "TagComponent": {
+                "tag": "Asteroid_16"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.6499999761581421,
+                    "y": 0.6499999761581421,
+                    "z": 0.6499999761581421
+                },
+                "translation": {
+                    "x": -48.00672149658203,
+                    "y": 0.0,
+                    "z": 139.91802978515625
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -2.294215679168701,
+                    "y": 0.0,
+                    "z": 5.9766364097595215
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 57
+            },
+            "TagComponent": {
+                "tag": "Asteroid_15"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.3500000238418579,
+                    "y": 0.3500000238418579,
+                    "z": 0.3500000238418579
+                },
+                "translation": {
+                    "x": -28.376676559448242,
+                    "y": 0.0,
+                    "z": 142.0102996826172
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -7.026332855224609,
+                    "y": 0.0,
+                    "z": -0.36823469400405884
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 56
+            },
+            "TagComponent": {
+                "tag": "Asteroid_14"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": -0.0,
+                    "y": 0.7357053756713867,
+                    "z": -0.0
+                },
+                "scale": {
+                    "x": 0.45000001788139343,
+                    "y": 0.45000001788139343,
+                    "z": 0.45000001788139343
+                },
+                "translation": {
+                    "x": -158.36944580078125,
+                    "y": 0.0,
+                    "z": 15.960269927978516
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": 5.996190547943115,
+                    "y": 0.0,
+                    "z": -0.7362372279167175
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 55
+            },
+            "TagComponent": {
+                "tag": "Asteroid_13"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.3500000238418579,
+                    "y": 0.3500000238418579,
+                    "z": 0.3500000238418579
+                },
+                "translation": {
+                    "x": 130.36289978027344,
+                    "y": 0.0,
+                    "z": -43.61225509643555
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -2.0715408325195313,
+                    "y": 0.0,
+                    "z": 6.016190052032471
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 54
+            },
+            "TagComponent": {
+                "tag": "Asteroid_12"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.550000011920929,
+                    "y": 0.550000011920929,
+                    "z": 0.550000011920929
+                },
+                "translation": {
+                    "x": -22.836545944213867,
+                    "y": 0.0,
+                    "z": 142.1894989013672
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -6.323004722595215,
+                    "y": 0.0,
+                    "z": 2.4271738529205322
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 53
+            },
+            "TagComponent": {
+                "tag": "Asteroid_11"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.4000000059604645,
+                    "y": 0.4000000059604645,
+                    "z": 0.4000000059604645
+                },
+                "translation": {
+                    "x": -133.1769561767578,
+                    "y": 0.0,
+                    "z": 74.47267150878906
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -5.369633674621582,
+                    "y": 0.0,
+                    "z": -3.901268243789673
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 52
+            },
+            "TagComponent": {
+                "tag": "Asteroid_10"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.3500000238418579,
+                    "y": 0.3500000238418579,
+                    "z": 0.3500000238418579
+                },
+                "translation": {
+                    "x": -133.07398986816406,
+                    "y": 0.0,
+                    "z": -68.62512969970703
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": 7.073342800140381,
+                    "y": 0.0,
+                    "z": 0.9940959215164185
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 51
+            },
+            "TagComponent": {
+                "tag": "Asteroid_9"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.550000011920929,
+                    "y": 0.550000011920929,
+                    "z": 0.550000011920929
+                },
+                "translation": {
+                    "x": 160.447998046875,
+                    "y": 0.0,
+                    "z": 2.756936550140381
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -3.7329962253570557,
+                    "y": 0.0,
+                    "z": -4.778017044067383
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 50
+            },
+            "TagComponent": {
+                "tag": "Asteroid_8"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.3500000238418579,
+                    "y": 0.3500000238418579,
+                    "z": 0.3500000238418579
+                },
+                "translation": {
+                    "x": -104.67163848876953,
+                    "y": 0.0,
+                    "z": -89.79348754882813
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": 6.25189208984375,
+                    "y": 0.0,
+                    "z": 3.90661883354187
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 49
+            },
+            "TagComponent": {
+                "tag": "Asteroid_7"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.45000001788139343,
+                    "y": 0.45000001788139343,
+                    "z": 0.45000001788139343
+                },
+                "translation": {
+                    "x": 149.15408325195313,
+                    "y": 0.0,
+                    "z": 71.5050048828125
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -4.085389614105225,
+                    "y": 0.0,
+                    "z": 5.623056888580322
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 48
+            },
+            "TagComponent": {
+                "tag": "Asteroid_6"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.3500000238418579,
+                    "y": 0.3500000238418579,
+                    "z": 0.3500000238418579
+                },
+                "translation": {
+                    "x": -74.34864807128906,
+                    "y": 0.0,
+                    "z": 137.54910278320313
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -5.50542688369751,
+                    "y": 0.0,
+                    "z": -2.5672245025634766
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 47
+            },
+            "TagComponent": {
+                "tag": "Asteroid_5"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.41223567724227905,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.4000000059604645,
+                    "y": 0.4000000059604645,
+                    "z": 0.4000000059604645
+                },
+                "translation": {
+                    "x": -140.18597412109375,
+                    "y": 0.0,
+                    "z": -26.089221954345703
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": 6.181361675262451,
+                    "y": 0.0,
+                    "z": -0.32395148277282715
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 46
+            },
+            "TagComponent": {
+                "tag": "Asteroid_4"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.6035215258598328,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.3500000238418579,
+                    "y": 0.3500000238418579,
+                    "z": 0.3500000238418579
+                },
+                "translation": {
+                    "x": 140.0780792236328,
+                    "y": 0.0,
+                    "z": -34.88595199584961
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": 5.244081974029541,
+                    "y": 0.0,
+                    "z": 3.671949625015259
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 45
+            },
+            "TagComponent": {
+                "tag": "Asteroid_3"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.550000011920929,
+                    "y": 0.550000011920929,
+                    "z": 0.550000011920929
+                },
+                "translation": {
+                    "x": 130.927001953125,
+                    "y": 0.0,
+                    "z": 61.889217376708984
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": 1.9238566160202026,
+                    "y": 0.0,
+                    "z": -5.921019077301025
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 44
+            },
+            "TagComponent": {
+                "tag": "Asteroid_2"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": -0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 0.4000000059604645,
+                    "y": 0.4000000059604645,
+                    "z": 0.4000000059604645
+                },
+                "translation": {
+                    "x": 18.360559463500977,
+                    "y": 0.0,
+                    "z": -139.9986572265625
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -7.452425003051758,
+                    "y": 0.0,
+                    "z": 0.13008293509483337
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 43
+            },
+            "TagComponent": {
+                "tag": "Asteroid_1"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": -0.0,
+                    "y": 0.03241318091750145,
+                    "z": -0.0
+                },
+                "scale": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "translation": {
+                    "x": -165.21835327148438,
+                    "y": 0.0,
+                    "z": 16.899036407470703
+                }
+            }
+        },
+        {
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.10000000149011612,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 1,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": -6.432801723480225,
+                    "y": 0.0,
+                    "z": -1.9667054414749146
+                },
+                "isConvex": false,
+                "linearDamping": 0.019999999552965164,
+                "mass": 2.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 1,
+                "useModelMesh": true
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.15000000596046448,
+                        "color": {
+                            "x": 0.4000000059604645,
+                            "y": 0.3499999940395355,
+                            "z": 0.30000001192092896
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Rock",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 0.009999999776482582,
+                "radius": 0.5,
+                "resolution": 8,
+                "seaLevel": 0.0,
+                "seed": 42
+            },
+            "TagComponent": {
+                "tag": "Asteroid_0"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 3.1415927410125732,
+                    "y": -1.5306267738342285,
+                    "z": 3.1415927410125732
+                },
+                "scale": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "translation": {
+                    "x": -143.92474365234375,
+                    "y": 0.0,
+                    "z": -29.31230354309082
+                }
+            }
+        },
+        {
+            "CommRelayComponent": {
+                "isActive": true,
+                "name": "Moon Station"
+            },
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "NativeScriptComponent": {
+                "name": "MoonOrbit"
+            },
+            "PointGravitySourceComponent": {
+                "strength": 50.0
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.30000001192092896,
+                        "color": {
+                            "x": 0.5,
+                            "y": 0.5,
+                            "z": 0.5
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Craters",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 3.0,
+                "radius": 2.5,
+                "resolution": 64,
+                "seaLevel": 0.0,
+                "seed": 1234
+            },
+            "TagComponent": {
+                "tag": "Moon"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "translation": {
+                    "x": -18.359405517578125,
+                    "y": 4.656147003173828,
+                    "z": 16.96856689453125
+                }
+            }
+        },
+        {
+            "CommRelayComponent": {
+                "isActive": true,
+                "name": "Prime Colony"
+            },
+            "ModelComponent": {
+                "assetPath": "",
+                "offset": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "visible": true
+            },
+            "PhysicsComponent": {
+                "angularDamping": 0.05000000074505806,
+                "boxHalfExtents": {
+                    "x": 0.5,
+                    "y": 0.5,
+                    "z": 0.5
+                },
+                "colliderType": 3,
+                "constrain2D": false,
+                "friction": 0.5,
+                "height": 1.0,
+                "initialLinearVelocity": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "isConvex": false,
+                "linearDamping": 0.05000000074505806,
+                "mass": 1.0,
+                "meshAssetPath": "",
+                "radius": 0.5,
+                "restitution": 0.5,
+                "type": 0,
+                "useModelMesh": true
+            },
+            "PointGravitySourceComponent": {
+                "strength": 1000.0
+            },
+            "ProceduralPlanetComponent": {
+                "biomes": [
+                    {
+                        "amplitude": 0.0,
+                        "color": {
+                            "x": 0.05000000074505806,
+                            "y": 0.15000000596046448,
+                            "z": 0.4000000059604645
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 0.3499999940395355,
+                        "heightStart": 0.0,
+                        "lacunarity": 2.0,
+                        "name": "Deep Ocean",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    },
+                    {
+                        "amplitude": 0.5,
+                        "color": {
+                            "x": 0.20000000298023224,
+                            "y": 0.5,
+                            "z": 0.10000000149011612
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 0.699999988079071,
+                        "heightStart": 0.3499999940395355,
+                        "lacunarity": 2.0,
+                        "name": "Green Plains",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    },
+                    {
+                        "amplitude": 2.0,
+                        "color": {
+                            "x": 0.6000000238418579,
+                            "y": 0.5,
+                            "z": 0.4000000059604645
+                        },
+                        "frequency": 1.0,
+                        "heightEnd": 1.0,
+                        "heightStart": 0.699999988079071,
+                        "lacunarity": 2.0,
+                        "name": "Rocky Mountains",
+                        "octaves": 4,
+                        "persistence": 0.5
+                    }
+                ],
+                "globalAmplitude": 10.0,
+                "globalFrequency": 2.0,
+                "radius": 10.0,
+                "resolution": 128,
+                "seaLevel": 10.100000381469727,
+                "seed": 4242
+            },
+            "TagComponent": {
+                "tag": "Planet"
+            },
+            "TransformComponent": {
+                "initialRotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "initialScale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "initialTranslation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "rotation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                },
+                "scale": {
+                    "x": 1.0,
+                    "y": 1.0,
+                    "z": 1.0
+                },
+                "translation": {
+                    "x": 0.0,
+                    "y": 0.0,
+                    "z": 0.0
+                }
+            }
+        }
+    ],
+    "Environment": {
+        "Fog": {
+            "color": {
+                "x": 0.5,
+                "y": 0.5,
+                "z": 0.5
+            },
+            "density": 0.009999999776482582,
+            "type": 0
+        }
+    },
+    "Scene": "Untitled Scene"
+}

@@ -237,6 +237,3 @@ Pour tout développement de nouvelle fonctionnalité, l'IA **DOIT OBLIGATOIREMEN
 2.  **Planification (`planification`) :** Une fois le design validé, utiliser cette compétence pour générer un plan d'implémentation atômique, exhaustif et orienté Test-Driven Development (TDD). Le plan de bataille doit être écrit en français dans `docs/plans/`.
 3.  **Exécution :** Procéder à l'implémentation tâche par tâche en validant les tests unitaires à chaque étape (via CTest).
 
-### **8\. Exemple Complet (Kitchen Sink Demo)**
-
-Voici un fichier main.cpp illustrant l'usage de toutes les fonctionnalités majeures (Core, Audio, Physique, FX, Input) via l'API Fluent.

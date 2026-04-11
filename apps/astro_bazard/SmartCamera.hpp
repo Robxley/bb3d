@@ -23,6 +23,7 @@ public:
      */
     void setTarget(bb3d::Entity newTarget) { m_currentTarget = newTarget; }
     bb3d::Entity getTarget() const { return m_currentTarget; }
+    bb3d::Entity getCamera() const { return m_camera; }
 
     /**
      * @brief Updates the camera position, view matrix, and returns the computed scale factor for visually scaling objects.

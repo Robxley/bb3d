@@ -38,6 +38,12 @@ int main() {
         auto planet = scene->createEntity("PlanetX");
         planet.add<bb3d::ProceduralPlanetComponent>().get<bb3d::ProceduralPlanetComponent>().radius = 1234.0f;
         planet.add<bb3d::PointGravitySourceComponent>(500.0f);
+        
+        // Test case for ModelComponent with manual model (no assetPath set in component)
+        auto ship = scene->createEntity("Ship");
+        auto& mc = ship.add<bb3d::ModelComponent>().get<bb3d::ModelComponent>();
+        // mc.model = bb3d::CreateRef<bb3d::Model>(engine->graphics(), engine->assets(), "assets/models/house.obj");
+        mc.assetPath = "assets/models/house.obj"; // Manually set path for testing serialization
     }
     
     // 2. Serialize
@@ -53,16 +59,27 @@ int main() {
     }
 
     // 3. Clear
-    scene->clear();
-    BB_CORE_INFO("Scene cleared. Registry size: {}", scene->getRegistry().size());
+    try {
+        BB_CORE_INFO("Clearing scene...");
+        scene->clear();
+        BB_CORE_INFO("Scene cleared.");
+    } catch (const std::exception& e) {
+        BB_CORE_ERROR("Exception during scene clear: {}", e.what());
+        return -1;
+    } catch (...) {
+        BB_CORE_ERROR("Unknown exception during scene clear!");
+        return -1;
+    }
     
     // 4. Deserialize
+    BB_CORE_INFO("Starting Deserialization from: {}", path);
     if (serializer.deserialize(path)) {
         BB_CORE_INFO("Deserialization successful!");
     } else {
         BB_CORE_ERROR("FAILED: Deserialization returned false!");
         return -1;
     }
+    BB_CORE_INFO("Checking registry size after deserialize: {}", scene->getRegistry().storage<entt::entity>().size());
 
     // 5. Validation
     auto view = scene->getRegistry().view<bb3d::TagComponent>();
@@ -89,7 +106,22 @@ int main() {
         }
     }
 
-    if (!foundPlanet || !foundEnt1) {
+    auto shipView = scene->getRegistry().view<bb3d::TagComponent, bb3d::ModelComponent>();
+    bool foundShip = false;
+    for (auto entity : shipView) {
+        if (shipView.get<bb3d::TagComponent>(entity).tag == "Ship") {
+            foundShip = true;
+            auto& mc = shipView.get<bb3d::ModelComponent>(entity);
+            if (mc.assetPath == "assets/models/house.obj") {
+                BB_CORE_INFO("PASSED: Ship ModelComponent assetPath correctly retrieved from Resource ('assets/models/house.obj')!");
+            } else {
+                BB_CORE_ERROR("FAILED: Ship ModelComponent assetPath is '{}', expected 'assets/models/house.obj'!", mc.assetPath);
+                return -1;
+            }
+        }
+    }
+
+    if (!foundPlanet || !foundEnt1 || !foundShip) {
         BB_CORE_ERROR("Failed to find back all entities!");
         return -1;
     }

@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/string_cast.hpp>
 
 namespace bb3d {
 
@@ -171,7 +172,16 @@ void Renderer::createShadowObjects() {
     m_shadowDepthView = dev.createImageView(viewInfo);
 
     m_shadowCascadeViews.resize(cascades);
+    m_shadowCascades.resize(cascades);
+    float splitLambda = 0.95f; // Practical split lambda
+    float nearPlane = 0.1f; // Assuming a default near plane, adjust as needed
+    float farPlane = 100.0f; // Assuming a default far plane, adjust as needed
     for (uint32_t i = 0; i < cascades; ++i) {
+        float p = (float)(i + 1) / (float)cascades;
+        float log = nearPlane * std::pow(farPlane / nearPlane, p);
+        float lin = nearPlane + (farPlane - nearPlane) * p;
+        m_shadowCascades[i].splitDepth = splitLambda * log + (1.0f - splitLambda) * lin;
+
         vk::ImageViewCreateInfo cascadeViewInfo = viewInfo;
         cascadeViewInfo.viewType = vk::ImageViewType::e2D;
         cascadeViewInfo.subresourceRange.baseArrayLayer = i;
@@ -393,115 +403,72 @@ void Renderer::onResize(int width, int height) {
 }
 
 bool Renderer::render(Scene& scene) {
-    if (m_window.GetWidth() == 0 || m_window.GetHeight() == 0) {
-        BB_CORE_WARN("Renderer::render: Skipping render due to invalid window dimensions.");
-        return false;
-    }
+    if (m_window.GetWidth() == 0 || m_window.GetHeight() == 0) return false;
+    
     if (m_resizeRequested) {
         m_resizeRequested = false;
-        try {
-            auto capabilities = m_context.getPhysicalDevice().getSurfaceCapabilitiesKHR(m_context.getSurface());
-            if (capabilities.currentExtent.width > 0 && capabilities.currentExtent.height > 0) {
-                m_context.getDevice().waitIdle();
-                m_swapChain->recreate(m_pendingWidth, m_pendingHeight);
-                m_imagesInUseFences.assign(m_swapChain->getImageCount(), nullptr);
-                auto dev = m_context.getDevice();
-                for (auto s : m_renderFinishedSemaphores) if (s) dev.destroySemaphore(s);
-                m_renderFinishedSemaphores.clear(); 
-                m_renderFinishedSemaphores.resize(m_swapChain->getImageCount());
-                for (size_t i = 0; i < m_renderFinishedSemaphores.size(); i++) 
-                    m_renderFinishedSemaphores[i] = dev.createSemaphore({});
-                if (m_config.graphics.enableOffscreenRendering) {
-                    bool editorEnabled = false;
-#if defined(BB3D_ENABLE_EDITOR)
-                    editorEnabled = m_config.modules.enableEditor;
-#endif
-                    // In Editor mode, the RenderTarget is resized by the Viewport panel logic in Engine/ImGuiLayer.
-                    // Resizing here based on Window size would conflict and cause flickering.
-                    if (!editorEnabled) {
-                        if (!m_renderTarget) {
-                            uint32_t w = static_cast<uint32_t>(m_pendingWidth * m_config.graphics.renderScale);
-                            uint32_t h = static_cast<uint32_t>(m_pendingHeight * m_config.graphics.renderScale);
-                            w = std::max(1u, w); h = std::max(1u, h);
-                            m_renderTarget = CreateScope<RenderTarget>(m_context, w, h);
-                        } else {
-                            uint32_t w = static_cast<uint32_t>(m_pendingWidth * m_config.graphics.renderScale);
-                            uint32_t h = static_cast<uint32_t>(m_pendingHeight * m_config.graphics.renderScale);
-                            w = std::max(1u, w); h = std::max(1u, h);
-                            m_renderTarget->resize(w, h);
-                        }
-                    }
-
-                    if (m_renderTarget) {
-                        if (m_copyDescriptorSets.size() != MAX_FRAMES_IN_FLIGHT) {
-                            createCopyPipeline();
-                        } else {
-                            for (uint32_t i = 0; i < m_copyDescriptorSets.size(); i++) {
-                                vk::DescriptorImageInfo imgInfo(m_renderTarget->getSampler(), m_renderTarget->getColorImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-                                vk::WriteDescriptorSet write(m_copyDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &imgInfo, nullptr, nullptr);
-                                dev.updateDescriptorSets(write, nullptr);
-                            }
-                        }
-                    }
-                }
-                BB_CORE_INFO("Renderer: Deferred resize applied ({}x{})", m_pendingWidth, m_pendingHeight);
-            }
-        } catch (const std::exception& e) {
-            BB_CORE_ERROR("Renderer: Failed to apply deferred resize: {}", e.what());
-            return false;
-        }
+        m_context.getDevice().waitIdle();
+        m_swapChain->recreate(m_pendingWidth, m_pendingHeight);
+        m_imagesInUseFences.assign(m_swapChain->getImageCount(), nullptr);
     }
-    Material::SetCurrentFrame(m_currentFrame);
-    m_frameStarted = false;
+
+    // 1. Prepare data (Collect commands and fill instance buffers)
+    prepareRenderData(scene);
+
+    // 2. Identify active camera and setup UBO
+    GlobalUBO uboData{}; // Zero-initialize to avoid rendering with garbage if update fails
+    updateGlobalUBO(m_currentFrame, scene, uboData);
+    BB_CORE_TRACE("Renderer: UBO updated");
+    
+    // 3. Begin Command Buffer
     auto dev = m_context.getDevice();
     (void)dev.waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, UINT64_MAX);
-    Camera* activeCamera = nullptr;
-    auto camView = scene.getRegistry().view<CameraComponent>();
-    for (auto entity : camView) { if (camView.get<CameraComponent>(entity).active) { activeCamera = camView.get<CameraComponent>(entity).camera.get(); break; } }
-    if (!activeCamera) return false;
-    GlobalUBO uboData; uboData.view = activeCamera->getViewMatrix(); uboData.proj = activeCamera->getProjectionMatrix(); uboData.camPos = glm::vec4(glm::vec3(glm::inverse(uboData.view)[3]), 0.0f);
-    if (m_config.graphics.enableFrustumCulling) m_frustum.update(uboData.proj * uboData.view);
-    int numLights = 0;
-    auto lightView = scene.getRegistry().view<LightComponent>();
-    for (auto entity : lightView) {
-        if (numLights >= 10) break;
-        auto& light = lightView.get<LightComponent>(entity);
-        ShaderLight& sl = uboData.lights[numLights];
-        sl.color = glm::vec4(light.color, light.intensity); sl.params = glm::vec4(light.range, 0.0f, 0.0f, 0.0f);
-        if (light.type == LightType::Directional) { sl.position.w = 0.0f; if (scene.getRegistry().all_of<TransformComponent>(entity)) sl.direction = glm::vec4(scene.getRegistry().get<TransformComponent>(entity).getForward(), 0.0f); else sl.direction = glm::vec4(0.0f, -1.0f, 0.0f, 0.0f); }
-        else if (light.type == LightType::Point) { sl.position.w = 1.0f; if (scene.getRegistry().all_of<TransformComponent>(entity)) sl.position = glm::vec4(scene.getRegistry().get<TransformComponent>(entity).translation, 1.0f); }
-        numLights++;
-    }
     
-    
-    // NOTE: renderShadows requires a command buffer. It is called after cb.begin() below.
-
-    uboData.globalParams = glm::vec4((float)numLights, 0.0f, 0.0f, 0.0f);
-    uboData.ambientColor = glm::vec4(0.15f, 0.15f, 0.2f, 1.0f); // Default ambient, slightly blueish
-    m_cameraUbos[m_currentFrame]->update(&uboData, sizeof(uboData));
     uint32_t imageIndex;
     try { imageIndex = m_swapChain->acquireNextImage(m_imageAvailableSemaphores[m_currentFrame]); } 
-    catch (...) { onResize(m_window.GetWidth(), m_window.GetHeight()); return false; }
+    catch (...) { return false; }
+
     if (m_imagesInUseFences[imageIndex]) (void)dev.waitForFences(1, &m_imagesInUseFences[imageIndex], VK_TRUE, UINT64_MAX);
     m_imagesInUseFences[imageIndex] = m_inFlightFences[m_currentFrame];
     (void)dev.resetFences(1, &m_inFlightFences[m_currentFrame]);
+
     auto& cb = m_commandBuffers[m_currentFrame];
-    cb.reset({}); cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+    cb.reset({});
+    cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
     m_frameStarted = true;
 
-    // Render Shadows (Updates uboData.shadowCascades) - must be done after cb.begin()
-    renderShadows(cb, scene, uboData);
-    // Re-upload UBO after shadow pass updated the cascade matrices
+    // 4. Shadow Pass
+    if (uboData.globalParams.y > 0.0f && m_config.graphics.shadowsEnabled) {
+        renderShadows(cb, scene, uboData);
+        BB_CORE_TRACE("Renderer: Shadows rendered");
+    }
+
+    // 5. Finalize UBO (after shadow pass might have updated cascades) and Draw Scene
     m_cameraUbos[m_currentFrame]->update(&uboData, sizeof(uboData));
 
-    if (m_config.graphics.enableOffscreenRendering) {
+    // 5b. Picking Pass (Internal)
+    if (m_pickingRequested) {
+        renderEntityIds(scene);
+        m_pickingRequested = false; 
+    }
+
+    vk::Extent2D extent;
+    vk::ImageView colorView, depthView;
+    if (m_config.graphics.enableOffscreenRendering && m_renderTarget) {
+        extent = m_renderTarget->getExtent();
+        colorView = m_renderTarget->getColorImageView();
+        depthView = m_renderTarget->getDepthImageView();
+        
         vk::Image rtImage = m_renderTarget->getColorImage();
         vk::ImageMemoryBarrier rtBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, rtBarrier);
+        
         vk::Image dImage = m_renderTarget->getDepthImage();
         vk::ImageMemoryBarrier dBarrier({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, dImage, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
-        drawScene(cb, scene, m_renderTarget->getColorImageView(), m_renderTarget->getDepthImageView(), m_renderTarget->getExtent());
+        
+        drawScene(cb, scene, colorView, depthView, extent);
+        
         bool editorActive = false;
 #if defined(BB3D_ENABLE_EDITOR)
         editorActive = m_config.modules.enableEditor;
@@ -513,17 +480,26 @@ bool Renderer::render(Scene& scene) {
             vk::ImageMemoryBarrier swBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
             cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, swBarrier);
         }
+        
         vk::ImageMemoryBarrier rtReadBarrier(vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eShaderRead, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, rtReadBarrier);
     } else {
+        extent = m_swapChain->getExtent();
+        colorView = m_swapChain->getImageViews()[imageIndex];
+        depthView = m_swapChain->getDepthImageView();
+        
         vk::Image swImage = m_swapChain->getImage(imageIndex);
         vk::ImageMemoryBarrier swBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, swBarrier);
+        
         vk::Image dImage = m_swapChain->getDepthImage();
         vk::ImageMemoryBarrier dBarrier({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, dImage, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 });
         cb.pipelineBarrier(vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
-        drawScene(cb, scene, m_swapChain->getImageViews()[imageIndex], m_swapChain->getDepthImageView(), m_swapChain->getExtent());
+        
+        drawScene(cb, scene, colorView, depthView, extent);
     }
+    BB_CORE_TRACE("Renderer: Scene drawn");
+
     return true;
 }
 
@@ -546,174 +522,76 @@ void Renderer::submitAndPresent() {
 }
 
 void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView colorView, vk::ImageView depthView, vk::Extent2D extent) {
-    vk::RenderingAttachmentInfo colorAttr(colorView, vk::ImageLayout::eColorAttachmentOptimal, vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearValue(vk::ClearColorValue(std::array<float, 4>{0.1f, 0.1f, 0.1f, 1.0f})));
-    vk::RenderingAttachmentInfo depthAttr(depthView, vk::ImageLayout::eDepthStencilAttachmentOptimal, vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearValue(vk::ClearDepthStencilValue(1.0f, 0)));
+    BB_CORE_TRACE("Renderer: Drawing scene (Frame: {})", m_currentFrame);
+    
+    vk::RenderingAttachmentInfo colorAttr;
+    colorAttr.imageView = colorView;
+    colorAttr.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
+    colorAttr.loadOp = vk::AttachmentLoadOp::eClear;
+    colorAttr.storeOp = vk::AttachmentStoreOp::eStore;
+    colorAttr.clearValue = vk::ClearValue(vk::ClearColorValue(std::array<float, 4>{0.1f, 0.1f, 0.1f, 1.0f}));
+
+    vk::RenderingAttachmentInfo depthAttr;
+    depthAttr.imageView = depthView;
+    depthAttr.imageLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+    depthAttr.loadOp = vk::AttachmentLoadOp::eClear;
+    depthAttr.storeOp = vk::AttachmentStoreOp::eStore;
+    depthAttr.clearValue = vk::ClearValue(vk::ClearDepthStencilValue(1.0f, 0));
+
     cb.beginRendering({ {}, {{0, 0}, extent}, 1, 0, 1, &colorAttr, &depthAttr });
     cb.setViewport(0, vk::Viewport(0, 0, (float)extent.width, (float)extent.height, 0, 1));
     cb.setScissor(0, vk::Rect2D({0, 0}, extent));
     renderSkybox(cb, scene);
-    m_renderCommands.clear();
-    std::vector<entt::entity> meshEntities;
-    auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
-    meshEntities.assign(meshView.begin(), meshView.end());
-    std::vector<entt::entity> modelEntities;
-    auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
-    modelEntities.assign(modelView.begin(), modelView.end());
-    if (!meshEntities.empty()) {
-        m_jobSystem.dispatch((uint32_t)meshEntities.size(), 64, [&](uint32_t index, uint32_t count) {
-            std::vector<RenderCommand> localCommands;
-            for (uint32_t i = index; i < index + count; ++i) {
-                entt::entity entity = meshEntities[i];
-                auto& meshComp = meshView.get<MeshComponent>(entity);
-                if (!meshComp.mesh || !meshComp.visible) continue;
-                glm::mat4 transform = meshView.get<TransformComponent>(entity).getTransform();
-                if (m_config.graphics.enableFrustumCulling) {
-                    AABB worldBox = meshComp.mesh->getBounds().transform(transform);
-                    if (!m_frustum.intersects(worldBox)) continue;
-                }
-                Material* mat = meshComp.mesh->getMaterial().get();
-                if (!mat) mat = m_fallbackMaterial.get();
-                localCommands.push_back({ mat->getType(), mat, meshComp.mesh.get(), transform });
-            }
-            if (!localCommands.empty()) {
-                std::lock_guard<std::mutex> lock(m_commandMutex);
-                m_renderCommands.insert(m_renderCommands.end(), localCommands.begin(), localCommands.end());
-            }
-        });
-    }
-    if (!modelEntities.empty()) {
-        m_jobSystem.dispatch((uint32_t)modelEntities.size(), 32, [&](uint32_t index, uint32_t count) {
-            std::vector<RenderCommand> localCommands;
-            for (uint32_t i = index; i < index + count; ++i) {
-                entt::entity entity = modelEntities[i];
-                auto& modelComp = modelView.get<ModelComponent>(entity);
-                if (!modelComp.model || !modelComp.visible) continue;
-                glm::mat4 baseTransform = modelView.get<TransformComponent>(entity).getTransform();
-                glm::mat4 transform = glm::translate(baseTransform, modelComp.offset);
-                
-                if (m_config.graphics.enableFrustumCulling) {
-                    AABB worldBox = modelComp.model->getBounds().transform(transform);
-                    if (!m_frustum.intersects(worldBox)) continue;
-                }
-                for (const auto& mesh : modelComp.model->getMeshes()) {
-                    if (!mesh->isVisible()) continue;
-                    Material* mat = mesh->getMaterial().get();
-                    if (!mat) {
-                        Ref<Texture> tex = mesh->getTexture();
-                        mat = tex ? getMaterialForTexture(tex).get() : nullptr;
-                    }
-                    if (!mat) mat = m_fallbackMaterial.get();
-                    localCommands.push_back({ mat->getType(), mat, mesh.get(), transform });
-                }
-            }
-            if (!localCommands.empty()) {
-                std::lock_guard<std::mutex> lock(m_commandMutex);
-                m_renderCommands.insert(m_renderCommands.end(), localCommands.begin(), localCommands.end());
-            }
-        });
-    }
     
-    // --- SYSTEM: Particles Rendering ---
-    auto particleView = scene.getRegistry().view<ParticleSystemComponent>();
-    std::vector<entt::entity> particleEntities;
-    particleEntities.assign(particleView.begin(), particleView.end());
-    if (!particleEntities.empty()) {
-        std::vector<RenderCommand> localCommands;
-        for (entt::entity entity : particleEntities) {
-            auto& particleSys = particleView.get<ParticleSystemComponent>(entity);
-            Material* mat = particleSys.material ? particleSys.material.get() : m_defaultParticleMat.get();
-            Mesh* mesh = particleSys.mesh ? particleSys.mesh.get() : m_particleQuad.get(); 
-            
-            if (!mesh) mesh = m_highlightCube.get(); // Ultimate fallback
-
-            if (mat->getType() == MaterialType::Plasma) {
-                static_cast<PlasmaMaterial*>(mat)->setTime((float)SDL_GetTicks() / 1000.0f);
-            }
-
-            for (const auto& p : particleSys.particlePool) {
-                if (p.lifeRemaining <= 0.0f) continue;
-                
-                float t = 1.0f - (p.lifeRemaining / p.lifeTime);
-                float currentSize = p.sizeBegin + (p.sizeEnd - p.sizeBegin) * t;
-                
-                glm::mat4 pt = glm::translate(glm::mat4(1.0f), p.position);
-                pt = glm::scale(pt, glm::vec3(currentSize));
-                
-                localCommands.push_back({ mat->getType(), mat, mesh, pt });
-            }
-        }
-        if (!localCommands.empty()) {
-            std::lock_guard<std::mutex> lock(m_commandMutex);
-            m_renderCommands.insert(m_renderCommands.end(), localCommands.begin(), localCommands.end());
-        }
-    }
+    // The commands are already sorted and the instance buffer is filled in prepareRenderData
+    GraphicsPipeline* lastPipeline = nullptr; 
+    Material* lastMaterial = nullptr; 
+    Mesh* lastMesh = nullptr;
     
-    // Add Highlight as a render command so it uses the standard SSBO transform logic
-    if (m_highlightActive && m_highlightCube && m_highlightMat) {
-        m_renderCommands.push_back({ MaterialType::Highlight, m_highlightMat.get(), m_highlightCube.get(), m_highlightTransform });
-    }
-    
-    // Add Hover as a render command 
-    if (m_hoveredActive && m_highlightCube && m_hoveredMat) {
-        m_renderCommands.push_back({ MaterialType::Highlight, m_hoveredMat.get(), m_highlightCube.get(), m_hoveredTransform });
-    }
+    uint32_t currentBatchStart = 0;
+    uint32_t currentBatchCount = 0;
 
-    // Debug Physics Colliders: render wireframe for ALL entities with PhysicsComponent
-    if (m_debugPhysicsEnabled && m_highlightCube && m_debugColliderMat) {
-        auto physView = scene.getRegistry().view<PhysicsComponent, TransformComponent>();
-        for (auto entity : physView) {
-            auto& phys = physView.get<PhysicsComponent>(entity);
-            auto& tf = physView.get<TransformComponent>(entity);
-
-            glm::vec3 colliderScale(1.0f);
-            if (phys.colliderType == ColliderType::Box) {
-                colliderScale = phys.boxHalfExtents * tf.scale * 2.0f;
-            } else if (phys.colliderType == ColliderType::Sphere) {
-                float maxS = glm::max(tf.scale.x, glm::max(tf.scale.y, tf.scale.z));
-                float d = phys.radius * maxS * 2.0f;
-                colliderScale = glm::vec3(d);
-            } else if (phys.colliderType == ColliderType::Capsule) {
-                float rScaled = phys.radius * glm::max(tf.scale.x, tf.scale.z) * 2.0f;
-                float hScaled = phys.height * tf.scale.y;
-                colliderScale = glm::vec3(rScaled, hScaled, rScaled);
-            } else {
-                // Mesh collider: use entity scale as approximation
-                colliderScale = tf.scale;
-            }
-
-            glm::mat4 model = glm::translate(glm::mat4(1.0f), tf.translation)
-                            * glm::toMat4(glm::quat(tf.rotation))
-                            * glm::scale(glm::mat4(1.0f), colliderScale);
-            m_renderCommands.push_back({ MaterialType::Highlight, m_debugColliderMat.get(), m_highlightCube.get(), model });
-        }
-    }
-
-    std::ranges::sort(m_renderCommands, [](const RenderCommand& a, const RenderCommand& b) {
-        if (a.type != b.type) return a.type < b.type;
-        if (a.material != b.material) return a.material < b.material;
-        return a.mesh < b.mesh;
-    });
-    GraphicsPipeline* lastPipeline = nullptr; Material* lastMaterial = nullptr; Mesh* lastMesh = nullptr;
-    m_instanceTransforms.clear();
-    uint32_t currentInstanceOffset = 0;
-    auto flushInstances = [&]() {
-        if (m_instanceTransforms.empty()) return;
-        if (currentInstanceOffset + m_instanceTransforms.size() > MAX_INSTANCES) { m_instanceTransforms.clear(); return; }
-        void* data = static_cast<char*>(m_instanceBuffers[m_currentFrame]->getMappedData()) + (currentInstanceOffset * sizeof(glm::mat4));
-        memcpy(data, m_instanceTransforms.data(), m_instanceTransforms.size() * sizeof(glm::mat4));
-        lastMesh->draw(cb, (uint32_t)m_instanceTransforms.size(), currentInstanceOffset);
-        currentInstanceOffset += (uint32_t)m_instanceTransforms.size(); m_instanceTransforms.clear();
+    auto flushBatch = [&]() {
+        if (currentBatchCount == 0) return;
+        lastMesh->draw(cb, currentBatchCount, currentBatchStart);
+        currentBatchStart += currentBatchCount;
+        currentBatchCount = 0;
     };
-    for (const auto& cmd : m_renderCommands) {
-        if (m_instanceTransforms.size() >= MAX_INSTANCES || (lastMesh && cmd.mesh != lastMesh) || (lastMaterial && cmd.material != lastMaterial)) flushInstances();
-        if (cmd.type != MaterialType::Skybox && cmd.type != MaterialType::SkySphere) {
-            auto& pipeline = m_pipelines[cmd.type]; bool pipelineChanged = false;
-            if (pipeline.get() != lastPipeline) { pipeline->bind(cb); lastPipeline = pipeline.get(); cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr); pipelineChanged = true; }
-            if (cmd.material != lastMaterial || pipelineChanged) { vk::DescriptorSet ds = cmd.material->getDescriptorSet(m_descriptorPool, m_layouts[cmd.type]); cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 1, 1, &ds, 0, nullptr); lastMaterial = cmd.material; }
-            lastMesh = cmd.mesh; m_instanceTransforms.push_back(cmd.transform);
+
+    for (uint32_t i = 0; i < (uint32_t)m_renderCommands.size(); ++i) {
+        const auto& cmd = m_renderCommands[i];
+        if (i >= MAX_INSTANCES) break;
+
+        if (cmd.type == MaterialType::Skybox || cmd.type == MaterialType::SkySphere) continue;
+
+        auto& pipeline = m_pipelines[cmd.type];
+        bool pipelineChanged = false;
+        if (pipeline.get() != lastPipeline) {
+            flushBatch();
+            pipeline->bind(cb);
+            lastPipeline = pipeline.get();
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+            pipelineChanged = true;
+            currentBatchStart = i; // Reset start for new pipeline/batch
         }
+
+        if (cmd.material != lastMaterial || pipelineChanged) {
+            flushBatch();
+            vk::DescriptorSet ds = cmd.material->getDescriptorSet(m_descriptorPool, m_layouts[cmd.type]);
+            cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 1, 1, &ds, 0, nullptr);
+            lastMaterial = cmd.material;
+            currentBatchStart = i;
+        }
+
+        if (cmd.mesh != lastMesh) {
+            flushBatch();
+            lastMesh = cmd.mesh;
+            currentBatchStart = i;
+        }
+
+        currentBatchCount++;
     }
-    flushInstances(); 
+    flushBatch();
     cb.endRendering();
 }
 
@@ -747,7 +625,13 @@ void Renderer::compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex) {
     vk::Image rtImage = m_renderTarget->getColorImage();
     vk::ImageMemoryBarrier rtBarrier(vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eShaderRead, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
     cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, rtBarrier);
-    vk::RenderingAttachmentInfo colorAttr(m_swapChain->getImageViews()[imageIndex], vk::ImageLayout::eColorAttachmentOptimal, vk::ResolveModeFlagBits::eNone, {}, vk::ImageLayout::eUndefined, vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eStore, vk::ClearValue(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f})));
+    vk::RenderingAttachmentInfo colorAttr;
+    colorAttr.imageView = m_swapChain->getImageViews()[imageIndex];
+    colorAttr.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
+    colorAttr.loadOp = vk::AttachmentLoadOp::eClear;
+    colorAttr.storeOp = vk::AttachmentStoreOp::eStore;
+    colorAttr.clearValue = vk::ClearValue(vk::ClearColorValue(std::array<float, 4>{0.0f, 0.0f, 0.0f, 1.0f}));
+
     cb.beginRendering({ {}, {{0, 0}, m_swapChain->getExtent()}, 1, 0, 1, &colorAttr, nullptr });
     cb.setViewport(0, vk::Viewport(0, 0, (float)m_swapChain->getExtent().width, (float)m_swapChain->getExtent().height, 0, 1));
     cb.setScissor(0, vk::Rect2D({0, 0}, m_swapChain->getExtent()));
@@ -759,6 +643,170 @@ void Renderer::compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex) {
     cb.endRendering();
     vk::ImageMemoryBarrier resetBarrier(vk::AccessFlagBits::eShaderRead, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
     cb.pipelineBarrier(vk::PipelineStageFlagBits::eFragmentShader, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, resetBarrier);
+}
+
+void Renderer::updateGlobalUBO(uint32_t currentFrame, Scene& scene, GlobalUBO& uboData) {
+    Camera* activeCamera = nullptr;
+    auto camView = scene.getRegistry().view<CameraComponent>();
+    for (auto entity : camView) {
+        if (camView.get<CameraComponent>(entity).active) {
+            activeCamera = camView.get<CameraComponent>(entity).camera.get();
+            break;
+        }
+    if (!activeCamera) {
+        BB_CORE_WARN("Renderer: No active camera found in scene!");
+        return;
+    }
+
+    if (m_config.graphics.enableFrustumCulling) {
+        m_frustum.update(activeCamera->getProjectionMatrix() * activeCamera->getViewMatrix());
+    }
+
+    uboData.view = activeCamera->getViewMatrix();
+    uboData.proj = activeCamera->getProjectionMatrix();
+    uboData.camPos = glm::vec4(activeCamera->getPosition(), 1.0f);
+    uboData.ambientColor = glm::vec4(0.15f, 0.15f, 0.2f, 1.0f);
+
+    int numLights = 0;
+    bool directionalShadows = false;
+    auto lightView = scene.getRegistry().view<LightComponent>();
+    for (auto entity : lightView) {
+        if (numLights >= 10) break;
+        auto& light = lightView.get<LightComponent>(entity);
+        ShaderLight& sl = uboData.lights[numLights];
+        sl.color = glm::vec4(light.color, light.intensity);
+        sl.params = glm::vec4(light.range, 0.0f, 0.0f, 0.0f);
+        
+        if (light.type == LightType::Directional) {
+            sl.position.w = 0.0f;
+            if (scene.getRegistry().all_of<TransformComponent>(entity))
+                sl.direction = glm::vec4(scene.getRegistry().get<TransformComponent>(entity).getForward(), 0.0f);
+            
+            if (light.castShadows && !directionalShadows) {
+                directionalShadows = true;
+                if (numLights > 0) std::swap(uboData.lights[0], uboData.lights[numLights]);
+            }
+        } else {
+            sl.position.w = 1.0f;
+            if (scene.getRegistry().all_of<TransformComponent>(entity))
+                sl.position = glm::vec4(scene.getRegistry().get<TransformComponent>(entity).translation, 1.0f);
+        }
+        numLights++;
+    }
+    uboData.globalParams = glm::vec4((float)numLights, directionalShadows ? 1.0f : 0.0f, 0.0f, 0.0f);
+}
+
+void Renderer::prepareRenderData(Scene& scene) {
+    std::lock_guard<std::mutex> lock(m_commandMutex);
+    m_renderCommands.clear();
+    m_instanceTransforms.clear();
+
+    // 1. Collect MeshComponent commands
+    auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
+    for (auto entity : meshView) {
+        auto& meshComp = meshView.get<MeshComponent>(entity);
+        if (!meshComp.mesh || !meshComp.visible) continue;
+        
+        RenderCommand cmd;
+        auto mat = meshComp.mesh->getMaterial();
+        if (!mat) mat = m_fallbackMaterial;
+        
+        cmd.type = mat->getType();
+        cmd.material = mat.get();
+        cmd.mesh = meshComp.mesh.get();
+        cmd.transform = meshView.get<TransformComponent>(entity).getTransform();
+        cmd.castShadows = meshComp.castShadows;
+        
+        m_renderCommands.push_back(cmd);
+    }
+
+    // 2. Collect ModelComponent commands
+    auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
+    for (auto entity : modelView) {
+        auto& modelComp = modelView.get<ModelComponent>(entity);
+        if (!modelComp.model || !modelComp.visible) continue;
+        
+        glm::mat4 baseTransform = modelView.get<TransformComponent>(entity).getTransform();
+        glm::mat4 modelTransform = glm::translate(baseTransform, modelComp.offset);
+        
+        for (const auto& mesh : modelComp.model->getMeshes()) {
+            if (!mesh->isVisible()) continue;
+            
+            RenderCommand cmd;
+            auto mat = mesh->getMaterial();
+            if (!mat) mat = m_fallbackMaterial;
+
+            cmd.type = mat->getType();
+            cmd.material = mat.get();
+            cmd.mesh = mesh.get();
+            cmd.transform = modelTransform; 
+            cmd.castShadows = modelComp.castShadows;
+            
+            m_renderCommands.push_back(cmd);
+        }
+    }
+
+    // 3. Collect ParticleSystem
+    auto particleView = scene.getRegistry().view<ParticleSystemComponent>();
+    for (entt::entity entity : particleView) {
+        auto& particleSys = particleView.get<ParticleSystemComponent>(entity);
+        Material* mat = particleSys.material ? particleSys.material.get() : m_defaultParticleMat.get();
+        Mesh* mesh = particleSys.mesh ? particleSys.mesh.get() : m_particleQuad.get(); 
+        if (!mesh) mesh = m_highlightCube.get();
+
+        if (mat->getType() == MaterialType::Plasma) {
+            static_cast<PlasmaMaterial*>(mat)->setTime((float)SDL_GetTicks() / 1000.0f);
+        }
+
+        for (const auto& p : particleSys.particlePool) {
+            if (p.lifeRemaining <= 0.0f) continue;
+            float t = 1.0f - (p.lifeRemaining / p.lifeTime);
+            float currentSize = p.sizeBegin + (p.sizeEnd - p.sizeBegin) * t;
+            glm::mat4 pt = glm::translate(glm::mat4(1.0f), p.position);
+            pt = glm::scale(pt, glm::vec3(currentSize));
+            m_renderCommands.push_back({ mat->getType(), mat, mesh, pt, false });
+        }
+    }
+    
+    if (m_highlightActive && m_highlightCube && m_highlightMat) {
+        m_renderCommands.push_back({ MaterialType::Highlight, m_highlightMat.get(), m_highlightCube.get(), m_highlightTransform, false });
+    }
+    if (m_hoveredActive && m_highlightCube && m_hoveredMat) {
+        m_renderCommands.push_back({ MaterialType::Highlight, m_hoveredMat.get(), m_highlightCube.get(), m_hoveredTransform, false });
+    }
+
+    if (m_debugPhysicsEnabled && m_highlightCube && m_debugColliderMat) {
+        auto physView = scene.getRegistry().view<PhysicsComponent, TransformComponent>();
+        for (auto entity : physView) {
+            auto& phys = physView.get<PhysicsComponent>(entity);
+            auto& tf = physView.get<TransformComponent>(entity);
+            glm::vec3 colliderScale(1.0f);
+            if (phys.colliderType == ColliderType::Box) colliderScale = phys.boxHalfExtents * tf.scale * 2.0f;
+            else if (phys.colliderType == ColliderType::Sphere) {
+                float maxS = glm::max(tf.scale.x, glm::max(tf.scale.y, tf.scale.z));
+                colliderScale = glm::vec3(phys.radius * maxS * 2.0f);
+            } else if (phys.colliderType == ColliderType::Capsule) {
+                float rScaled = phys.radius * glm::max(tf.scale.x, tf.scale.z) * 2.0f;
+                colliderScale = glm::vec3(rScaled, phys.height * tf.scale.y, rScaled);
+            } else colliderScale = tf.scale;
+
+            glm::mat4 model = glm::translate(glm::mat4(1.0f), tf.translation) * glm::toMat4(glm::quat(tf.rotation)) * glm::scale(glm::mat4(1.0f), colliderScale);
+            m_renderCommands.push_back({ MaterialType::Highlight, m_debugColliderMat.get(), m_highlightCube.get(), model, false });
+        }
+    }
+
+    std::ranges::sort(m_renderCommands, [](const RenderCommand& a, const RenderCommand& b) {
+        if (a.type != b.type) return a.type < b.type;
+        if (a.material != b.material) return a.material < b.material;
+        return a.mesh < b.mesh;
+    });
+
+    void* mappedData = m_instanceBuffers[m_currentFrame]->getMappedData();
+    uint32_t count = (std::min)((uint32_t)m_renderCommands.size(), MAX_INSTANCES);
+    for (uint32_t i = 0; i < count; ++i) {
+        void* dst = static_cast<char*>(mappedData) + (i * sizeof(glm::mat4));
+        memcpy(dst, &m_renderCommands[i].transform, sizeof(glm::mat4));
+    }
 }
 
 void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboData) {
@@ -827,20 +875,42 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
         renderInfo.layerCount = 1;
         renderInfo.pDepthAttachment = &depthAttr;
 
+        cb.setViewport(0, vk::Viewport(0, 0, (float)shadowExtent.width, (float)shadowExtent.height, 0, 1));
+        cb.setScissor(0, vk::Rect2D({0, 0}, shadowExtent));
+
         cb.beginRendering(renderInfo);
         
         cb.pushConstants(shadowPipeline->getLayout(), vk::ShaderStageFlagBits::eVertex, 0, sizeof(glm::mat4), &lightVP);
 
-        // Simple iteration over all meshes to draw them purely with instances buffers
-        auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
-        uint32_t instanceOffset = 0;
-        for (auto entity : meshView) {
-            auto& meshComp = meshView.get<MeshComponent>(entity);
-            if (!meshComp.mesh || !meshComp.visible || !meshComp.castShadows) continue;
-            // Draw
-            meshComp.mesh->draw(cb, 1, instanceOffset);
-            instanceOffset++;
+        // OPTIMIZED: Use prepared commands with instancing!
+        Mesh* lastMesh = nullptr;
+        uint32_t batchStart = 0;
+        uint32_t batchCount = 0;
+
+        auto flushShadowBatch = [&]() {
+            if (batchCount == 0) return;
+            lastMesh->draw(cb, batchCount, batchStart);
+            batchCount = 0;
+        };
+
+        for (uint32_t cmdIdx = 0; cmdIdx < (uint32_t)m_renderCommands.size(); ++cmdIdx) {
+            const auto& cmd = m_renderCommands[cmdIdx];
+            if (cmdIdx >= MAX_INSTANCES) break;
+            
+            // Skip non-shadow casters
+            if (!cmd.castShadows) {
+                flushShadowBatch();
+                continue;
+            }
+
+            if (cmd.mesh != lastMesh) {
+                flushShadowBatch();
+                lastMesh = cmd.mesh;
+                batchStart = cmdIdx;
+            }
+            batchCount++;
         }
+        flushShadowBatch();
         cb.endRendering();
     }
 
@@ -971,10 +1041,12 @@ void Renderer::createPickingResources() {
 }
 
 void Renderer::renderEntityIds(Scene& scene) {
+    auto& cb = m_commandBuffers[m_currentFrame];
     if (!m_pickingPipeline) {
         createPickingResources();
         if (!m_pickingPipeline) return;
     }
+    if (!m_pickingReady || m_pickingInstanceBuffers.empty() || m_pickingDescriptorSets.empty()) return;
 
     // Resize if needed
     uint32_t targetW = m_renderTarget ? m_renderTarget->getExtent().width : m_swapChain->getExtent().width;
@@ -993,7 +1065,8 @@ void Renderer::renderEntityIds(Scene& scene) {
         if (!m_pickingPipeline) return;
     }
 
-    auto& cb = m_commandBuffers[m_currentFrame];
+    // The 'cb' variable is already declared above, remove the redeclaration
+    // auto& cb = m_commandBuffers[m_currentFrame];
 
     // Transition picking images to attachment
     vk::ImageMemoryBarrier pickBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, 
@@ -1009,6 +1082,7 @@ void Renderer::renderEntityIds(Scene& scene) {
         {vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1});
     cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests,
         {}, nullptr, nullptr, pickDepthBarrier);
+    BB_CORE_INFO("Renderer: Picking barriers done");
 
     // Begin entity ID rendering pass
     std::array<uint32_t, 4> clearIdValues = {0xFFFFFFFF, 0, 0, 0};
@@ -1026,10 +1100,12 @@ void Renderer::renderEntityIds(Scene& scene) {
     cb.beginRendering({{}, {{0,0}, extent}, 1, 0, 1, &colorAttr, &depthAttr});
     cb.setViewport(0, vk::Viewport(0, 0, (float)extent.width, (float)extent.height, 0, 1));
     cb.setScissor(0, vk::Rect2D({0,0}, extent));
+    BB_CORE_INFO("Renderer: Picking rendering begun");
 
     m_pickingPipeline->bind(cb);
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pickingPipeline->getLayout(), 0, 1,
         &m_pickingDescriptorSets[m_currentFrame], 0, nullptr);
+    BB_CORE_INFO("Renderer: Picking pipeline bound");
 
     // Draw all mesh entities with their entityID as push constant
     uint32_t instanceOffset = 0;
@@ -1051,6 +1127,7 @@ void Renderer::renderEntityIds(Scene& scene) {
         meshComp.mesh->draw(cb, 1, instanceOffset);
         instanceOffset++;
     }
+    BB_CORE_INFO("Renderer: Picking Mesh drawing done");
 
     // Draw all model entities
     auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
@@ -1073,6 +1150,7 @@ void Renderer::renderEntityIds(Scene& scene) {
             instanceOffset++;
         }
     }
+    BB_CORE_INFO("Renderer: Picking Model drawing done");
 
     cb.endRendering();
 

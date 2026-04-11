@@ -26,6 +26,7 @@ struct RenderCommand {
     Material* material;
     Mesh* mesh;
     glm::mat4 transform;
+    bool castShadows;
 
     bool operator<(const RenderCommand& other) const {
         if (type != other.type) return type < other.type;
@@ -56,6 +57,9 @@ public:
      * @return true si le rendu a pu démarrer (swapchain valide), false sinon.
      */
     bool render(Scene& scene);
+    
+    /** @brief Requests a GPU picking pass for the current frame. */
+    void requestPicking() { m_pickingRequested = true; }
 
     /** @brief Notifie le renderer d'un changement de taille de fenêtre. */
     void onResize(int width, int height);
@@ -164,8 +168,8 @@ private:
 
     // Gestion du resize différé
     bool m_resizeRequested = false;
-    int m_pendingWidth = 0;
-    int m_pendingHeight = 0;
+    bool m_pickingRequested = false;
+    uint32_t m_pendingWidth = 0, m_pendingHeight = 0;
 
     vk::CommandPool m_commandPool;
     std::vector<vk::CommandBuffer> m_commandBuffers;
@@ -243,7 +247,8 @@ private:
     void drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView colorView, vk::ImageView depthView, vk::Extent2D extent);
     void compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex);
     void renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboData);
-    void updateGlobalUBO(uint32_t currentFrame, Scene& scene);
+    void updateGlobalUBO(uint32_t currentFrame, Scene& scene, GlobalUBO& uboData);
+    void prepareRenderData(Scene& scene);
 
     // --- GPU Color Picking ---
     vk::Image m_pickingImage;

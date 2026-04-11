@@ -7,6 +7,8 @@
 #include <entt/entt.hpp>
 #include <string>
 #include <glm/glm.hpp>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace bb3d {
 
@@ -39,6 +41,9 @@ public:
 
     /** @brief Creates a new empty entity with a default TransformComponent. */
     Entity createEntity(const std::string& name = "Entity");
+
+    /** @brief Finds an entity by its TagComponent name. Returns invalid Entity if not found. */
+    Entity findEntityByName(const std::string& name);
     
     /** 
      * @brief Creates a pre-configured orbit camera with mouse controls.
@@ -92,6 +97,7 @@ public:
 
     /** @brief Direct access to the EnTT registry (for advanced internal systems). */
     [[nodiscard]] inline entt::registry& getRegistry() { return m_registry; }
+    [[nodiscard]] inline const entt::registry& getRegistry() const { return m_registry; }
 
     /** @brief Sets the engine context (called automatically by Engine::CreateScene). */
     void setEngineContext(Engine* engine) { m_EngineContext = engine; }
@@ -111,6 +117,11 @@ private:
     Ref<Texture> m_Skybox;
     FogSettings m_Fog;
     Engine* m_EngineContext = nullptr;
+    
+    // Fast lookup
+    std::unordered_map<std::string, entt::entity> m_EntityNames;
+    // For warnings
+    std::unordered_set<entt::entity> m_WarnedEntities;
     
     friend class Entity;
     friend class SceneSerializer;

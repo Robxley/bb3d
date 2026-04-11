@@ -2,6 +2,7 @@
 
 #include "bb3d/scene/Entity.hpp"
 #include <nlohmann/json.hpp>
+#include "bb3d/core/Log.hpp"
 #include <unordered_map>
 #include <string>
 #include <functional>
@@ -16,10 +17,13 @@ namespace bb3d {
         DeserializeCallback deserialize;
     };
 
+    using ScriptFunc = std::function<void(Entity, float)>;
+
     class ComponentRegistry {
     public:
         template<typename T>
         static void Register(const std::string& name) {
+            BB_CORE_INFO("ComponentRegistry: Registered custom component '{}'", name);
             s_handlers[name] = {
                 [name](Entity entity, nlohmann::json& j) {
                     if (entity.has<T>()) {
@@ -36,11 +40,30 @@ namespace bb3d {
             };
         }
 
+        /** @brief Map of script names to their logic functions. */
+        static void RegisterScript(const std::string& name, ScriptFunc func) {
+            BB_CORE_INFO("ComponentRegistry: Registered script '{}'", name);
+            s_scripts[name] = func;
+        }
+
+        static ScriptFunc GetScript(const std::string& name) {
+            if (s_scripts.contains(name)) {
+                BB_CORE_DEBUG("ComponentRegistry: Script '{}' found and bound.", name);
+                return s_scripts[name];
+            }
+            
+            if (!name.empty()) {
+                BB_CORE_WARN("ComponentRegistry: Script '{}' not found in registry!", name);
+            }
+            return nullptr;
+        }
+
         static const std::unordered_map<std::string, CustomComponentHandlers>& GetHandlers() {
             return s_handlers;
         }
 
     private:
         inline static std::unordered_map<std::string, CustomComponentHandlers> s_handlers;
+        inline static std::unordered_map<std::string, ScriptFunc> s_scripts;
     };
 }

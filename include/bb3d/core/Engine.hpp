@@ -132,6 +132,9 @@ public:
     /** @brief Resets the current scene (object positions, physics). */
     void resetScene();
 
+    /** @brief Sets a callback for a hard reset of the application state. */
+    void setOnResetCallback(std::function<void()> callback) { m_OnResetCallback = callback; }
+
 private:
     void Init();
     void Update(float deltaTime);
@@ -154,8 +157,11 @@ private:
     Scope<ImGuiLayer> m_ImGuiLayer;
 #endif
     Ref<Scene> m_ActiveScene;
+    std::function<void()> m_OnResetCallback;
 
     bool m_Running = false;
     bool m_PhysicsPaused = false;
+    float m_DeltaTime = 0.0f;
+    float m_LastTime = 0.0f;
 };
 } // namespace bb3d

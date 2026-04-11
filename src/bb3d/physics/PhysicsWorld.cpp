@@ -117,9 +117,11 @@ namespace bb3d {
     void PhysicsWorld::init() {
         BB_CORE_INFO("PhysicsWorld: Initializing Jolt Physics...");
 
-        JPH::RegisterDefaultAllocator();
-        JPH::Factory::sInstance = new JPH::Factory();
-        JPH::RegisterTypes();
+        if (!JPH::Factory::sInstance) {
+            JPH::RegisterDefaultAllocator();
+            JPH::Factory::sInstance = new JPH::Factory();
+            JPH::RegisterTypes();
+        }
 
         m_impl->tempAllocator = CreateScope<JPH::TempAllocatorImpl>(10 * 1024 * 1024);
         m_impl->jobSystem = CreateScope<JPH::JobSystemThreadPool>(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, (int)std::thread::hardware_concurrency() - 1);
@@ -307,9 +309,11 @@ namespace bb3d {
         } else if (phys.colliderType == ColliderType::Mesh) {
             std::vector<Ref<Mesh>> targetMeshes;
             if (phys.useModelMesh && entity.has<ModelComponent>()) {
-                targetMeshes = entity.get<ModelComponent>().model->getMeshes();
+                auto& mc = entity.get<ModelComponent>();
+                if (mc.model) targetMeshes = mc.model->getMeshes();
             } else if (entity.has<MeshComponent>()) {
-                targetMeshes.push_back(entity.get<MeshComponent>().mesh);
+                auto& mc = entity.get<MeshComponent>();
+                if (mc.mesh) targetMeshes.push_back(mc.mesh);
             } else if (entity.has<ProceduralPlanetComponent>()) {
                 auto& planet = entity.get<ProceduralPlanetComponent>();
                 if (planet.model) targetMeshes = planet.model->getMeshes();

@@ -22,12 +22,12 @@ namespace bb3d {
     }
 
     template<typename T>
-    T& Entity::get() {
+    T& Entity::get() const {
         return m_scene->getRegistry().get<T>(m_entityHandle);
     }
 
     template<typename T>
-    bool Entity::has() {
+    bool Entity::has() const {
         return m_scene->getRegistry().all_of<T>(m_entityHandle);
     }
 

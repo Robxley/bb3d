@@ -65,18 +65,14 @@ void Engine::Init() {
     BB_PROFILE_SCOPE("Engine::Init");
 
     BB_CORE_INFO("Engine: Module Status:");
-    BB_CORE_INFO(" - JobSystem: {}", m_Config.modules.enableJobSystem ? "ENABLED" : "DISABLED");
+    BB_CORE_INFO(" - JobSystem: ENABLED ({} threads)", m_Config.system.maxThreads);
     BB_CORE_INFO(" - Physics:   {}", m_Config.modules.enablePhysics ? "ENABLED" : "DISABLED");
     BB_CORE_INFO(" - Audio:     {}", m_Config.modules.enableAudio ? "ENABLED" : "DISABLED");
     BB_CORE_INFO(" - Editor:    {}", m_Config.modules.enableEditor ? "ENABLED" : "DISABLED");
 
-    // 1. Job System (Initialized first to be available for async loads)
-    if (m_Config.modules.enableJobSystem) {
-        m_JobSystem = CreateScope<JobSystem>();
-        m_JobSystem->init(m_Config.system.maxThreads);
-    } else {
-        BB_CORE_WARN("Engine: JobSystem is disabled in config.");
-    }
+    // 1. Job System (Mandatory)
+    m_JobSystem = CreateScope<JobSystem>();
+    m_JobSystem->init(m_Config.system.maxThreads);
 
     // 2. Event Bus (Decoupled communication between systems)
     m_EventBus = CreateScope<EventBus>();
@@ -219,23 +215,34 @@ void Engine::Shutdown() {
 void Engine::Run() {
     m_Running = true;
     BB_CORE_INFO("Engine: Entering main loop.");
+    float fpsTimer = 0.0f;
+    int frameCount = 0;
 
-    uint64_t lastTime = SDL_GetTicks();
+    m_LastTime = m_Window->GetTime(); // Initialize m_LastTime
 
     while (m_Running && !m_Window->ShouldClose()) {
         BB_PROFILE_FRAME("MainLoop");
+
+        float startTime = m_Window->GetTime();
+        
+        m_DeltaTime = startTime - m_LastTime;
+        m_LastTime = startTime;
+
+        fpsTimer += m_DeltaTime;
+        frameCount++;
+        if (fpsTimer >= 1.0f) {
+            BB_CORE_INFO("FPS: {} ({:.2f} ms)", frameCount, 1000.0f / frameCount);
+            fpsTimer = 0.0f;
+            frameCount = 0;
+        }
 
         // 0. Reset input deltas for the new frame
         if (m_InputManager) {
             m_InputManager->clearDeltas();
         }
 
-        uint64_t currentTime = SDL_GetTicks();
-        float deltaTime = static_cast<float>(currentTime - lastTime) / 1000.0f;
-        lastTime = currentTime;
-
         // Limit deltaTime to avoid physics explosions during startup or after a freeze
-        if (deltaTime > 0.1f) deltaTime = 0.1f;
+        if (m_DeltaTime > 0.1f) m_DeltaTime = 0.1f;
 
         // 1. System Events (Window, Input)
         m_Window->PollEvents();
@@ -272,7 +279,7 @@ void Engine::Run() {
         }
 
         // 2. Business Logic Update
-        Update(deltaTime);
+        Update(m_DeltaTime);
 
         // 3. Render
         Render();
@@ -322,6 +329,13 @@ void Engine::resetScene() {
 
     BB_CORE_INFO("Engine: Resetting scene...");
 
+    if (m_OnResetCallback) {
+        BB_CORE_INFO("Engine: Performing Hard Reset via application callback.");
+        m_OnResetCallback();
+        return;
+    }
+
+    // Fallback: Soft Reset (only if no onReset callback is provided)
     // 1. Restore all transforms to their initial state
     auto transformView = m_ActiveScene->getRegistry().view<TransformComponent>();
     for (auto entity : transformView) {
@@ -402,9 +416,9 @@ void Engine::Render() {
         // 1. Scene Rendering
         frameStarted = m_Renderer->render(*m_ActiveScene);
 
-        // 1b. GPU Color Picking pass (renders entity IDs to a separate buffer)
-        if (frameStarted && m_PickingSystem && m_PickingSystem->getMode() == PickingMode::ColorPicking) {
-            m_Renderer->renderEntityIds(*m_ActiveScene);
+        // 1b. GPU Color Picking pass (requested for next frame rendering)
+        if (m_PickingSystem && m_PickingSystem->getMode() == PickingMode::ColorPicking) {
+            m_Renderer->requestPicking();
         }
     }
 #if defined(BB3D_ENABLE_EDITOR)

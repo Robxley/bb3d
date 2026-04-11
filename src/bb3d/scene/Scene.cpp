@@ -12,10 +12,24 @@
 namespace bb3d {
 
 
+Entity Scene::findEntityByName(const std::string& name) {
+    auto it = m_EntityNames.find(name);
+    if (it != m_EntityNames.end()) {
+        if (m_registry.valid(it->second)) {
+            return { it->second, *this };
+        } else {
+            // Lazy cleanup if the entry is stale (though destroyEntity should handle it)
+            m_EntityNames.erase(it);
+        }
+    }
+    return {};
+}
+
 Entity Scene::createEntity(const std::string& name) {
     Entity entity(m_registry.create(), *this);
     if (!name.empty()) {
         entity.add<TagComponent>(name);
+        m_EntityNames[name] = entity;
     }
     // Every entity has at least one default transform
     entity.add<TransformComponent>();
@@ -91,6 +105,7 @@ View<LightComponent> Scene::createDirectionalLight(const std::string& name, cons
     light.type = LightType::Directional;
     light.color = color;
     light.intensity = intensity;
+    light.castShadows = true; // Shadows are on by default for the Sun
     
     entity.get<TransformComponent>().rotation = glm::radians(rotation);
     
@@ -137,10 +152,15 @@ View<SkySphereComponent> Scene::createSkySphere(const std::string& name, const s
 
 void Scene::destroyEntity(Entity entity) {
     std::string name = "Unknown";
-    if (entity.has<TagComponent>()) name = entity.get<TagComponent>().tag;
+    if (entity.has<TagComponent>()) {
+        name = entity.get<TagComponent>().tag;
+        m_EntityNames.erase(name);
+    }
     
     uint32_t id = (uint32_t)entity.getHandle();
-    m_registry.destroy(static_cast<entt::entity>(entity));
+    entt::entity handle = static_cast<entt::entity>(entity);
+    m_WarnedEntities.erase(handle);
+    m_registry.destroy(handle);
     BB_CORE_INFO("Scene: Destroyed entity '{0}' (ID: {1})", name, id);
 }
 
@@ -236,6 +256,11 @@ void Scene::onUpdate(float deltaTime) {
         anim.timeAccumulator += deltaTime;
         Entity entity(entityHandle, *this);
 
+        if (!anim.initialized) {
+            trans.initialTranslation = trans.translation;
+            trans.initialRotation = trans.rotation;
+        }
+
         bool transformChanged = false;
 
         if (anim.type == SimpleAnimationType::Rotation) {
@@ -289,15 +314,26 @@ void Scene::onUpdate(float deltaTime) {
         Entity entity(entityHandle, *this);
         auto& planet = planetView.get<ProceduralPlanetComponent>(entityHandle);
         if (planet.needsRebuild) {
-             BB_CORE_INFO("Scene: Rebuilding procedural planet for entity {0}...", (uint32_t)entityHandle);
+             BB_CORE_INFO("Scene: Rebuilding procedural planet for entity '{}' (Resolution: {}, Radius: {})...", 
+                entity.getName(), planet.resolution, planet.radius);
+                
             planet.model = ProceduralMeshGenerator::createPlanet(m_EngineContext->graphics(), m_EngineContext->assets(), m_EngineContext->jobs(), planet);
             
+            if (planet.model) {
+                BB_CORE_INFO("Scene: Planet rebuild complete for '{}' ({} meshes generated)", 
+                    entity.getName(), planet.model->getMeshes().size());
+            } else {
+                BB_CORE_ERROR("Scene: Planet rebuild FAILED for entity '{}'!", entity.getName());
+            }
+
             // Re-apply PBR material if none exists
-            for (auto& mesh : planet.model->getMeshes()) {
-                if (!mesh->getMaterial()) {
-                    auto pbr = CreateRef<PBRMaterial>(m_EngineContext->graphics());
-                    pbr->setColor({1.0f, 1.0f, 1.0f}); // Use vertex colors
-                    mesh->setMaterial(pbr);
+            if (planet.model) {
+                for (auto& mesh : planet.model->getMeshes()) {
+                    if (!mesh->getMaterial()) {
+                        auto pbr = CreateRef<PBRMaterial>(m_EngineContext->graphics());
+                        pbr->setColor({1.0f, 1.0f, 1.0f}); // Use vertex colors
+                        mesh->setMaterial(pbr);
+                    }
                 }
             }
             
@@ -343,6 +379,7 @@ void Scene::onUpdate(float deltaTime) {
                     { 0.0f,  0.0f,  1.0f}, { 0.0f,  0.0f, -1.0f}
                 };
 
+/*
                 const auto& meshes = planet.model->getMeshes();
                 for (size_t i = 0; i < meshes.size() && i < faceDirections.size(); ++i) {
                     glm::vec3 worldNormal = glm::normalize(glm::vec3(planetRotation * glm::vec4(faceDirections[i], 0.0f)));
@@ -352,6 +389,7 @@ void Scene::onUpdate(float deltaTime) {
                     float dot = glm::dot(worldNormal, toPlanet);
                     meshes[i]->setVisible(dot < 0.55f);
                 }
+*/
             }
         }
     }
@@ -379,16 +417,24 @@ void Scene::onUpdate(float deltaTime) {
         if (script.onUpdate) {
             Entity entity(entityHandle, *this);
             script.onUpdate(entity, deltaTime);
+        } else if (!script.name.empty()) {
+            if (!m_WarnedEntities.contains(entityHandle)) {
+                BB_CORE_WARN("Scene: NativeScriptComponent on entity '{}' has name '{}' but no onUpdate lambda! Did you forget to bind it?", 
+                    Entity(entityHandle, *this).getName(), script.name);
+                m_WarnedEntities.insert(entityHandle);
+            }
         }
     }
 }
 
 void Scene::clear() {
-    if (m_EngineContext) {
+    if (m_EngineContext && m_EngineContext->GetPhysicsWorld()) {
         m_EngineContext->physics().clear();
     }
 
     m_registry.clear();
+    m_EntityNames.clear();
+    m_WarnedEntities.clear();
     BB_CORE_INFO("Scene: All entities destroyed.");
 }
 

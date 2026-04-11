@@ -86,10 +86,10 @@ namespace bb3d {
         s_ClientLogger->flush_on(level);
 
         // Enregistrement global pour accès via spdlog::get("CORE") si besoin
-        spdlog::register_logger(s_CoreLogger);
-        spdlog::register_logger(s_ClientLogger);
+        if (!spdlog::get("CORE")) spdlog::register_logger(s_CoreLogger);
+        if (!spdlog::get("APP")) spdlog::register_logger(s_ClientLogger);
 
-        BB_CORE_INFO("Logging System Initialized (Level: {0}, Console: {1}, File: {2})", 
+        BB_CORE_INFO("Logging System Initialized (Level: {}, Console: {}, File: {})", 
             config.system.logLevel,
             config.system.logConsole ? "ON" : "OFF", 
             config.system.logFile ? "ON" : "OFF");

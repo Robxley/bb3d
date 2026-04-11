@@ -112,7 +112,6 @@ namespace bb3d {
         PhysicsBackend physicsBackend = PhysicsBackend::Jolt; ///< Moteur physique à utiliser.
         bool enablePhysics = true;    ///< Active l'initialisation du monde physique et des RigidBodies.
         bool enableAudio = true;      ///< Active le système audio (miniaudio/OpenAL).
-        bool enableJobSystem = true;  ///< Active le système de threads worker.
         bool enableHotReload = true;  ///< Active le rechargement à chaud des assets (Dev Only).
         PickingMode pickingMode = PickingMode::ColorPicking; ///< Mode de picking par défaut.
 #if defined(BB3D_ENABLE_EDITOR)
@@ -123,11 +122,10 @@ namespace bb3d {
 
         ModuleConfig& setPhysics(bool e, PhysicsBackend b = PhysicsBackend::Jolt) { enablePhysics = e; physicsBackend = b; return *this; }
         ModuleConfig& setAudio(bool e) { enableAudio = e; return *this; }
-        ModuleConfig& setJobSystem(bool e) { enableJobSystem = e; return *this; }
         ModuleConfig& setEditor(bool e) { enableEditor = e; return *this; }
         ModuleConfig& setPicking(PickingMode m) { pickingMode = m; return *this; }
 
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(ModuleConfig, physicsBackend, enablePhysics, enableAudio, enableJobSystem, enableHotReload, enableEditor, pickingMode)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(ModuleConfig, physicsBackend, enablePhysics, enableAudio, enableHotReload, enableEditor, pickingMode)
     };
 
     /**
@@ -167,7 +165,6 @@ namespace bb3d {
         EngineConfig& fpsMax(int f) { graphics.setFpsMax(f); return *this; }
         EngineConfig& enablePhysics(PhysicsBackend b) { modules.setPhysics(b != PhysicsBackend::None, b); return *this; }
         EngineConfig& enableAudio(bool e) { modules.setAudio(e); return *this; }
-        EngineConfig& enableJobSystem(bool e) { modules.setJobSystem(e); return *this; }
         EngineConfig& frustumCulling(bool e) { graphics.setFrustumCulling(e); return *this; }
         EngineConfig& mipmapping(bool e) { graphics.setMipmapping(e); return *this; }
         EngineConfig& resizable(bool r) { window.setResizable(r); return *this; }

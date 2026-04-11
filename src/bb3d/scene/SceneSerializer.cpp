@@ -39,6 +39,7 @@ namespace bb3d {
         SerializeComponent<ParticleSystemComponent>(j, entity, "ParticleSystemComponent");
         SerializeComponent<ProceduralPlanetComponent>(j, entity, "ProceduralPlanetComponent");
         SerializeComponent<PointGravitySourceComponent>(j, entity, "PointGravitySourceComponent");
+        SerializeComponent<NativeScriptComponent>(j, entity, "NativeScriptComponent");
 
         auto& customHandlers = ComponentRegistry::GetHandlers();
         for (const auto& [compName, handler] : customHandlers) {
@@ -127,14 +128,18 @@ namespace bb3d {
             Entity entity = m_scene->createEntity(name);
 
             if (e.contains("TransformComponent")) {
+                BB_CORE_TRACE("SceneSerializer: Restoring TransformComponent for entity '{}'", name);
                 entity.get<TransformComponent>().deserialize(e["TransformComponent"]);
             }
 
             if (e.contains("MeshComponent")) {
+                BB_CORE_TRACE("SceneSerializer: Restoring MeshComponent for entity '{}'", name);
                 auto& mc = entity.add<MeshComponent>().get<MeshComponent>();
                 mc.deserialize(e["MeshComponent"]);
                 if (!mc.assetPath.empty()) {
-                    try { mc.mesh = engine->assets().load<Mesh>(mc.assetPath); } catch(...) {}
+                    try { mc.mesh = engine->assets().load<Mesh>(mc.assetPath); } catch(...) {
+                        BB_CORE_ERROR("SceneSerializer: Failed to load mesh asset '{}' for entity '{}'", mc.assetPath, name);
+                    }
                 } else if (mc.primitiveType != PrimitiveType::None) {
                     // Reconstruct primitives
                     if (mc.primitiveType == PrimitiveType::Cube) mc.mesh = MeshGenerator::createCube(engine->graphics(), 1.0f, mc.color);
@@ -149,20 +154,24 @@ namespace bb3d {
             }
 
             if (e.contains("ModelComponent")) {
+                BB_CORE_TRACE("SceneSerializer: Restoring ModelComponent for entity '{}'", name);
                 auto& mc = entity.add<ModelComponent>().get<ModelComponent>();
                 mc.deserialize(e["ModelComponent"]);
                 if (!mc.assetPath.empty()) {
-                    try { mc.model = engine->assets().load<Model>(mc.assetPath); } catch(...) {}
+                    try { mc.model = engine->assets().load<Model>(mc.assetPath); } catch(...) {
+                        BB_CORE_ERROR("SceneSerializer: Failed to load model asset '{}' for entity '{}'", mc.assetPath, name);
+                    }
                 }
             }
 
-            if (e.contains("NativeScriptComponent")) entity.add<NativeScriptComponent>().get<NativeScriptComponent>().deserialize(e["NativeScriptComponent"]);
             if (e.contains("PhysicsComponent")) {
+                BB_CORE_TRACE("SceneSerializer: Restoring PhysicsComponent for entity '{}'", name);
                 entity.add<PhysicsComponent>().get<PhysicsComponent>().deserialize(e["PhysicsComponent"]);
                 // Note: The physical body in Jolt must be recreated after loading all components
             }
 
             if (e.contains("LightComponent")) {
+                BB_CORE_TRACE("SceneSerializer: Restoring LightComponent for entity '{}'", name);
                 entity.add<LightComponent>().get<LightComponent>().deserialize(e["LightComponent"]);
             }
 
@@ -172,6 +181,7 @@ namespace bb3d {
             if (e.contains("OrbitControllerComponent")) entity.add<OrbitControllerComponent>().get<OrbitControllerComponent>().deserialize(e["OrbitControllerComponent"]);
             
             if (e.contains("CameraComponent")) {
+                BB_CORE_TRACE("SceneSerializer: Restoring CameraComponent for entity '{}'", name);
                 auto& cc = entity.add<CameraComponent>().get<CameraComponent>();
                 cc.deserialize(e["CameraComponent"]);
                 cc.camera = CreateRef<Camera>(cc.fov, cc.aspect, cc.nearPlane, cc.farPlane);
@@ -198,10 +208,25 @@ namespace bb3d {
             if (e.contains("ParticleSystemComponent")) entity.add<ParticleSystemComponent>().get<ParticleSystemComponent>().deserialize(e["ParticleSystemComponent"]);
             
             if (e.contains("ProceduralPlanetComponent")) {
+                BB_CORE_TRACE("SceneSerializer: Restoring ProceduralPlanetComponent for entity '{}'", name);
                 entity.add<ProceduralPlanetComponent>().get<ProceduralPlanetComponent>().deserialize(e["ProceduralPlanetComponent"]);
             }
             if (e.contains("PointGravitySourceComponent")) {
+                BB_CORE_TRACE("SceneSerializer: Restoring PointGravitySourceComponent for entity '{}'", name);
                 entity.add<PointGravitySourceComponent>().get<PointGravitySourceComponent>().deserialize(e["PointGravitySourceComponent"]);
+            }
+
+            if (e.contains("NativeScriptComponent")) {
+                auto& ns = entity.add<NativeScriptComponent>().get<NativeScriptComponent>();
+                ns.deserialize(e["NativeScriptComponent"]);
+                if (!ns.name.empty()) {
+                    ns.onUpdate = ComponentRegistry::GetScript(ns.name);
+                    if (ns.onUpdate) {
+                        BB_CORE_INFO("SceneSerializer: Bound script '{}' to entity '{}'", ns.name, entity.getName());
+                    } else {
+                        BB_CORE_ERROR("SceneSerializer: Failed to bind script '{}' to entity '{}' (not in registry)", ns.name, entity.getName());
+                    }
+                }
             }
 
             auto& customHandlers = ComponentRegistry::GetHandlers();

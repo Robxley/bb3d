@@ -31,11 +31,11 @@ public:
 
     /** @brief Récupère un composant de l'entité. */
     template<typename T>
-    T& get();
+    T& get() const;
 
     /** @brief Vérifie si l'entité possède un composant. */
     template<typename T>
-    bool has();
+    bool has() const;
 
     /** @brief Récupère le handle interne EnTT. */
     entt::entity getHandle() const { return m_entityHandle; }
@@ -54,11 +54,17 @@ public:
     /** @brief Vérifie si deux entités sont différentes. */
     bool operator!=(const Entity& other) const { return !(*this == other); }
 
-    /** @brief Vérifie si l'entité est valide. */
+    /** @brief Vérifie si l'entité est valide (n'est pas nulle et existe encore dans sa scène). */
+    bool isValid() const;
+
+    /** @brief Vérifie si l'entité n'est pas nulle (syntaxe concise). */
     operator bool() const { return m_entityHandle != entt::null && m_scene != nullptr; }
     
     /** @brief Conversion implicite vers l'identifiant EnTT. */
     operator entt::entity() const { return m_entityHandle; }
+
+    /** @brief Récupère le nom de l'entité (depuis TagComponent). */
+    std::string getName() const;
 
 private:
     entt::entity m_entityHandle{ entt::null };

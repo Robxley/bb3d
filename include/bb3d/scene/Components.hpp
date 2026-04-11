@@ -1,6 +1,7 @@
 #pragma once
 
 #include "bb3d/core/Base.hpp"
+#include "bb3d/render/Mesh.hpp"
 #include "bb3d/render/Model.hpp"
 #include "bb3d/render/Texture.hpp"
 #include "bb3d/core/JsonSerializers.hpp" // GLM JSON serialization
@@ -15,6 +16,7 @@
 #include <functional>
 #include <nlohmann/json.hpp>
 #include <atomic>
+#include <type_traits>
 
 namespace JPH { class BodyID; }
 
@@ -153,6 +155,8 @@ struct MeshComponent {
     MeshComponent(Ref<Mesh> m, const std::string& path = "", PrimitiveType type = PrimitiveType::None) : mesh(m), assetPath(path), primitiveType(type) {}
 
     void serialize(json& j) const {
+        // Individual meshes are often procedural in Astro Bazard, 
+        // they don't have a source path for reload (unless they are part of a Model).
         j["assetPath"] = assetPath;
         j["primitiveType"] = static_cast<int>(primitiveType);
         j["color"] = color;
@@ -520,16 +524,23 @@ struct SimpleAnimationComponent {
 
 /** @brief Component to attach a behavior (C++ script) to an entity. */
 struct NativeScriptComponent {
+    std::string name; ///< Unique identifier for the script in the ScriptRegistry.
     std::function<void(Entity, float)> onUpdate;
 
     NativeScriptComponent() = default;
+    NativeScriptComponent(const std::string& scriptName) : name(scriptName) {}
     
     template<typename Func>
+    requires std::is_invocable_v<Func, Entity, float>
     NativeScriptComponent(Func&& func) : onUpdate(std::forward<Func>(func)) {}
 
-    // Native scripts (function pointers) are not serializable by default
-    void serialize(json&) const {} 
-    void deserialize(const json&) {}
+    void serialize(json& j) const {
+        j["name"] = name;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("name")) j.at("name").get_to(name);
+    }
 };
 
 } // namespace bb3d

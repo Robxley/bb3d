@@ -90,7 +90,11 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
 
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly({}, topology, VK_FALSE);
     vk::PipelineViewportStateCreateInfo viewportState({}, 1, nullptr, 1, nullptr);
-    std::array<vk::DynamicState, 2> dynamicStates = { vk::DynamicState::eViewport, vk::DynamicState::eScissor };
+    std::array<vk::DynamicState, 3> dynamicStates = { 
+        vk::DynamicState::eViewport, 
+        vk::DynamicState::eScissor,
+        vk::DynamicState::eDepthBias 
+    };
     vk::PipelineDynamicStateCreateInfo dynamicState({}, static_cast<uint32_t>(dynamicStates.size()), dynamicStates.data());
 
     vk::PolygonMode polyMode = vk::PolygonMode::eFill;
@@ -111,6 +115,9 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
         depthWrite ? VK_TRUE : VK_FALSE,
         depthCompareOp, VK_FALSE, config.depthStencil.stencilTest ? VK_TRUE : VK_FALSE);
 
+    bool hasColor = (m_colorFormat != vk::Format::eUndefined);
+    uint32_t colorAttachmentCount = hasColor ? 1 : 0;
+
     vk::PipelineColorBlendAttachmentState colorBlendAttachment(blendMode != BlendMode::Opaque);
     colorBlendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
     if (blendMode == BlendMode::Alpha) {
@@ -122,16 +129,16 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
         colorBlendAttachment.alphaBlendOp = vk::BlendOp::eAdd;
     } else if (blendMode == BlendMode::Additive) {
         colorBlendAttachment.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
-        colorBlendAttachment.dstColorBlendFactor = vk::BlendFactor::eOne; // Additive
+        colorBlendAttachment.dstColorBlendFactor = vk::BlendFactor::eOne; 
         colorBlendAttachment.colorBlendOp = vk::BlendOp::eAdd;
         colorBlendAttachment.srcAlphaBlendFactor = vk::BlendFactor::eOne;
         colorBlendAttachment.dstAlphaBlendFactor = vk::BlendFactor::eOne;
         colorBlendAttachment.alphaBlendOp = vk::BlendOp::eAdd;
     }
-    vk::PipelineColorBlendStateCreateInfo colorBlending({}, VK_FALSE, vk::LogicOp::eCopy, 1, &colorBlendAttachment);
+    vk::PipelineColorBlendStateCreateInfo colorBlending({}, VK_FALSE, vk::LogicOp::eCopy, colorAttachmentCount, hasColor ? &colorBlendAttachment : nullptr);
 
-    // Utilisation des formats stockés
-    vk::PipelineRenderingCreateInfo renderingInfo(0, 1, &m_colorFormat, m_depthFormat);
+    // Dynamic Rendering info
+    vk::PipelineRenderingCreateInfo renderingInfo(0, colorAttachmentCount, hasColor ? &m_colorFormat : nullptr, m_depthFormat);
 
     vk::GraphicsPipelineCreateInfo pipelineInfo({}, static_cast<uint32_t>(shaderStages.size()), shaderStages.data(), &vertexInputInfo, &inputAssembly, nullptr, &viewportState, &rasterizer, &multisampling, &depthStencil, &colorBlending, &dynamicState, m_pipelineLayout);
     pipelineInfo.pNext = &renderingInfo;

@@ -63,7 +63,7 @@ float ShadowCalculation(vec3 fragPosWorldSpace, vec3 N, vec3 lightDir) {
     if(projCoords.z > 1.0 || projCoords.z < 0.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0)
         return 1.0; 
 
-    float bias = max(0.015 * (1.0 - dot(N, lightDir)), 0.002);
+    float bias = max(0.0005 * (1.0 - dot(N, lightDir)), 0.0001);
     
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0).xy;
@@ -157,7 +157,9 @@ void main() {
             
             // Appliquer l'ombre uniquement sur la lumiere principale directionnelle
             if (i == 0) {
-                float shadow = ShadowCalculation(fragPos, N, L);
+                // Normal Offset Bias for smoother shadows & reduced Peter Panning
+                vec3 offsetPos = fragPos + N * 0.05; 
+                float shadow = ShadowCalculation(offsetPos, N, L);
                 radiance *= shadow;
             }
         } else { // Point
