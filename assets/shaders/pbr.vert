@@ -20,6 +20,10 @@ layout(set = 0, binding = 0) uniform GlobalUBO {
     vec4 camPos;
     vec4 globalParams;
     vec4 ambientColor;
+    vec4 shadowBiases;
+    vec4 fogColor;
+    vec4 fogParams;
+    mat4 skyProj;
 } ubo;
 
 // Nouveau : Buffer de stockage pour l'instancing

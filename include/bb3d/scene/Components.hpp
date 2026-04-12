@@ -201,8 +201,8 @@ struct CameraComponent {
     bool active = true;
     float fov = 45.0f;
     float aspect = 1.77f;
-    float nearPlane = 0.1f;
-    float farPlane = 1000.0f;
+    float nearPlane = 0.2f;
+    float farPlane = 400.0f;
 
     CameraComponent() = default;
     CameraComponent(Ref<Camera> c) : camera(c) {
@@ -327,6 +327,7 @@ struct PhysicsComponent {
     glm::vec3 boxHalfExtents = { 0.5f, 0.5f, 0.5f }; // Box
     float radius = 0.5f;                             // Sphere & Capsule
     float height = 1.0f;                             // Capsule
+    float collisionMargin = 0.01f;                   // Convex Hull Margin (1cm instead of Jolt's 5cm)
     
     Ref<Mesh> mesh;                                  // MeshCollider (Custom proxy)
     bool isConvex = false;                           // MeshCollider
@@ -353,6 +354,7 @@ struct PhysicsComponent {
         j["boxHalfExtents"] = boxHalfExtents;
         j["radius"] = radius;
         j["height"] = height;
+        j["collisionMargin"] = collisionMargin;
         j["isConvex"] = isConvex;
         j["useModelMesh"] = useModelMesh;
         j["meshAssetPath"] = meshAssetPath;
@@ -372,6 +374,7 @@ struct PhysicsComponent {
         if (j.contains("boxHalfExtents")) j.at("boxHalfExtents").get_to(boxHalfExtents);
         if (j.contains("radius")) j.at("radius").get_to(radius);
         if (j.contains("height")) j.at("height").get_to(height);
+        if (j.contains("collisionMargin")) j.at("collisionMargin").get_to(collisionMargin);
         if (j.contains("isConvex")) j.at("isConvex").get_to(isConvex);
         if (j.contains("useModelMesh")) j.at("useModelMesh").get_to(useModelMesh);
         if (j.contains("meshAssetPath")) j.at("meshAssetPath").get_to(meshAssetPath);
@@ -773,4 +776,25 @@ struct SelectableComponent {
     }
 };
 
+struct SmartCameraComponent {
+    float minZoom = -15.0f;
+    float maxZoom = 200.0f;
+    int mode = 2; // 0 = Dolly Zoom, 1 = Realistic, 2 = Visual Scale
+
+    SmartCameraComponent() = default;
+
+    void serialize(json& j) const {
+        j["minZoom"] = minZoom;
+        j["maxZoom"] = maxZoom;
+        j["mode"] = mode;
+    }
+
+    void deserialize(const json& j) {
+        if (j.contains("minZoom")) j.at("minZoom").get_to(minZoom);
+        if (j.contains("maxZoom")) j.at("maxZoom").get_to(maxZoom);
+        if (j.contains("mode")) j.at("mode").get_to(mode);
+    }
+};
+
 } // namespace bb3d
+

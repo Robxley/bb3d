@@ -301,7 +301,7 @@ namespace bb3d {
         JPH::ShapeRefC shape;
         
         if (phys.colliderType == ColliderType::Box) {
-            shape = new JPH::BoxShape(toJPH(phys.boxHalfExtents * tf.scale));
+            shape = new JPH::BoxShape(toJPH(phys.boxHalfExtents * tf.scale), phys.collisionMargin);
         } else if (phys.colliderType == ColliderType::Sphere) {
             shape = new JPH::SphereShape(phys.radius * glm::max(tf.scale.x, glm::max(tf.scale.y, tf.scale.z)));
         } else if (phys.colliderType == ColliderType::Capsule) {
@@ -324,6 +324,7 @@ namespace bb3d {
             if (!targetMeshes.empty()) {
                 if (phys.isConvex) {
                     JPH::ConvexHullShapeSettings settings;
+                    settings.mMaxConvexRadius = phys.collisionMargin;
                     for (const auto& mesh : targetMeshes) {
                         for (const auto& v : mesh->getVertices()) settings.mPoints.push_back(toJPH(v.position * tf.scale));
                     }

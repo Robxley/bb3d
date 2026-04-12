@@ -98,10 +98,4 @@ void SpaceshipController::update(bb3d::Entity ship, float deltaTime, bb3d::Engin
     }
 }
 
-void SpaceshipController::applyVisualScale(bb3d::Entity ship, float scaleFactor) {
-    if (ship.has<bb3d::TransformComponent>()) {
-        ship.get<bb3d::TransformComponent>().scale = { scaleFactor, scaleFactor, scaleFactor };
-    }
-}
-
 } // namespace astrobazard

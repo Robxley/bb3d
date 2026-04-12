@@ -61,6 +61,9 @@ public:
     /** @brief Retourne la hauteur actuelle de la fenêtre en pixels. */
     int GetHeight() const;
 
+    /** @brief Retourne le temps en secondes depuis l'initialisation de SDL. */
+    float GetTime() const;
+
 private:
     /** @brief Gestion interne des événements SDL. */
     void HandleEvent(SDL_Event& event);

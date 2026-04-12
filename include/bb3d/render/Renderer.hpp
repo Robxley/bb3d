@@ -74,6 +74,10 @@ public:
     void setDebugPhysicsColliders(bool enabled) { m_debugPhysicsEnabled = enabled; }
     bool isDebugPhysicsEnabled() const { return m_debugPhysicsEnabled; }
 
+    /** @brief Enable/disable cascade shadow mapping at runtime. */
+    void setShadowsEnabled(bool enabled) { m_shadowsEnabledRuntime = enabled; }
+    bool isShadowsEnabled() const { return m_shadowsEnabledRuntime; }
+
     /** @brief Récupère la SwapChain actuelle. */
     SwapChain& getSwapChain() { return *m_swapChain; }
 
@@ -139,6 +143,7 @@ private:
     EngineConfig m_config;
     Scope<SwapChain> m_swapChain;
     Scope<RenderTarget> m_renderTarget;
+    bool m_shadowsEnabledRuntime = false;
     
     // Shadow System
     vk::Image m_shadowDepthImage;
@@ -198,6 +203,10 @@ private:
         glm::vec4 camPos;      // .xyz = pos, .w = padding
         glm::vec4 globalParams; // .x = numLights (cast to int), .yzw = padding
         glm::vec4 ambientColor; // .xyz = color, .w = intensity
+        glm::vec4 shadowBiases; // .x = normalBias, .y = shaderDepthBias, .zw = padding
+        glm::vec4 fogColor;     // .xyz = color, .w = type (0=None, 1=Linear, 2=Exponential)
+        glm::vec4 fogParams;    // .x = density, .y = start, .z = end, .w = padding
+        glm::mat4 skyProj;      // Used EXCLUSIVELY for rendering skybox/skysphere without FOV distortion
         ShaderLight lights[10];
     };
 #pragma warning(pop)

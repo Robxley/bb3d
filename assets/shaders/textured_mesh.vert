@@ -24,3 +24,4 @@ void main() {
     fragColor = inColor;
     fragUV = inUV;
 }
+

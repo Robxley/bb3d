@@ -11,3 +11,4 @@ void main() {
     gl_Position = vec4(inPosition, 1.0);
     fragColor = inColor;
 }
+

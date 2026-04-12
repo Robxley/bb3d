@@ -19,3 +19,4 @@ void main() {
 
     outColor = vec4(fragColor * texColor.rgb * diff, 1.0);
 }
+

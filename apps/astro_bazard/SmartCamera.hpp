@@ -26,23 +26,36 @@ public:
     bb3d::Entity getCamera() const { return m_camera; }
 
     /**
-     * @brief Updates the camera position, view matrix, and returns the computed scale factor for visually scaling objects.
+     * @brief Updates the camera position, view matrix algorithmically with smoothing.
+     * @param dt Delta time for smooth interpolation.
+     * @param manualZoomDelta Any scroll input from user to zoom in/out.
+     * @param manualPitchDelta Mouse Y movement for pitch rotation.
+     * @param manualYawDelta Mouse X movement for yaw rotation.
      * @param altitude The current calculated altitude above the surface base (can be 0 if target is planet).
-     * @param gravityDir The current normalized direction of gravity (from target to planet center). Use [0,-1,0] if target is the planet itself.
-     * @param localOffset Local offset relative to the target's transform (e.g. to aim at the nose).
-     * @return The scale factor to apply to the target for the Kerbal visual illusion.
+     * @param gravityDir The current normalized direction of gravity (from target to planet center). 
+     * @param localOffset Local offset relative to the target's transform.
      */
-    float update(float altitude, const glm::vec3& gravityDir, const glm::vec3& localOffset = {0.0f, 0.0f, 0.0f});
+    void update(float dt, float manualZoomDelta, float manualPitchDelta, float manualYawDelta, float altitude, const glm::vec3& gravityDir, const glm::vec3& localOffset = {0.0f, 0.0f, 0.0f});
 
     /**
-     * @brief Adds a zoom offset (multiplier).
+     * @brief Resets the smoothing flags so the camera snaps to the target on the next frame.
      */
-    // void zoom(float delta) { m_zoomFactor = std::clamp(m_zoomFactor - delta * 0.1f, 0.1f, 10.0f); }
+    void resetSmoothing() { m_firstFrame = true; }
 
 private:
     bb3d::Entity m_camera;
     bb3d::Entity m_currentTarget;
+    
+    // Zoom & Orbit control
     float m_baseZoom;
+    float m_userZoomOffset = 0.0f;
+    float m_pitch = 0.0f;
+    float m_yaw = 0.0f;
+    
+    // Smoothing states
+    bool m_firstFrame = true;
+    glm::vec3 m_currentPosition{0.0f};
+    glm::quat m_currentRotation{1.0f, 0.0f, 0.0f, 0.0f};
 };
 
 } // namespace astrobazard

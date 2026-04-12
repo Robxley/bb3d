@@ -17,7 +17,7 @@
 namespace bb3d {
 
 Renderer::Renderer(VulkanContext& context, Window& window, JobSystem& jobSystem, const EngineConfig& config)
-    : m_context(context), m_window(window), m_jobSystem(jobSystem), m_config(config) {
+    : m_context(context), m_window(window), m_jobSystem(jobSystem), m_config(config), m_shadowsEnabledRuntime(config.graphics.shadowsEnabled) {
     m_swapChain = CreateScope<SwapChain>(context, config.window.width, config.window.height);
     
     m_renderCommands.reserve(1000);
@@ -172,16 +172,7 @@ void Renderer::createShadowObjects() {
     m_shadowDepthView = dev.createImageView(viewInfo);
 
     m_shadowCascadeViews.resize(cascades);
-    m_shadowCascades.resize(cascades);
-    float splitLambda = 0.95f; // Practical split lambda
-    float nearPlane = 0.1f; // Assuming a default near plane, adjust as needed
-    float farPlane = 100.0f; // Assuming a default far plane, adjust as needed
     for (uint32_t i = 0; i < cascades; ++i) {
-        float p = (float)(i + 1) / (float)cascades;
-        float log = nearPlane * std::pow(farPlane / nearPlane, p);
-        float lin = nearPlane + (farPlane - nearPlane) * p;
-        m_shadowCascades[i].splitDepth = splitLambda * log + (1.0f - splitLambda) * lin;
-
         vk::ImageViewCreateInfo cascadeViewInfo = viewInfo;
         cascadeViewInfo.viewType = vk::ImageViewType::e2D;
         cascadeViewInfo.subresourceRange.baseArrayLayer = i;
@@ -263,13 +254,17 @@ void Renderer::createPipelines(const EngineConfig& config) {
     pushConstant.offset = 0;
     pushConstant.size = sizeof(glm::mat4); // lightVP
 
-    // Shadow pipeline: depth-only, front-culling for Peter Panning fix
+    // Shadow pipeline: depth-only, no culling for Peter Panning fix (SOTA optimization)
+    EngineConfig shadowConfig = config;
+    shadowConfig.rasterizer.setCullMode("None");
+    shadowConfig.rasterizer.depthBiasEnable = true;
+
     m_pipelines[static_cast<MaterialType>(99)] = CreateScope<GraphicsPipeline>(
         m_context,
         vk::Format::eUndefined,  // no color attachment
         m_swapChain->getDepthFormat(),
         *m_shaders["shadow.vert"], *m_shaders["shadow.frag"],
-        config,
+        shadowConfig,
         std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout},
         std::vector<vk::PushConstantRange>{pushConstant},
         true, // useVertexInput
@@ -438,7 +433,7 @@ bool Renderer::render(Scene& scene) {
     m_frameStarted = true;
 
     // 4. Shadow Pass
-    if (uboData.globalParams.y > 0.0f && m_config.graphics.shadowsEnabled) {
+    if (uboData.globalParams.y > 0.0f && m_shadowsEnabledRuntime) {
         renderShadows(cb, scene, uboData);
         BB_CORE_TRACE("Renderer: Shadows rendered");
     }
@@ -653,6 +648,7 @@ void Renderer::updateGlobalUBO(uint32_t currentFrame, Scene& scene, GlobalUBO& u
             activeCamera = camView.get<CameraComponent>(entity).camera.get();
             break;
         }
+    }
     if (!activeCamera) {
         BB_CORE_WARN("Renderer: No active camera found in scene!");
         return;
@@ -666,7 +662,15 @@ void Renderer::updateGlobalUBO(uint32_t currentFrame, Scene& scene, GlobalUBO& u
     uboData.proj = activeCamera->getProjectionMatrix();
     uboData.camPos = glm::vec4(activeCamera->getPosition(), 1.0f);
     uboData.ambientColor = glm::vec4(0.15f, 0.15f, 0.2f, 1.0f);
-
+    
+    // Extract aspect ratio from the active camera projection and calculate a fixed FOV for skyboxes
+    float aspect = 1.77f;
+    if (std::abs(uboData.proj[0][0]) > 0.001f) {
+        aspect = uboData.proj[1][1] / uboData.proj[0][0];
+    }
+    uboData.skyProj = glm::perspective(glm::radians(75.0f), aspect, 0.1f, 1000.0f);
+    uboData.skyProj[1][1] *= -1; // Vulkan Y-flip
+    
     int numLights = 0;
     bool directionalShadows = false;
     auto lightView = scene.getRegistry().view<LightComponent>();
@@ -694,6 +698,12 @@ void Renderer::updateGlobalUBO(uint32_t currentFrame, Scene& scene, GlobalUBO& u
         numLights++;
     }
     uboData.globalParams = glm::vec4((float)numLights, directionalShadows ? 1.0f : 0.0f, 0.0f, 0.0f);
+    uboData.shadowBiases = glm::vec4(m_config.graphics.shadowNormalBias, m_config.graphics.shadowShaderDepthBias, 0.0f, 0.0f);
+    
+    // Fog properties mapping
+    const auto& fog = scene.getFog();
+    uboData.fogColor = glm::vec4(fog.color, static_cast<float>(fog.type));
+    uboData.fogParams = glm::vec4(fog.density, fog.start, fog.end, 0.0f);
 }
 
 void Renderer::prepareRenderData(Scene& scene) {
@@ -810,7 +820,7 @@ void Renderer::prepareRenderData(Scene& scene) {
 }
 
 void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboData) {
-    if (!m_config.graphics.shadowsEnabled || uboData.globalParams.x == 0) return;
+    if (!m_shadowsEnabledRuntime || uboData.globalParams.x == 0) return;
 
     if (uboData.lights[0].position.w >= 0.5f) return; // Not directional
     glm::vec3 lightDir = glm::normalize(glm::vec3(uboData.lights[0].direction));
@@ -852,8 +862,8 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
     cb.bindPipeline(vk::PipelineBindPoint::eGraphics, shadowPipeline->getHandle());
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, shadowPipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
 
-    // Dynamic depth bias
-    cb.setDepthBias(1.25f, 0.0f, 1.75f);
+    // Dynamic depth bias (increased for 32-bit float depth stability)
+    cb.setDepthBias(m_config.graphics.shadowDepthBiasConstant, 0.0f, m_config.graphics.shadowDepthBiasSlope);
 
     for (uint32_t i = 0; i < m_config.graphics.shadowCascades; ++i) {
         float minZ = (i == 0) ? nearZ : splits[i-1];
@@ -1082,7 +1092,7 @@ void Renderer::renderEntityIds(Scene& scene) {
         {vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1});
     cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests,
         {}, nullptr, nullptr, pickDepthBarrier);
-    BB_CORE_INFO("Renderer: Picking barriers done");
+    // BB_CORE_INFO("Renderer: Picking barriers done");
 
     // Begin entity ID rendering pass
     std::array<uint32_t, 4> clearIdValues = {0xFFFFFFFF, 0, 0, 0};
@@ -1100,12 +1110,12 @@ void Renderer::renderEntityIds(Scene& scene) {
     cb.beginRendering({{}, {{0,0}, extent}, 1, 0, 1, &colorAttr, &depthAttr});
     cb.setViewport(0, vk::Viewport(0, 0, (float)extent.width, (float)extent.height, 0, 1));
     cb.setScissor(0, vk::Rect2D({0,0}, extent));
-    BB_CORE_INFO("Renderer: Picking rendering begun");
+    // BB_CORE_INFO("Renderer: Picking rendering begun");
 
     m_pickingPipeline->bind(cb);
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pickingPipeline->getLayout(), 0, 1,
         &m_pickingDescriptorSets[m_currentFrame], 0, nullptr);
-    BB_CORE_INFO("Renderer: Picking pipeline bound");
+    // BB_CORE_INFO("Renderer: Picking pipeline bound");
 
     // Draw all mesh entities with their entityID as push constant
     uint32_t instanceOffset = 0;
@@ -1127,7 +1137,7 @@ void Renderer::renderEntityIds(Scene& scene) {
         meshComp.mesh->draw(cb, 1, instanceOffset);
         instanceOffset++;
     }
-    BB_CORE_INFO("Renderer: Picking Mesh drawing done");
+    // BB_CORE_INFO("Renderer: Picking Mesh drawing done");
 
     // Draw all model entities
     auto modelView = scene.getRegistry().view<ModelComponent, TransformComponent>();
@@ -1150,7 +1160,7 @@ void Renderer::renderEntityIds(Scene& scene) {
             instanceOffset++;
         }
     }
-    BB_CORE_INFO("Renderer: Picking Model drawing done");
+    // BB_CORE_INFO("Renderer: Picking Model drawing done");
 
     cb.endRendering();
 

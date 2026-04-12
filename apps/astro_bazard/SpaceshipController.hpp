@@ -15,9 +15,6 @@ public:
 
     void update(bb3d::Entity ship, float deltaTime, bb3d::Engine* engine);
 
-    // Dynamic visual scaling logic based on altitude zoom
-    void applyVisualScale(bb3d::Entity ship, float scaleFactor);
-
 private:
     float m_thrustPower;
     float m_retroThrustPower;

@@ -61,7 +61,7 @@ Model::Model(VulkanContext& context, ResourceManager& resourceManager, std::stri
     
     std::filesystem::path p(path);
     if (p.extension() == ".obj") {
-        loadOBJ(path);
+        loadOBJ(path, config);
     } else {
         loadGLTF(path, config);
     }
@@ -105,7 +105,7 @@ glm::vec3 Model::normalize(const glm::vec3& targetSize) {
     return center;
 }
 
-void Model::loadOBJ(std::string_view path) {
+void Model::loadOBJ(std::string_view path, const ModelLoadConfig& config) {
     BB_CORE_INFO("Model: Loading OBJ {}", path);
 
     tinyobj::attrib_t attrib;
@@ -147,22 +147,57 @@ void Model::loadOBJ(std::string_view path) {
         std::vector<uint32_t> indices;
         std::unordered_map<Vertex, uint32_t> uniqueVertices{};
 
-        for (const auto& index : shape.mesh.indices) {
-            Vertex vertex{};
-            vertex.position = { attrib.vertices[3 * index.vertex_index + 0], attrib.vertices[3 * index.vertex_index + 1], attrib.vertices[3 * index.vertex_index + 2] };
-            if (index.texcoord_index >= 0) vertex.uv = { attrib.texcoords[2 * index.texcoord_index + 0], attrib.texcoords[2 * index.texcoord_index + 1] };
-            if (index.normal_index >= 0) vertex.normal = { attrib.normals[3 * index.normal_index + 0], attrib.normals[3 * index.normal_index + 1], attrib.normals[3 * index.normal_index + 2] };
-            else vertex.normal = {0.0f, 1.0f, 0.0f};
-            vertex.tangent = {1.0f, 0.0f, 0.0f, 1.0f};
-            
-            // Force vertex color to white for OBJ to avoid multiplication by black if colors are missing/zero
-            vertex.color = {1.0f, 1.0f, 1.0f}; 
-
-            if (uniqueVertices.count(vertex) == 0) {
-                uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
-                vertices.push_back(vertex);
+        // If recalculating normals, we do it per triangle
+        size_t indexOffset = 0;
+        for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
+            size_t fv = size_t(shape.mesh.num_face_vertices[f]);
+            if (fv != 3) {
+                indexOffset += fv;
+                continue; // Only support triangles
             }
-            indices.push_back(uniqueVertices[vertex]);
+
+            // Get vertices for this triangle
+            glm::vec3 v[3];
+            tinyobj::index_t idx[3];
+            for (size_t v_i = 0; v_i < 3; v_i++) {
+                idx[v_i] = shape.mesh.indices[indexOffset + v_i];
+                v[v_i] = { attrib.vertices[3 * idx[v_i].vertex_index + 0], 
+                           attrib.vertices[3 * idx[v_i].vertex_index + 1], 
+                           attrib.vertices[3 * idx[v_i].vertex_index + 2] };
+            }
+
+            // Calculate flat normal for the triangle
+            glm::vec3 flatNormal = glm::normalize(glm::cross(v[1] - v[0], v[2] - v[0]));
+
+            for (size_t v_i = 0; v_i < 3; v_i++) {
+                Vertex vertex{};
+                const auto& index = idx[v_i];
+                vertex.position = v[v_i];
+                
+                if (index.texcoord_index >= 0) {
+                    vertex.uv = { attrib.texcoords[2 * index.texcoord_index + 0], attrib.texcoords[2 * index.texcoord_index + 1] };
+                }
+                
+                if (config.recalculateNormals) {
+                    vertex.normal = flatNormal;
+                } else if (index.normal_index >= 0) {
+                    vertex.normal = { attrib.normals[3 * index.normal_index + 0], attrib.normals[3 * index.normal_index + 1], attrib.normals[3 * index.normal_index + 2] };
+                } else {
+                    vertex.normal = flatNormal;
+                }
+                
+                vertex.tangent = {1.0f, 0.0f, 0.0f, 1.0f};
+                vertex.color = {1.0f, 1.0f, 1.0f}; 
+
+                // Don't merge vertices if we need unique flat shading per face, otherwise it might average normals wrong or share vertices improperly across sharp edges
+                // Actually, unordered_map relies on the normal to be part of the hash, so it naturally splits sharp edges!
+                if (uniqueVertices.count(vertex) == 0) {
+                    uniqueVertices[vertex] = static_cast<uint32_t>(vertices.size());
+                    vertices.push_back(vertex);
+                }
+                indices.push_back(uniqueVertices[vertex]);
+            }
+            indexOffset += fv;
         }
 
         auto mesh = CreateRef<Mesh>(m_context, vertices, indices);

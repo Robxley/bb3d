@@ -76,6 +76,10 @@ int Window::GetHeight() const {
     return h;
 }
 
+float Window::GetTime() const {
+    return (float)SDL_GetTicks() / 1000.0f;
+}
+
 void Window::HandleEvent(SDL_Event& event)
 {
     if (event.type == SDL_EVENT_QUIT) {

@@ -21,14 +21,18 @@ using namespace bb3d;
  * - Switch de caméras fonctionnel (Orbit/FPS)
  */
 int main() {
-    auto engine = Engine::Create(Config::Load("config/engine_config.json")
+    auto config = Config::Load("config/engine_config.json")
         .title("biobazard3d - Feature Showcase")
         .resolution(1280, 720)
         .vsync(true)
         .enableOffscreenRendering(false)
         .enablePhysics(PhysicsBackend::Jolt)
-        .enableEditor(false) // Showcase app: Always without editor for maximum performance and clean UI
-    );
+        .enableEditor(false); // Showcase app: Always without editor for maximum performance and clean UI
+    
+    // Augmente la résolution des ombres pour réduire le crépitement
+    config.graphics.setShadows(true, 4096, 4, true);
+
+    auto engine = Engine::Create(config);
 
     { // Scope to ensure all Refs are destroyed before engine goes out of scope
         auto scene = engine->CreateScene();
@@ -49,7 +53,11 @@ int main() {
 
     // --- 3. Sol Physique (Static) ---
     auto groundMesh = Ref<Mesh>(MeshGenerator::createCheckerboardPlane(engine->graphics(), 200.0f, 40).release());
-    auto groundMat = CreateRef<UnlitMaterial>(engine->graphics());
+    auto groundMat = CreateRef<PBRMaterial>(engine->graphics());
+    PBRParameters pbrParams;
+    pbrParams.roughnessFactor = 0.8f;
+    pbrParams.metallicFactor = 0.1f;
+    groundMat->setParameters(pbrParams);
     groundMesh->setMaterial(groundMat);
     
     auto ground = scene->createEntity("Ground");
@@ -69,9 +77,12 @@ int main() {
         "assets/models/planes/Plane06/Plane06.obj"
     };
 
+    ModelLoadConfig planeConfig;
+    planeConfig.recalculateNormals = true;
+    
     std::vector<Ref<Model>> planeModels;
     for (const auto& path : planePaths) {
-        auto model = engine->assets().load<Model>(path);
+        auto model = engine->assets().load<Model>(path, planeConfig);
         if (model) {
             model->normalize({6.0f, 6.0f, 6.0f});
             planeModels.push_back(model);

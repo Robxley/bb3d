@@ -8,6 +8,7 @@
 #include "bb3d/render/Material.hpp"
 #include "bb3d/core/PickingSystem.hpp"
 #include <algorithm>
+#include <glm/gtc/constants.hpp>
 
 namespace bb3d {
 
@@ -42,10 +43,10 @@ View<OrbitControllerComponent> Scene::createOrbitCamera(const std::string& name,
     auto entity = createEntity(name);
     
     // 1. Camera (Optique)
-    auto camera = CreateRef<Camera>(fov, aspect, 0.1f, 1000.0f);
+    auto camera = CreateRef<Camera>(fov, aspect, 0.2f, 400.0f);
     entity.add<CameraComponent>(camera);
     auto& cc = entity.get<CameraComponent>();
-    cc.fov = fov; cc.aspect = aspect; cc.nearPlane = 0.1f; cc.farPlane = 1000.0f;
+    cc.fov = fov; cc.aspect = aspect; cc.nearPlane = 0.2f; cc.farPlane = 400.0f;
 
     // 2. Controller (Logique)
     entity.add<OrbitControllerComponent>();
@@ -61,10 +62,10 @@ View<FPSControllerComponent> Scene::createFPSCamera(const std::string& name, flo
     entity.at(position);
 
     // 1. Camera (Optique)
-    auto camera = CreateRef<Camera>(fov, aspect, 0.1f, 1000.0f);
+    auto camera = CreateRef<Camera>(fov, aspect, 0.2f, 400.0f);
     entity.add<CameraComponent>(camera);
     auto& cc = entity.get<CameraComponent>();
-    cc.fov = fov; cc.aspect = aspect; cc.nearPlane = 0.1f; cc.farPlane = 1000.0f;
+    cc.fov = fov; cc.aspect = aspect; cc.nearPlane = 0.2f; cc.farPlane = 400.0f;
 
     // 2. Controller (Logique)
     entity.add<FPSControllerComponent>();
@@ -264,8 +265,12 @@ void Scene::onUpdate(float deltaTime) {
         bool transformChanged = false;
 
         if (anim.type == SimpleAnimationType::Rotation) {
-            // Local Space: Relative to initial rotation
-            trans.rotation = trans.initialRotation + (anim.rotationAxis * anim.speed * anim.timeAccumulator);
+            // Local Space: Stable continuous rotation
+            float dAngle = anim.speed * deltaTime;
+            trans.rotation += anim.rotationAxis * dAngle;
+            trans.rotation.x = glm::mod(trans.rotation.x, glm::two_pi<float>());
+            trans.rotation.y = glm::mod(trans.rotation.y, glm::two_pi<float>());
+            trans.rotation.z = glm::mod(trans.rotation.z, glm::two_pi<float>());
             transformChanged = true;
         }
         else if (anim.type == SimpleAnimationType::Translation) {

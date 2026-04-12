@@ -23,6 +23,8 @@ int main() {
           .renderScale(1.0f)
           .enablePhysics(PhysicsBackend::Jolt)
           .enableEditor(true); // Editor app: Must have editor enabled
+          
+    config.graphics.setShadows(true, 4096, 4, true);
 
     auto engine = Engine::Create(config);
 
@@ -48,7 +50,8 @@ int main() {
 
     // --- 3. Sol & Physique Statique ---
     auto groundMesh = Ref<Mesh>(MeshGenerator::createCheckerboardPlane(engine->graphics(), 200.0f, 40).release());
-    auto groundMat = CreateRef<UnlitMaterial>(engine->graphics());
+    auto groundMat = CreateRef<PBRMaterial>(engine->graphics());
+    groundMat->setColor({0.5f, 0.5f, 0.5f});
     groundMesh->setMaterial(groundMat);
     
     auto ground = scene->createEntity("Ground Plane");
@@ -66,8 +69,10 @@ int main() {
     };
 
     // SimpleAnimationComponent will be used instead of rotation scripts for the demo
+    ModelLoadConfig planeConfig;
+    planeConfig.recalculateNormals = true;
 
-    auto firstModel = engine->assets().load<Model>(planePaths[0]);
+    auto firstModel = engine->assets().load<Model>(planePaths[0], planeConfig);
     if (firstModel) {
         firstModel->normalize({5.0f, 5.0f, 5.0f});
         for (int i = 0; i < 20; ++i) {

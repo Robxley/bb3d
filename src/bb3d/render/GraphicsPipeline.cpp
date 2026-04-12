@@ -107,7 +107,7 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
     else if (config.rasterizer.cullMode == "FrontAndBack") cullMode = vk::CullModeFlagBits::eFrontAndBack;
 
     vk::FrontFace frontFace = (config.rasterizer.frontFace == "CW") ? vk::FrontFace::eClockwise : vk::FrontFace::eCounterClockwise;
-    vk::PipelineRasterizationStateCreateInfo rasterizer({}, VK_FALSE, VK_FALSE, polyMode, cullMode, frontFace, VK_FALSE, 0.0f, 0.0f, 0.0f, 1.0f);
+    vk::PipelineRasterizationStateCreateInfo rasterizer({}, VK_FALSE, VK_FALSE, polyMode, cullMode, frontFace, config.rasterizer.depthBiasEnable ? VK_TRUE : VK_FALSE, 0.0f, 0.0f, 0.0f, 1.0f);
 
     vk::PipelineMultisampleStateCreateInfo multisampling({}, vk::SampleCountFlagBits::e1, VK_FALSE);
     vk::PipelineDepthStencilStateCreateInfo depthStencil({}, 

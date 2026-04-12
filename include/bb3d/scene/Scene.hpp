@@ -23,6 +23,8 @@ struct SkySphereComponent;
 struct FogSettings {
     glm::vec3 color = { 0.5f, 0.5f, 0.5f };
     float density = 0.01f;
+    float start = 10.0f;
+    float end = 100.0f;
     FogType type = FogType::None;
 };
 

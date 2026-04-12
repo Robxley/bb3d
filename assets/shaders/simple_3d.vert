@@ -20,3 +20,4 @@ void main() {
     gl_Position = global.proj * global.view * pc.model * vec4(inPosition, 1.0);
     fragColor = inColor;
 }
+

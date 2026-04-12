@@ -448,6 +448,7 @@ void ImGuiLayer::drawComponentList(Entity entity) {
     drawCompNode("NativeScript", ICON_FA_CODE, colLogic, entity.has<NativeScriptComponent>());
     drawCompNode("PointGravitySource", ICON_FA_MAGNET, colLogic, entity.has<PointGravitySourceComponent>());
     drawCompNode("SpaceshipController", ICON_FA_ROCKET, colLogic, entity.has<SpaceshipControllerComponent>());
+    drawCompNode("SmartCamera", ICON_FA_VIDEO, colLogic, entity.has<SmartCameraComponent>());
     drawCompNode("ParticleSystem", ICON_FA_FIRE, colRender, entity.has<bb3d::ParticleSystemComponent>());
     drawCompNode("Selectable", ICON_FA_ARROW_POINTER, colLogic, entity.has<SelectableComponent>());
 }
@@ -533,10 +534,19 @@ void ImGuiLayer::showSceneSettings(Scene& scene) {
         
         if (newFog.type != FogType::None) {
             ImGui::ColorEdit3("Fog Color", &newFog.color.x);
-            ImGui::DragFloat("Fog Density", &newFog.density, 0.001f, 0.0f, 1.0f);
+            if (newFog.type == FogType::Linear) {
+                ImGui::DragFloat("Fog Start", &newFog.start, 1.0f, 0.0f, 1000.0f);
+                ImGui::DragFloat("Fog End", &newFog.end, 1.0f, 0.0f, 2000.0f);
+            } else {
+                ImGui::DragFloat("Fog Density", &newFog.density, 0.001f, 0.0f, 1.0f);
+            }
         }
         
-        if (memcmp(&fog, &newFog, sizeof(FogSettings)) != 0) {
+        if (currentFog != static_cast<int>(fog.type) ||
+            newFog.color != fog.color ||
+            newFog.density != fog.density ||
+            newFog.start != fog.start ||
+            newFog.end != fog.end) {
             scene.setFog(newFog);
         }
     }
@@ -548,6 +558,44 @@ void ImGuiLayer::showSceneSettings(Scene& scene) {
     ImGui::Checkbox("Debug Physics Colliders", &showPhysics);
     if (scene.getEngineContext()) {
         scene.getEngineContext()->renderer().setDebugPhysicsColliders(showPhysics);
+    }
+    
+    if (scene.getEngineContext()) {
+        auto& config = const_cast<EngineConfig&>(scene.getEngineContext()->GetConfig());
+        auto& renderer = scene.getEngineContext()->renderer();
+        
+        bool shadowsEnabled = renderer.isShadowsEnabled();
+        if (ImGui::Checkbox("Enable Cascaded Shadows", &shadowsEnabled)) {
+            renderer.setShadowsEnabled(shadowsEnabled);
+        }
+        
+        if (shadowsEnabled && ImGui::TreeNodeEx("Shadow Biases (Advanced)", ImGuiTreeNodeFlags_DefaultOpen)) {
+            ImGui::TextWrapped("Adjust these values to fix 'Peter Panning' (floating objects) or 'Shadow Acne' (self-shadow bands).");
+            
+            // Shader Biases
+            float normalBias = config.graphics.shadowNormalBias;
+            float shaderDepthBias = config.graphics.shadowShaderDepthBias;
+            
+            if (ImGui::DragFloat("Normal Bias", &normalBias, 0.001f, 0.0f, 0.5f, "%.4f")) {
+                config.graphics.shadowNormalBias = normalBias;
+            }
+            if (ImGui::DragFloat("Shader Depth Bias", &shaderDepthBias, 0.0001f, 0.0f, 0.01f, "%.5f")) {
+                config.graphics.shadowShaderDepthBias = shaderDepthBias;
+            }
+            
+            // Vulkan Pipeline Biases
+            float constantBias = config.graphics.shadowDepthBiasConstant;
+            float slopeBias = config.graphics.shadowDepthBiasSlope;
+            
+            if (ImGui::DragFloat("Pipeline Constant Bias", &constantBias, 0.1f, 0.0f, 10.0f, "%.1f")) {
+                config.graphics.shadowDepthBiasConstant = constantBias;
+            }
+            if (ImGui::DragFloat("Pipeline Slope Bias", &slopeBias, 0.1f, 0.0f, 10.0f, "%.1f")) {
+                config.graphics.shadowDepthBiasSlope = slopeBias;
+            }
+            
+            ImGui::TreePop();
+        }
     }
 
     ImGui::Separator();
@@ -835,6 +883,7 @@ void ImGuiLayer::showInspector() {
                     changed |= ImGui::SliderFloat("Linear Damping", &phys.linearDamping, 0.0f, 10.0f);
                     changed |= ImGui::SliderFloat("Angular Damping", &phys.angularDamping, 0.0f, 10.0f);
                     changed |= ImGui::Checkbox("Constrain X-Y Plane", &phys.constrain2D);
+                    changed |= ImGui::DragFloat("Collision Margin (Jolt)", &phys.collisionMargin, 0.005f, 0.0f, 0.5f, "%.3f");
                     
                     ImGui::Separator();
                     const char* colTypes[] = { "Box", "Sphere", "Capsule", "Mesh" };
@@ -943,6 +992,15 @@ void ImGuiLayer::showInspector() {
                     ImGui::DragFloat("Retro Thrust", &sc.retroThrustPower, 2.0f);
                     ImGui::DragFloat("Torque (RCS)", &sc.torquePower, 1.0f);
                 }
+            } else if (m_focusedComponent == "SmartCamera" && m_selectedEntity.has<SmartCameraComponent>()) {
+                if (ComponentPropertiesHeader("SmartCamera", ICON_FA_VIDEO, colLogic, true, [&](){ m_selectedEntity.remove<SmartCameraComponent>(); m_focusedComponent = ""; })) {
+                    auto& scm = m_selectedEntity.get<SmartCameraComponent>();
+                    ImGui::DragFloat("Min Zoom", &scm.minZoom, 1.0f, -50.0f, 500.0f);
+                    ImGui::DragFloat("Max Zoom", &scm.maxZoom, 1.0f, 10.0f, 2000.0f);
+                    
+                    const char* modes[] = { "Dolly Zoom (FOV)", "Realistic (Pullback)", "Visual Scale (KSP)" };
+                    ImGui::Combo("Camera Mode", &scm.mode, modes, IM_ARRAYSIZE(modes));
+                }
             } else if (m_focusedComponent == "ParticleSystem" && m_selectedEntity.has<bb3d::ParticleSystemComponent>()) {
                 if (ComponentPropertiesHeader("ParticleSystem", ICON_FA_FIRE, colRender, true, [&](){ m_selectedEntity.remove<bb3d::ParticleSystemComponent>(); m_focusedComponent = ""; })) {
                     auto& ps = m_selectedEntity.get<bb3d::ParticleSystemComponent>();
@@ -1014,6 +1072,7 @@ void ImGuiLayer::showInspector() {
             if (ImGui::MenuItem("Simple Animation")) m_selectedEntity.add<SimpleAnimationComponent>();
             if (ImGui::MenuItem("Point Gravity Source")) m_selectedEntity.add<PointGravitySourceComponent>();
             if (ImGui::MenuItem("Spaceship Controller")) m_selectedEntity.add<SpaceshipControllerComponent>();
+            if (ImGui::MenuItem("Smart Camera")) m_selectedEntity.add<SmartCameraComponent>();
             if (ImGui::MenuItem("Particle System")) m_selectedEntity.add<bb3d::ParticleSystemComponent>();
             if (ImGui::MenuItem("Selectable (Opt-out)")) m_selectedEntity.add<SelectableComponent>();
             ImGui::EndPopup();

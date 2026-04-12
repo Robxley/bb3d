@@ -61,6 +61,10 @@ namespace bb3d {
         bool shadowsEnabled = true;       ///< Active le rendu des ombres portées principale (Soleil).
         uint32_t shadowCascades = 4;      ///< Nombre de cascades pour le CSM (typiquement 1 à 4).
         bool shadowPCF = true;            ///< Active le Percentage-Closer Filtering pour des ombres douces.
+        float shadowNormalBias = 0.15f;           ///< Biais sur la normale pour prévenir le "shadow acne".
+        float shadowDepthBiasConstant = 1.25f;    ///< Constante de biais appliquée au Pipeline Vulkan.
+        float shadowDepthBiasSlope = 1.75f;       ///< Pente de biais appliquée au Pipeline Vulkan.
+        float shadowShaderDepthBias = 0.0005f;    ///< Biais de profondeur dans le shader.
 
         GraphicsConfig& setVsync(bool v) { vsync = v; return *this; }
         GraphicsConfig& setFpsMax(int fps) { fpsMax = fps; return *this; }
@@ -83,11 +87,12 @@ namespace bb3d {
         std::string cullMode = "Back"; ///< "None", "Front", "Back", "FrontAndBack".
         std::string frontFace = "CCW"; ///< "CW", "CCW".
         std::string polygonMode = "Fill"; ///< "Fill", "Line", "Point".
+        bool depthBiasEnable = false; ///< Activer le Dynamic Depth Bias
 
         RasterizerConfig& setCullMode(std::string_view m) { cullMode = m; return *this; }
         RasterizerConfig& setPolygonMode(std::string_view m) { polygonMode = m; return *this; }
 
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(RasterizerConfig, cullMode, frontFace, polygonMode)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE(RasterizerConfig, cullMode, frontFace, polygonMode, depthBiasEnable)
     };
 
     /**

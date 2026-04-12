@@ -22,6 +22,7 @@ struct ModelLoadConfig {
     bool loadAlphaModes = true;  ///< If false, forces OPAQUE for all primitives.
     bool loadVertexColors = true;
     bool applyTransformations = true;
+    bool recalculateNormals = false; ///< If true, computes flat normals and discards loaded ones (OBJ only)
     
     glm::vec3 initialScale = {1.0f, 1.0f, 1.0f};
 };
@@ -84,7 +85,7 @@ public:
     }
 
 private:
-    void loadOBJ(std::string_view path);
+    void loadOBJ(std::string_view path, const ModelLoadConfig& config);
     void loadGLTF(std::string_view path, const ModelLoadConfig& config);
 
     VulkanContext& m_context;

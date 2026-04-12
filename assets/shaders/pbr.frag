@@ -36,6 +36,10 @@ layout(set = 0, binding = 0) uniform GlobalUBO {
     vec4 camPos;
     vec4 globalParams; // .x = numLights
     vec4 ambientColor; // .rgb = color, .a = intensity
+    vec4 shadowBiases; // .x = normalBias, .y = shaderDepthBias
+    vec4 fogColor;
+    vec4 fogParams;
+    mat4 skyProj;
     Light lights[10];
 } ubo;
 
@@ -44,7 +48,12 @@ layout(set = 0, binding = 2) uniform sampler2DArrayShadow shadowMap;
 const float PI = 3.14159265359;
 
 float ShadowCalculation(vec3 fragPosWorldSpace, vec3 N, vec3 lightDir) {
-    vec4 viewPos = ubo.view * vec4(fragPosWorldSpace, 1.0);
+    // Standard Normal Offset Bias for PCF smoothing (Dynamically Configured)
+    float NdotL = max(dot(N, lightDir), 0.0);
+    float normalBias = max(ubo.shadowBiases.x * (1.0 - NdotL), ubo.shadowBiases.x * 0.1);
+    vec3 offsetPos = fragPosWorldSpace + N * normalBias;
+
+    vec4 viewPos = ubo.view * vec4(offsetPos, 1.0);
     float depth = abs(viewPos.z);
     
     int layer = -1;
@@ -56,14 +65,15 @@ float ShadowCalculation(vec3 fragPosWorldSpace, vec3 N, vec3 lightDir) {
     }
     if (layer == -1) layer = 3;
 
-    vec4 fragPosLightSpace = ubo.shadowCascades[layer] * vec4(fragPosWorldSpace, 1.0);
+    vec4 fragPosLightSpace = ubo.shadowCascades[layer] * vec4(offsetPos, 1.0);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords.xy = projCoords.xy * 0.5 + 0.5;
     
     if(projCoords.z > 1.0 || projCoords.z < 0.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0)
         return 1.0; 
 
-    float bias = max(0.0005 * (1.0 - dot(N, lightDir)), 0.0001);
+    // Standard Depth bias (Dynamically Configured)
+    float bias = max(ubo.shadowBiases.y * (1.0 - NdotL), ubo.shadowBiases.y * 0.2);
     
     float shadow = 0.0;
     vec2 texelSize = 1.0 / textureSize(shadowMap, 0).xy;
@@ -157,9 +167,7 @@ void main() {
             
             // Appliquer l'ombre uniquement sur la lumiere principale directionnelle
             if (i == 0) {
-                // Normal Offset Bias for smoother shadows & reduced Peter Panning
-                vec3 offsetPos = fragPos + N * 0.05; 
-                float shadow = ShadowCalculation(offsetPos, N, L);
+                float shadow = ShadowCalculation(fragPos, N, L);
                 radiance *= shadow;
             }
         } else { // Point
@@ -177,6 +185,25 @@ void main() {
 
     vec3 ambient = ubo.ambientColor.rgb * ubo.ambientColor.a * albedo * ao; 
     vec3 color = ambient + Lo + emissive;
+
+    // --- Fog ---
+    float fogType = ubo.fogColor.w;
+    if (fogType > 0.5) {
+        float dist = distance(ubo.camPos.xyz, fragPos);
+        float fogFactor = 0.0;
+        
+        if (fogType < 1.5) { // Linear
+            float fStart = ubo.fogParams.y;
+            float fEnd = ubo.fogParams.z;
+            fogFactor = clamp((dist - fStart) / (fEnd - fStart), 0.0, 1.0);
+        } else { // Exponential
+            float density = ubo.fogParams.x;
+            fogFactor = 1.0 - exp(-dist * density);
+            fogFactor = clamp(fogFactor, 0.0, 1.0);
+        }
+        
+        color = mix(color, ubo.fogColor.rgb, fogFactor);
+    }
 
     color = color / (color + vec3(1.0));
     color = pow(color, vec3(1.0/2.2));
