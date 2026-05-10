@@ -17,6 +17,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #include <set>
+#include <limits>
 
 namespace bb3d {
 
@@ -26,6 +27,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData) {
     
+
     (void)messageType;
     (void)pUserData;
 
@@ -35,6 +37,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
         BB_CORE_WARN("Validation Layer: {}", pCallbackData->pMessage);
     }
     
+
     return VK_FALSE;
 }
 
@@ -83,8 +86,9 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     for (const auto& device : physicalDevices) {
         auto props = device.getProperties();
         auto queueFamilies = device.getQueueFamilyProperties();
-        int gIdx = -1, pIdx = -1, tIdx = -1;
+        int gIdx = -1, pIdx = -1;
         
+
         for (uint32_t i = 0; i < queueFamilies.size(); ++i) {
             if (queueFamilies[i].queueFlags & vk::QueueFlagBits::eGraphics) gIdx = i;
             if (m_surface) { if (device.getSurfaceSupportKHR(i, m_surface)) pIdx = i; } else pIdx = gIdx;
@@ -96,6 +100,7 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
             if (props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) score += 1000;
             else if (props.deviceType == vk::PhysicalDeviceType::eIntegratedGpu) score += 100;
             
+
             if (score > bestScore) {
                 bestScore = score;
                 m_physicalDevice = device; 
@@ -142,10 +147,14 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
     vmaCreateAllocator(&allocatorInfo, &m_allocator);
 
+    // Create pipeline cache for optimized shader compilation
+    vk::PipelineCacheCreateInfo cacheInfo{};
+    m_pipelineCache = m_device.createPipelineCache(cacheInfo);
+
     m_shortLivedCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_graphicsQueueFamily });
     m_transferCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_transferQueueFamily });
     m_stagingBuffer = CreateScope<StagingBuffer>(*this);
-    BB_CORE_INFO("VulkanContext initialized (VMA with dynamic dispatch).");
+    BB_CORE_INFO("VulkanContext initialized (VMA with dynamic dispatch and pipeline cache).");
 }
 
 void VulkanContext::cleanup() {
@@ -161,6 +170,10 @@ void VulkanContext::cleanup() {
         if (m_allocator) {
             vmaDestroyAllocator(m_allocator);
             m_allocator = nullptr;
+        }
+        if (m_pipelineCache) {
+            m_device.destroyPipelineCache(m_pipelineCache);
+            m_pipelineCache = nullptr;
         }
         m_device.destroy();
         m_device = nullptr;
@@ -211,23 +224,22 @@ vk::Fence VulkanContext::endTransferCommandsAsync(vk::CommandBuffer commandBuffe
 
     commandBuffer.end();
 
-    
-
     vk::Fence fence = m_device.createFence({});
 
     vk::SubmitInfo submitInfo(0, nullptr, nullptr, 1, &commandBuffer);
 
     m_transferQueue.submit(submitInfo, fence);
 
-    
+    // Free the command buffer after submission
+    // Texture no longer stores it, so we free it here
+    m_device.waitForFences(fence, true, std::numeric_limits<uint64_t>::max());
+    m_device.freeCommandBuffers(m_transferCommandPool, commandBuffer);
 
-    // Note: The CommandBuffer must be freed AFTER the fence is signaled.
-    // To simplify the initial API, we leave the responsibility of fence destruction
-    // and CB release (if necessary) to a higher level manager or wait for it later.
-    
+
     return fence;
 }
 
 
 
 } // namespace bb3d
+

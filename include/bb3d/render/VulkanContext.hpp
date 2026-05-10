@@ -13,7 +13,7 @@ namespace bb3d {
 
 /**
  * @brief Point d'entrée pour l'abstraction de l'API Vulkan 1.3.
- * 
+ *
  * Cette classe gère le cycle de vie des objets fondamentaux :
  * - **Instance & Surface** : Connection avec le système de fenêtrage (SDL3).
  * - **PhysicalDevice & Logical Device** : Sélection du GPU et gestion des files (Queues).
@@ -40,8 +40,7 @@ public:
     void cleanup();
 
     /** @name Accesseurs Vulkan-Hpp
-     * @{
-     */
+     * @{*/
     [[nodiscard]] inline vk::Instance getInstance() const { return m_instance; }
     [[nodiscard]] inline vk::SurfaceKHR getSurface() const { return m_surface; }
     [[nodiscard]] inline vk::PhysicalDevice getPhysicalDevice() const { return m_physicalDevice; }
@@ -52,11 +51,15 @@ public:
     [[nodiscard]] inline uint32_t getGraphicsQueueFamily() const { return m_graphicsQueueFamily; }
     [[nodiscard]] inline uint32_t getPresentQueueFamily() const { return m_presentQueueFamily; }
     [[nodiscard]] inline uint32_t getTransferQueueFamily() const { return m_transferQueueFamily; }
+    [[nodiscard]] inline vk::PipelineCache getPipelineCache() const { return m_pipelineCache; }
+    [[nodiscard]] inline vk::CommandPool getTransferCommandPool() const { return m_transferCommandPool; }
     /** @} */
+
 
     /** @brief Récupère l'allocateur VMA pour la création de buffers/images. */
     [[nodiscard]] inline VmaAllocator getAllocator() const { return m_allocator; }
     
+
     /** @brief Récupère le gestionnaire de staging buffer. */
     [[nodiscard]] StagingBuffer& getStagingBuffer() { return *m_stagingBuffer; }
 
@@ -91,7 +94,9 @@ private:
     vk::SurfaceKHR m_surface;
     vk::PhysicalDevice m_physicalDevice;
     vk::Device m_device;
+    vk::PipelineCache m_pipelineCache = nullptr;
     
+
     vk::Queue m_graphicsQueue;
     vk::Queue m_presentQueue;
     vk::Queue m_transferQueue;

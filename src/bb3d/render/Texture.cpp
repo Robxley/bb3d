@@ -13,10 +13,12 @@ namespace bb3d {
 Texture::Texture(VulkanContext& context, std::string_view filepath, bool isColor)
     : m_context(context) {
     
+
     m_format = isColor ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
 
     stbi_uc* raw_pixels = stbi_load(filepath.data(), &m_width, &m_height, &m_channels, STBI_rgb_alpha);
     
+
     struct StbiDeleter { void operator()(stbi_uc* p) { stbi_image_free(p); } };
     std::unique_ptr<stbi_uc, StbiDeleter> pixels(raw_pixels);
 
@@ -26,16 +28,19 @@ Texture::Texture(VulkanContext& context, std::string_view filepath, bool isColor
 
     initFromPixels(pixels.get());
     
+
     BB_CORE_INFO("Texture: Loaded file '{0}' ({1}x{2}, format: {3})", filepath, m_width, m_height, vk::to_string(m_format));
 }
 
 Texture::Texture(VulkanContext& context, std::span<const std::byte> data, bool isColor)
     : m_context(context) {
     
+
     m_format = isColor ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
 
     stbi_uc* raw_pixels = stbi_load_from_memory(reinterpret_cast<const stbi_uc*>(data.data()), static_cast<int>(data.size()), &m_width, &m_height, &m_channels, STBI_rgb_alpha);
     
+
     struct StbiDeleter { void operator()(stbi_uc* p) { stbi_image_free(p); } };
     std::unique_ptr<stbi_uc, StbiDeleter> pixels(raw_pixels);
 
@@ -45,12 +50,14 @@ Texture::Texture(VulkanContext& context, std::span<const std::byte> data, bool i
 
     initFromPixels(pixels.get());
     
+
     BB_CORE_INFO("Texture: Loaded from memory ({0}x{1}, format: {2})", m_width, m_height, vk::to_string(m_format));
 }
 
 Texture::Texture(VulkanContext& context, std::span<const std::byte> data, int width, int height, bool isColor)
     : m_context(context), m_width(width), m_height(height), m_channels(4) {
     
+
     m_format = isColor ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
 
     if (data.size() != (size_t)width * height * 4) {
@@ -64,6 +71,7 @@ Texture::Texture(VulkanContext& context, std::span<const std::byte> data, int wi
 Texture::Texture(VulkanContext& context, const std::array<std::string, 6>& filepaths, bool isColor)
     : m_context(context), m_isCubemap(true) {
     
+
     m_format = isColor ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
 
     std::array<stbi_uc*, 6> all_pixels;
@@ -94,6 +102,7 @@ Texture::Texture(VulkanContext& context, const std::array<std::string, 6>& filep
 
     m_stagingBuffer = CreateScope<Buffer>(m_context, totalSize, vk::BufferUsageFlagBits::eTransferSrc, VMA_MEMORY_USAGE_CPU_ONLY, VMA_ALLOCATION_CREATE_MAPPED_BIT);
     
+
     for (int i = 0; i < 6; ++i) {
         m_stagingBuffer->upload(all_pixels[i], faceSize, faceSize * i);
         stbi_image_free(all_pixels[i]);
@@ -101,10 +110,12 @@ Texture::Texture(VulkanContext& context, const std::array<std::string, 6>& filep
 
     createImage(m_width, m_height, 6);
     
+
     vk::CommandBuffer cb = m_context.beginTransferCommands();
     transitionLayout(cb, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, 6);
     copyBufferToImage(cb, m_stagingBuffer->getHandle(), 6);
     
+
     if (m_mipLevels > 1) {
         generateMipmaps(cb, 6);
     } else {
@@ -122,6 +133,7 @@ Texture::Texture(VulkanContext& context, const std::array<std::string, 6>& filep
 Texture::Texture(VulkanContext& context, std::span<const std::byte> data, int width, int height, int layers, bool isColor)
     : m_context(context), m_width(width), m_height(height), m_isCubemap(layers == 6) {
     
+
     m_format = isColor ? vk::Format::eR8G8B8A8Srgb : vk::Format::eR8G8B8A8Unorm;
 
     vk::DeviceSize totalSize = (vk::DeviceSize)width * height * 4 * layers;
@@ -141,10 +153,12 @@ Texture::Texture(VulkanContext& context, std::span<const std::byte> data, int wi
 
     createImage(width, height, layers);
     
+
     vk::CommandBuffer cb = m_context.beginTransferCommands();
     transitionLayout(cb, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, layers);
     copyBufferToImage(cb, m_stagingBuffer->getHandle(), layers);
     
+
     if (m_mipLevels > 1) {
         generateMipmaps(cb, layers);
     } else {
@@ -181,6 +195,7 @@ void Texture::initFromPixels(const unsigned char* pixels) {
     transitionLayout(cb, vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, 1);
     copyBufferToImage(cb, m_stagingBuffer->getHandle(), 1);
     
+
     if (m_mipLevels > 1) {
         generateMipmaps(cb, 1);
     } else {
@@ -192,6 +207,7 @@ void Texture::initFromPixels(const unsigned char* pixels) {
     createImageView(1);
     createSampler();
     
+
     // Note: m_ready remains false until isReady() or an explicit wait is called.
 }
 
@@ -202,6 +218,7 @@ bool Texture::isReady() {
     // Protection against concurrent calls (multi-frames)
     auto result = m_context.getDevice().getFenceStatus(m_uploadFence);
     if (result == vk::Result::eSuccess) {
+        // Command buffer was freed by endTransferCommandsAsync
         // Double check to avoid multiple destruction
         if (m_uploadFence) {
             m_context.getDevice().destroyFence(m_uploadFence);
@@ -219,8 +236,15 @@ Texture::~Texture() {
     auto device = m_context.getDevice();
     BB_CORE_TRACE("Texture: Destroying texture image ({}x{})", m_width, m_height);
     
+
+    // Ensure upload is complete before destroying resources
     if (m_uploadFence) {
+        // Wait for upload to complete if not already done
+        device.waitForFences(m_uploadFence, true, std::numeric_limits<uint64_t>::max());
+        
+        // Command buffer was freed by endTransferCommandsAsync
         device.destroyFence(m_uploadFence);
+        m_uploadFence = nullptr;
     }
 
     if (m_sampler) {
@@ -237,6 +261,7 @@ Texture::~Texture() {
 void Texture::createImage(uint32_t width, uint32_t height, uint32_t layers) {
     vk::ImageCreateFlags flags = m_isCubemap ? vk::ImageCreateFlagBits::eCubeCompatible : vk::ImageCreateFlags();
     
+
     vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled;
     if (m_mipLevels > 1) {
         usage |= vk::ImageUsageFlagBits::eTransferSrc; // Needed for blit
@@ -256,6 +281,7 @@ void Texture::createImage(uint32_t width, uint32_t height, uint32_t layers) {
 void Texture::createImageView(uint32_t layers) {
     vk::ImageViewType viewType = m_isCubemap ? vk::ImageViewType::eCube : vk::ImageViewType::e2D;
     
+
     vk::ImageViewCreateInfo viewInfo({}, m_image, viewType, m_format, {}, { vk::ImageAspectFlagBits::eColor, 0, m_mipLevels, 0, layers });
     m_imageView = m_context.getDevice().createImageView(viewInfo);
 }
@@ -274,14 +300,19 @@ void Texture::generateMipmaps(vk::CommandBuffer commandBuffer, uint32_t layers) 
     int32_t mipWidth = m_width;
     int32_t mipHeight = m_height;
 
+    vk::PipelineStageFlags sourceStage;
+    vk::PipelineStageFlags destinationStage;
+
     for (uint32_t i = 1; i < m_mipLevels; i++) {
         barrier.subresourceRange.baseMipLevel = i - 1;
         barrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
         barrier.newLayout = vk::ImageLayout::eTransferSrcOptimal;
         barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
         barrier.dstAccessMask = vk::AccessFlagBits::eTransferRead;
+        sourceStage = vk::PipelineStageFlagBits::eTransfer;
+        destinationStage = vk::PipelineStageFlagBits::eTransfer;
 
-        commandBuffer.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, nullptr, nullptr, barrier);
+        commandBuffer.pipelineBarrier(sourceStage, destinationStage, {}, nullptr, nullptr, barrier);
 
         vk::ImageBlit blit;
         blit.srcSubresource = vk::ImageSubresourceLayers(vk::ImageAspectFlagBits::eColor, i - 1, 0, layers);
@@ -342,3 +373,5 @@ void Texture::copyBufferToImage(vk::CommandBuffer commandBuffer, vk::Buffer buff
 }
 
 } // namespace bb3d
+
+

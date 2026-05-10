@@ -13,12 +13,20 @@
         "msaaSamples": 1,
         "anisotropy": 16.0,
         "shadowMapResolution": 2048,
-        "enableValidationLayers": true
+        "enableValidationLayers": true,
+        "enableFrustumCulling": true,
+        "enableMipmapping": true,
+        "enableOffscreenRendering": false,
+        "renderScale": 1.0,
+        "shadowsEnabled": true,
+        "shadowCascades": 4,
+        "shadowPCF": true
     },
     "rasterizer": {
         "cullMode": "Back",
         "frontFace": "CCW",
-        "polygonMode": "Fill"
+        "polygonMode": "Fill",
+        "depthBiasEnable": false
     },
     "depthStencil": {
         "depthTest": true,

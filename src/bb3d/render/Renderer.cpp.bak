@@ -110,11 +110,6 @@ Renderer::~Renderer() {
         if (m_globalDescriptorLayout) dev.destroyDescriptorSetLayout(m_globalDescriptorLayout);
         if (m_copyLayout) dev.destroyDescriptorSetLayout(m_copyLayout);
         for (auto& [type, layout] : m_layouts) if(layout) dev.destroyDescriptorSetLayout(layout);
-        // Free command buffers before destroying the pool
-        if (m_commandPool && !m_commandBuffers.empty()) {
-            dev.freeCommandBuffers(m_commandPool, m_commandBuffers);
-            m_commandBuffers.clear();
-        }
         if (m_commandPool) dev.destroyCommandPool(m_commandPool);
     }
 }
@@ -1290,4 +1285,3 @@ void Renderer::saveScreenshot(const std::string& filepath) {
 }
 
 } // namespace bb3d
-
