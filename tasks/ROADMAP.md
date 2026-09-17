@@ -1,79 +1,148 @@
-# **🗺️ Roadmap & To-Do de Développement \- biobazard3d**
+# 🗺️ Feuille de Route Stratégique & Backlog - biobazard3d (`bb3d`)
 
-Ce document centralise le plan de développement du moteur **biobazard3d**, ainsi que toutes les tâches (Features, Optimisations, Refactoring) en cours ou à venir.
-
-**Philosophie :** Chaque étape (Milestone) est validée par un exécutable de test unitaire autonome (Sandbox) qui prouve le fonctionnement du module de manière isolée avant l'intégration globale. De plus, chaque nouvelle fonctionnalité passe obligatoirement par un processus de Brainstorming et de Planification documenté dans `tasks/active/`.
+Ce document constitue le **plan de route officiel** du moteur `bb3d`. Il organise les chantiers techniques et fonctionnels en **4 jalons séquentiels et cohérents**, garantissant la stabilité, la modernité de l'API graphique Vulkan et les capacités de rendu temps réel.
 
 ---
 
-## **✅ Terminé (Archive des Features Majeures)**
+## 🧭 Fonctionnement & Prise en Charge de Tâches
 
-- [x] 🏗️ **Core Architecture** : Singleton Engine, Windowing (SDL3), Logging (spdlog), Profiling (Tracy).
-- [x] 🎨 **Vulkan Backend** : Initialisation Vulkan 1.3, Dynamic Rendering (sans RenderPass legacy), VMA.
-- [x] 💎 **Descriptor Management** : Implémentation du **Triple Buffering** pour les Descriptor Sets des matériaux.
-- [x] 📦 **Asset Loading** : Chargeur OBJ (tinyobjloader) et glTF 2.0 (fastgltf) avec support des matériaux.
+Le développement de `bb3d` est conçu pour permettre le travail collaboratif sans interférence entre développeurs et agents IA (Antigravity, OpenCode, Mistral Vibe Coda, etc.) :
+
+1. **Sélection :** Choisir un chantier prioritaire ci-dessous ou un bug du catalogue [`CODE_REVIEW.md`](CODE_REVIEW.md).
+2. **Réservation & Fiche :**
+   - Créer ou mettre à jour une fiche dans [`active/`](active/) (ex: `tasks/active/TASK-XXX.md`) basée sur [`templates/TASK_REVIEW_TEMPLATE.md`](templates/TASK_REVIEW_TEMPLATE.md).
+   - Indiquer le statut `[READY FOR ARCHITECTURE REVIEW]`, l'Auteur (`@dev`) et le(s) Reviewer(s).
+3. **Branche Git :** Isoler le développement sur une branche dédiée (ex: `feat/nom-de-tache` ou `fix/b8-material-ubo`).
+4. **Approbation d'Architecture :** Valider formellement la conception avant tout codage source.
+5. **Cycle TDD :** Rédiger le test unitaire en premier (`tests/unit_test_*.cpp`), implémenter la solution minimale, et valider la suite de tests :
+   ```bash
+   cmake --build build --config Debug -j && ctest --test-dir build -C Debug --output-on-failure
+   ```
+6. **Revue Croisée :** Valider les checkpoints techniques Implémenteur & Reviewer dans la fiche `TASK-XXX.md`.
+7. **Clôture & Historique :**
+   - Consigner **1 entrée compacte (3 lignes max)** dans [`HISTORY.md`](HISTORY.md).
+   - Déplacer la fiche vers [`archive/`](archive/).
+
+---
+
+## 🎯 Jalons Stratégiques (Milestones)
+
+```mermaid
+flowchart LR
+    J1["Jalon 1<br><b>Fiabilisation & Bugs</b><br><i>Stabilité & Sécurité</i>"] --> J2["Jalon 2<br><b>Socle Vulkan Moderne</b><br><i>Sync2 & Standards</i>"]
+    J2 --> J3["Jalon 3<br><b>Rendu Avancé & Gameplay</b><br><i>CSM, Audio, Multi-Streams</i>"]
+    J3 --> J4["Jalon 4<br><b>Outils & Éditeur ImGui</b><br><i>Viewport & Inspection</i>"]
+```
+
+---
+
+### 🛡️ Jalon 1 : Fiabilisation & Résolution des Bugs Critiques
+> **Objectif :** Éliminer les conditions de course GPU, deadlocks, comportements indéfinis et fuites de mémoire identifiés dans [`tasks/CODE_REVIEW.md`](CODE_REVIEW.md) avant d'ajouter de nouvelles couches architecturales.
+
+- [ ] **Course CPU/GPU UBO Matériaux (`B8`)** : Appeler `Material::SetCurrentFrame(m_currentFrame)` au début de `Renderer::render()` pour activer le triple buffering et éviter la réécriture concurrente de la frame 0.
+- [ ] **Sécurité Swapchain Resize (`B1`)** : Reconstruire `m_renderFinishedSemaphores` lors du redimensionnement de la swapchain pour éviter les accès hors-limites (UB/crash en bascule plein écran).
+- [ ] **Deadlock de Fence sur échec Submit (`B2`)** : Réordonner `resetFences()` après un `submit()` réussi ou re-signaler la fence dans le catch avant déclenchement du resize.
+- [ ] **Offset Batch Ombres (`B3`)** : Réinitialiser `lastMesh = nullptr` lorsqu'un non-caster est sauté dans `flushShadowBatch()` pour éviter la réutilisation d'anciennes matrices de transformation.
+- [ ] **Picking GPU & Fuites de Sets (`B4`, `B5`, `B6`)** :
+  - Libérer les descriptor sets de picking via `freeDescriptorSets` lors des redimensionnements (`B4`).
+  - Déplacer l'allocation des pipelines/ressources de picking hors du flux `cb.begin()` pour supprimer les `dev.waitIdle()` intempestifs (`B5`).
+  - Pipeliner ou isoler le command pool de lecture de pixel (`B6`).
+- [ ] **Robustesse Physique Jolt (`B14`, `B15`, `B16`, `B21`)** :
+  - Clamper le nombre de threads (`std::max(1, hardware_concurrency - 1)`) (`B14`).
+  - Ajouter des gardes `entity.has<TransformComponent>()` dans `createRigidBody` et `createCharacterController` (`B15`, `B20`).
+  - Sécuriser l'allocation de corps (`CreateBody != nullptr`) et configurer une jauge adaptée aux besoins (`B16`).
+  - Nettoyer le corps Jolt lors de `Scene::destroyEntity` (`B21`).
+- [ ] **JobSystem Busy-Poll (`B24`)** : Remplacer le prédicat condition variable `return false;` (busy-loop 1 kHz) par un test sur le nombre de tâches disponibles avec réveil réactif.
+- [ ] **Nettoyage du Code Mort & Fichiers Obsolètes (`D3`, `D4`, `D5`)** :
+  - Supprimer `m_instanceTransforms` non lu (`D3`).
+  - Supprimer `getMaterialForTexture` et `m_defaultMaterials` inutilisés (`D4`).
+  - Nettoyer ou implémenter le bloc d'horizon culling commenté (`D5`).
+
+---
+
+### ⚡ Jalon 2 : Socle Vulkan 1.3 / 1.4 Moderne & Synchronisation
+> **Objectif :** Aligner l'infrastructure graphique sur les standards modernes documentés dans le [Rapport d'Audit Vulkan](../docs/vulkan_audit/RAPPORT_AUDIT_VULKAN_MODERNE.md) (SDK `1.4.335.0` actif).
+
+- [ ] **Initialisation Vulkan 1.3/1.4 via `vk::StructureChain`** :
+  - Moderniser l'activation des features (`vk::PhysicalDeviceVulkan13Features`, `vk::PhysicalDeviceSynchronization2Features`, `vk::PhysicalDeviceDynamicRenderingFeatures`) sans caste brut `void*`.
+- [ ] **Migration Synchronization2 (`pipelineBarrier2`)** :
+  - Bannir l'API legacy `pipelineBarrier` (17+ occurrences).
+  - Utiliser systématiquement `vk::DependencyInfo` et `vk::ImageMemoryBarrier2` avec les stages et accès 64-bit (`vk::PipelineStageFlagBits2`, `vk::AccessFlagBits2`).
+- [ ] **Timeline Semaphores & Transferts Réellement Asynchrones (`B11`)** :
+  - Remplacer les semaphores binaires et `waitForFences()` bloquants par des Timeline Semaphores.
+  - Découpler les chargements d'assets (textures, meshes) sur une file de transfert dédiée sans stall de la frame (`dev.waitIdle()`).
+- [ ] **Instrumentation DebugUtils & Profiling Tracy GPU** :
+  - Baliser les command buffers et passes de rendu avec `vkCmdBeginDebugUtilsLabelEXT` / `vkCmdEndDebugUtilsLabelEXT`.
+  - Intégrer les zones de timing GPU via `TracyVkZone`.
+- [ ] **Pipeline Cache Persistant** :
+  - Sérialiser l'objet `vk::PipelineCache` dans `assets/cache/pipelines.bin` pour éliminer les micro-saccades lors des lancements ultérieurs.
+- [ ] **Extended Dynamic State (Vulkan 1.3)** :
+  - Exploiter les états dynamiques étendus (cull mode, front face, depth compare op, primitive topology) pour diviser le nombre de pipelines graphiques requis.
+
+---
+
+### 🎨 Jalon 3 : Rendu Graphique Avancé & Gameplay
+> **Objectif :** Améliorer la fidélité visuelle, la flexibilité des assets et les systèmes de jeu interactifs.
+
+- [ ] **Améliorations Cascaded Shadow Maps (CSM)** *(Fiche active : [`TASK-CSM_Improvement_Plan.md`](active/TASK-CSM_Improvement_Plan.md))* :
+  - Implémenter la répartition pratique des splits (Practical Split Scheme).
+  - Normal Bias adaptatif et Texel Snapping stabilisé pour éliminer l'acné d'ombre et le chatoiement.
+  - Frustum culling par cascade pour réduire les draw calls redondants.
+- [ ] **Découplage Multi-Streams Sommets (Fin de l'Uber-Vertex)** :
+  - Séparer la géométrie en flux : `VertexPos` (12 octets) pour les shadow passes, z-prepass et picking, et `VertexStatic` (36 octets) pour les attributs PBR.
+  - Réduire l'empreinte bande-passante mémoire de plus de 60% sur les passes de profondeur.
+- [ ] **Push Descriptors & Allocateur de Descriptors Moderne** :
+  - Remplacer les pools rigides par un allocateur dynamique à blocs (pages de descripteurs).
+  - Évaluer les Push Descriptors pour les UBOs et paramètres fréquents.
+- [ ] **SSBO Matériaux & Bindless Textures** :
+  - Stocker les propriétés des matériaux dans un unique SSBO global indexé par instance.
+  - Tableau de textures non dimensionné (Descriptor Indexing / Bindless) pour éliminer les réallocations de bindings de texture par draw call.
+- [ ] **Dynamic Lights (SSBO)** :
+  - Remplacer le tableau fixe de 10 lumières par un SSBO redimensionnable pour un éclairage riche.
+- [ ] **Z-Prepass (Depth Pre-pass)** :
+  - Passe de pré-remplissage du depth buffer avec `VertexPos` pour éliminer l'overdraw sur scènes denses.
+- [ ] **Système Audio 3D (`miniaudio`)** :
+  - Intégration de miniaudio pour les sources sonores 3D spatialisées et le listener.
+- [ ] **Post-Processing & Render To Texture (RTT)** :
+  - Classe générique `RenderTarget` offscreen.
+  - Pipeline de post-traitement composable (Tone Mapping, Bloom, SSAO).
+
+---
+
+### 🎛️ Jalon 4 : Outils, Éditeur ImGui & Ergonomie
+> **Objectif :** Offrir un environnement d'édition temps réel et de débogage visuel interactif (`BB3D_ENABLE_EDITOR`).
+
+- [ ] **Intégration Dear ImGui (Docking Branch)** :
+  - Backends SDL3 et Vulkan avec support du Dynamic Rendering.
+  - Couche d'abstraction `bb3d::ImGuiLayer` (Init, Event Intercept, Render).
+- [ ] **Viewport de Rendu Dédié** :
+  - Rendu de la scène dans une texture offscreen injectée dans une fenêtre ImGui redimensionnable avec mapping d'input relatif.
+- [ ] **Panneaux d'Édition & Inspection** :
+  - Arborescence de scène (Scene Hierarchy) avec ajout/suppression d'entités en direct.
+  - Inspecteur de composants (Transform, Mesh, Material, RigidBody, Camera, Light).
+  - Console de logs interactive branchée sur `spdlog`.
+- [ ] **Gizmos de Manipulation 3D** :
+  - Gizmos de translation, rotation et échelle dans le viewport.
+- [ ] **Moniteur de Métriques & Diagnostic** :
+  - Graphiques de frametime CPU/GPU, occupation mémoire VMA, état des pools de threads.
+
+---
+
+## 📦 Archive des Réalisations (Fondations Validées)
+
+Toutes les briques fondamentales ci-dessous ont été validées et archivées :
+
+- [x] 🏗️ **Core Architecture** : Singleton Engine, Windowing SDL3, Logging spdlog, Profiling Tracy.
+- [x] 🎨 **Vulkan Backend Init** : Initialisation Vulkan 1.3, Dynamic Rendering natif sans RenderPass, allocation mémoire VMA.
+- [x] 💎 **Descriptor Management** : Triple Buffering pour les Descriptor Sets des matériaux.
+- [x] 📦 **Asset Loading** : Chargeur OBJ (`tinyobjloader`) et glTF 2.0 (`fastgltf`) avec extraction des textures et matériaux.
 - [x] 💎 **PBR Rendering** : Modèle Cook-Torrance complet (Albedo, Normal, ORM, Emissive).
-- [x] ⚡ **GPU Instancing** : Batching automatique via SSBO.
-- [x] 💡 **Multi-Lights** : Support de 10 lumières simultanées (Directional & Point) avec atténuation.
-- [x] ✨ **Cel-Shading** : Rendu cartoon avec quantification des couleurs et Outlines.
-- [x] 📂 **Serialization 2.0** : Système de sauvegarde/chargement JSON amélioré avec reconstruction des primitives.
-- [x] 🧵 **JobSystem & ECS** : Thread Pool multi-coeur et refonte vers un ECS pur avec `View<T>`.
-- [x] 📐 **Maths & Camera** : Intégration GLM, Caméras FPS et Orbitale interactives.
-- [x] 🌍 **Intégration Jolt Physics** : Simulation temps réel avec RigidBodies, Colliders, Raycasting et Character Controller.
-
----
-
-## **📅 Phase Actuelle : Gameplay, Outils & Rendu Avancé**
-
-### **🛠️ Outils & Editeur (ImGui)**
-*Module optionnel, activé uniquement en mode `BB3D_ENABLE_EDITOR`.*
-
-- [ ] 📥 **Intégration Dépendance** : Ajouter `dear imgui`, activer les backends SDL3/Vulkan, configurer macro.
-- [ ] 🏗️ **Core Layer (Abstraction)** : Créer `bb3d::ImGuiLayer` (Init, BeginFrame, EndFrame, Event Intercept).
-- [ ] 🖼️ **Viewport Rendering** : Fenêtre "Scene" ImGui, Texture Descriptor, Aspect Ratio et Input Mapping.
-- [ ] 🔌 **Intégration Moteur** : Hooks dans `Engine` et `Renderer` (`enableEditor` via JSON).
-- [ ] 🎛️ **Panneaux & Fonctionnalités** : Hierarchie, Inspector, Stats Panel, Log Console, et Gizmos.
-
-### **🚀 Features (Gameplay & Rendu)**
-- [ ] 🔊 **Système Audio (miniaudio)** : Support des sons 3D spatialisés et gestion sources/listeners.
-- [ ] 🖼️ **Render To Texture (RTT)** : Classe RenderTarget et Fullscreen Quad pour pipeline post-process.
-- [ ] 🌑 **Shadow Mapping** : Implémenter les ombres portées (Cascaded Shadow Maps).
-- [ ] 🪞 **Image Based Lighting (IBL)** : Skybox pour reflets et éclairage ambiant réaliste.
-- [ ] 🏔️ **Terrain System** : Rendu de grands terrains via Heightmaps.
-- [ ] 💨 **Particle System** : Système de particules GPU (Compute shaders).
-- [ ] 🎬 **Post-Processing** : Bloom, SSAO, Motion Blur.
-
----
-
-## **⚡ Optimisations & Refactoring Techniques**
-
-### **🟢 Priorité Haute (Gain immédiat)**
-- [x] 🕵️ **Frustum Culling (CPU side)** : Utilisation des AABB.
-- [x] 🏎️ **Optimisation du JobSystem** : Parallélisation du Culling & Tri terminé.
-- [x] 🗺️ **Mipmapping & Compression (BC7)** : Réduction de la BP globale.
-- [x] 🧹 **Élimination Goulots Allocations (Heap Pressure)** : Terminée (reserve/clear).
-- [ ] 🚀 **Vulkan Synchronization2 (`pipelineBarrier2`)** : Modernisation complète des barrières mémoire vers l'API Vulkan 1.3+ (*cf. [Audit Vulkan](vulkan_audit/RAPPORT_AUDIT_VULKAN_MODERNE.md)*).
-- [ ] ⏱️ **Timeline Semaphores & Async Queue** : Remplacement des semaphores binaires et `waitIdle()` bloquants par des Timeline Semaphores et file de transfert dédiée.
-- [ ] 🎛️ **Push Descriptors & Descriptor Allocator** : Élimination de l'allocation de descriptor sets par matériau et correction des fuites de pool.
-- [ ] 📦 **Material Storage Buffer** : Remplacer les UBOs / matériaux par un unique SSBO global (Material Array).
-- [ ] 💡 **Dynamic Lights (SSBO)** : Supprimer la limite des 10 lumières via un SSBO redimensionnable.
-- [ ] 🔗 **Bindless Textures (Descriptor Indexing)** : Tableau global pour éliminer les changements de bindings.
-- [ ] 🛡️ **Z-Prepass** : Passe de profondeur initiale (Depth Pre-pass).
-
-### **🟡 Priorité Moyenne (Refactoring & CPU)**
-- [ ] 📐 **Découplage Vertex Layout (Multi-Streams)** : Séparer `VertexPos` (12o) pour shadows/Z-prepass de `VertexStatic` (36o), fin de l'Uber-Vertex unique (conforme GEMINI.md).
-- [ ] 🎚️ **Extended Dynamic State (Vulkan 1.3)** : Cull mode, depth compare et primitive topology dynamiques pour réduire la multiplication des pipelines.
-- [ ] 💾 **Pipeline Cache Persistant** : Sauvegarder le blob binaire `vk::PipelineCache` sur disque (`assets/cache/pipelines.bin`) pour éliminer les micro-saccades au démarrage.
-- [ ] 🏷️ **Vulkan DebugUtils Labels & Tracy GPU** : Baliser chaque passe de rendu avec `vkCmdBeginDebugUtilsLabelEXT` et instrumenter avec `TracyVkZone`.
-- [ ] ♻️ **Mesh Update** : Optimiser `Mesh::updateVertices` avec un Mapping persistant ou Staging.
-- [ ] 🧩 **Modularisation** : Découpler Swapchain et Pipelines du global `Renderer`.
-- [ ] 📉 **LOD (Level of Detail)** : Switch de modèles ou tesselation basée sur la distance.
-- [ ] 🛡️ **Libération RAM Mesh** : Appeler `releaseCPUData()` auto sur les meshes statiques.
-
-### **🔴 Priorité Basse / Recherche**
-- [ ] ⚡ **GPU-Driven Rendering** : `DrawIndirect` + Compute Shader Culling.
-- [ ] 🧪 **Stress Test Instancing** : Faire une démo de benchmark à > 10 000 objets animés.
-- [ ] 🧼 **Nettoyage Validation Layers** : Activer `Synchronization Validation` en debug et corriger les derniers avertissements SPIR-V.
-- [ ] 🧠 **Initialisation Réactive Physique** : Utiliser les observers EnTT pour générer les RigidBodies Jolt à la volée.
-- [ ] 🛡️ **Migration progressive `vk::raii`** : Sécurisation RAII des objets Vulkan internes.
-
+- [x] ⚡ **GPU Instancing** : Batching automatique par mesh/matériau via SSBO d'instances.
+- [x] 💡 **Multi-Lights Base** : Support initial de 10 lumières simultanées (directionnelles et ponctuelles).
+- [x] ✨ **Cel-Shading** : Rendu stylisé toon avec quantification et outlines.
+- [x] 📂 **Serialization 2.0** : Sauvegarde et rechargement de scènes complètes au format JSON.
+- [x] 🧵 **JobSystem & ECS** : Thread pool multithread et registre de composants EnTT optimisé.
+- [x] 📐 **Maths & Camera** : Intégration GLM, caméras FPS et Orbitale interactives.
+- [x] 🌍 **Intégration Jolt Physics** : RigidBodies dynamiques/statiques, colliders, raycasting et character controller de base.
+- [x] 🕵️ **Frustum Culling CPU** : Rejet des objets hors champ via les AABB.
+- [x] 🗺️ **Compression Textures** : Support du format compressé BC7 et génération de mipmaps.

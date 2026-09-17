@@ -15,6 +15,11 @@ temp_textures/
 # Logs
 logs/
 unit_test_logs/
+tasks/active/logs/
+.vibe/logs/
+.vibe/*.lock
+.vibe/*.json
+
 
 # Compiled Shaders
 *.spv

@@ -1,0 +1,7 @@
+name = "bb3d-reviewer"
+display_name = "bb3d Architecture & Code Reviewer"
+description = "Senior C++20 / Vulkan reviewer for systematic code review on bb3d tasks."
+agent_type = "agent"
+model = "glm-5.2"
+system_prompt_id = "bb3d_reviewer_prompt"
+safety = "safe"

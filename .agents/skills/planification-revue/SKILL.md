@@ -39,9 +39,9 @@ Chaque document de tâche doit afficher et mettre à jour son **Statut** au fil 
 2. **`[READY FOR ARCHITECTURE REVIEW]` :** Soumission aux reviewers (`Reviewers`) pour validation de la conception avant tout codage.
 3. **`[APPROVED]` :** Les relecteurs ont approuvé le plan. Le développement peut commencer.
 4. **`[IN PROGRESS]` :** L'implémenteur réalise les tâches pas à pas selon l'approche TDD (test unitaire -> échec -> code minimal -> succès -> commit atomique).
-5. **`[READY FOR CODE REVIEW]` :** L'implémenteur a validé l'ensemble de ses checkpoints techniques et sollicite la revue de code.
-6. **`[CHANGES REQUESTED]` :** Un ou plusieurs reviewers demandent des ajustements (documentés dans le Journal des Échanges). L'implémenteur applique les corrections.
-7. **`[DONE]` :** Tous les checkpoints sont cochés (`[x]`), validation layers propres, suite de tests au vert. **Obligation :** Consigner 1 entrée compacte (3 lignes) dans `tasks/HISTORY.md`. Le fichier est ensuite déplacé dans `tasks/archive/`.
+5. **`[READY FOR CODE REVIEW]` :** **Obligatoire et systématique.** Dès que le développement est achevé et que les checkpoints implémenteur sont cochés, la revue de code est déclenchée. Aucune fusion ni clôture directe n'est autorisée.
+6. **`[CHANGES REQUESTED]` :** Un ou plusieurs reviewers demandent des ajustements ou signalent des bugs (documentés dans le Journal des Échanges). L'implémenteur analyse et applique les corrections selon le protocole de double check critique (Section 3).
+7. **`[DONE]` :** Tous les checkpoints sont cochés (`[x]`), validation layers propres, suite de tests au vert, et approbation formelle du reviewer (`APPROVED`). **Obligation :** Consigner 1 entrée compacte (3 lignes) dans `tasks/HISTORY.md`. Le fichier est ensuite déplacé dans `tasks/archive/`.
 
 
 ---
@@ -49,8 +49,9 @@ Chaque document de tâche doit afficher et mettre à jour son **Statut** au fil 
 ## 3. Grille de Checkpoints à Vérifier
 
 ### 🛠️ Checkpoints de l'Implémenteur (Avant soumission en revue)
+- [ ] **Double Check Bug (si correctif) :** L'existence du bug a été vérifiée de manière critique et confirmée dans le code source avant toute modification (pas de faux positif).
 - [ ] **TDD & Tests :** Les nouveaux tests et les tests de régression existants passent (`ctest`).
-- [ ] **Standards C++ (`cpp_pro`) :**
+- [ ] **Standards C++ (`cpp-pro`) :**
   - [ ] Zéro allocation dynamique dans le *Hot Path* (`render()` / `update()`).
   - [ ] `std::span` et `std::string_view` utilisés pour le passage de paramètres (Zero-Copy).
   - [ ] Initialisation désignée C++20 (`Type{.field = val}`).
@@ -67,7 +68,7 @@ Chaque document de tâche doit afficher et mettre à jour son **Statut** au fil 
 ---
 
 ### 🔍 Checkpoints des Reviewers (Validation & Approbation)
-- [ ] **Architecture & Opacité (`GEMINI.md`) :**
+- [ ] **Architecture & Opacité (`AGENTS.md`) :**
   - [ ] Les types Vulkan (`vk::*`) restent 100% opaques vis-à-vis du code utilisateur/scene.
   - [ ] Respect de la séparation CPU/GPU (pas de transfert inutile par frame).
   - [ ] Multi-streams sommets respecté (pas d'Uber-Vertex sur les passes d'ombres/picking).
@@ -83,11 +84,31 @@ Chaque document de tâche doit afficher et mettre à jour son **Statut** au fil 
 
 ---
 
-## 4. Instructions d'Exécution pour l'Agent
+## 4. Protocole de Traitement des Bugs & Double Check Croisé
+
+Lorsqu'une anomalie ou un bug est relevé (soit lors d'une revue de code `[CHANGES REQUESTED]`, soit via le catalogue `tasks/CODE_REVIEW.md`) :
+
+1. **Posture Critique Obligatoire (Zéro Confiance Aveugle) :**
+   - L'agent chargé de la correction **ne doit JAMAIS accepter un rapport de bug sans vérification**.
+   - Il doit inspecter le code source actuel et adopter une posture critique : *le bug existe-t-il réellement dans la base de code ? N'a-t-il pas déjà été corrigé ? Est-ce une hallucination ou un faux positif de l'agent rapporteur ? Quel est son impact réel ?*
+2. **Double Check par Deux Agents :**
+   - **Agent 1 (Rapporteur / Reviewer) :** Identifie l'anomalie, documente le fichier, la ligne et le mécanisme de défaillance.
+   - **Agent 2 (Correcteur / Fixeur) :** Réalise la contre-analyse indépendante. S'il confirme la présence du bug, il documente son diagnostic dans la fiche de tâche. S'il réfute le bug avec preuves techniques, il l'indique dans le Journal des Échanges pour clore ou requalifier la demande.
+3. **Reproduction TDD Formelle :**
+   - Dès confirmation, l'agent fixeur rédige **en premier** un test unitaire (`tests/unit_test_*.cpp`) démontrant la défaillance (le test doit échouer : RED).
+4. **Correction Minimale & Atomique :**
+   - Implémentation du code minimal pour faire passer le test (GREEN), sans refactoring opportuniste non sollicité.
+5. **Revue Systématique de Validation :**
+   - Le patch est soumis à la revue de code. Un reviewer (Agent 1 ou pair) valide formellement la conformité du fix et l'absence d'effets de bord avant d'apposer la mention `APPROVED`.
+
+---
+
+## 5. Instructions d'Exécution pour l'Agent
 
 1. **Création :** À chaque nouvelle fonctionnalité ou refactoring conséquent, copier `tasks/templates/TASK_REVIEW_TEMPLATE.md` vers `tasks/active/YYYY-MM-DD-<sujet>.md`.
 2. **Attribution :** Renseigner clairement l'Auteur (`@nom_dev` ou `@agent_name`) et le(s) Reviewer(s).
 3. **Granularité TDD :** Rédiger des mini-tâches de 2 à 5 minutes avec le test unitaire exact, les commandes CMake/CTest associées et les fichiers cibles.
-4. **Validation Croisée :** Ne jamais marquer une tâche `DONE` sans avoir validé les cases de l'implémenteur ET obtenu l'approbation formelle des reviewers.
-5. **Historique & Archivage :** Dès que la tâche est validée, consigner 1 entrée compacte dans `tasks/HISTORY.md` (Date, ID, Scope, Auteur/Reviewer, Tests, Archive), puis déplacer le fichier de `tasks/active/` vers `tasks/archive/`.
+4. **Revue de Code Systématique :** Aucune tâche ne peut être considérée terminée sans passage formel en revue de code par un second agent ou développeur.
+5. **Validation Croisée :** Ne jamais marquer une tâche `DONE` sans avoir validé les cases de l'implémenteur ET obtenu l'approbation formelle des reviewers (`APPROVED`).
+6. **Historique & Archivage :** Dès que la tâche est validée, consigner 1 entrée compacte dans `tasks/HISTORY.md` (Date, ID, Scope, Auteur/Reviewer, Tests, Archive), puis déplacer le fichier de `tasks/active/` vers `tasks/archive/`.
 

@@ -1,0 +1,7 @@
+name = "bb3d-fixer"
+display_name = "bb3d Engine Fixer & Implementer"
+description = "C++20 / Vulkan 1.3 engine implementer for bb3d following TDD and Double Check protocol."
+agent_type = "agent"
+model = "glm-5.2"
+system_prompt_id = "bb3d_fixer_prompt"
+safety = "neutral"

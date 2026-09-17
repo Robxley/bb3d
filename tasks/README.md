@@ -14,20 +14,21 @@ Il s'adresse à tous les développeurs et agents IA travaillant sur le projet.
 2. **Créer la fiche de tâche :**
    - Copier [`templates/TASK_REVIEW_TEMPLATE.md`](templates/TASK_REVIEW_TEMPLATE.md) vers `active/YYYY-MM-DD-<nom-de-la-tache>.md`.
    - Renseigner l'Auteur (`@dev`), le(s) Reviewer(s) et découper en mini-tâches atomiques TDD (2 à 5 min chacune).
+   - **En cas de bug fix :** Remplir la section *1.bis Revalidation Critique du Bug* (Double Check obligatoire pour s'assurer que le bug est bien réel dans le code live).
    - Passer le statut à `[READY FOR ARCHITECTURE REVIEW]` et obtenir la validation avant de coder.
 
 3. **Développer en TDD (Test-Driven Development) :**
-   - Écrire le test unitaire d'abord (`tests/unit_test_*.cpp`).
-   - Vérifier l'échec initial, implémenter le code source minimal, et valider le succès :
+   - Écrire le test unitaire de reproduction ou de nouvelle fonctionnalité d'abord (`tests/unit_test_*.cpp`).
+   - Vérifier l'échec initial (RED), implémenter le code source minimal (GREEN), et valider le succès :
      ```bash
      cmake --build build --config Debug -j && ctest --test-dir build -C Debug --output-on-failure
      ```
    - Commiter de manière atomique (`feat:`, `fix:`, `refactor:`).
 
-4. **Revue de Code & Checkpoints :**
+4. **Revue de Code Systématique & Checkpoints :**
    - L'implémenteur valide l'ensemble de ses checkpoints techniques dans la fiche.
    - Passer le statut à `[READY FOR CODE REVIEW]`.
-   - Le(s) Reviewer(s) vérifient les critères de qualité (Vulkan, C++20, sécurité, perf) et signent `APPROVED`.
+   - **Revue systématique :** Un second agent / reviewer inspecte le patch, vérifie l'absence de régression, valide les critères de qualité (Vulkan, C++20, sécurité, perf) et signe `APPROVED`. Aucune tâche ne peut être clôturée sans cette revue formelle.
 
 5. **Clôture & Archivage :**
    - Ajouter **1 entrée compacte (3 lignes max)** dans [`HISTORY.md`](HISTORY.md).

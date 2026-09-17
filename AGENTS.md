@@ -44,6 +44,7 @@ L'agent **DOIT** consulter et activer les compétences locales selon le besoin :
 | **`planification-revue`** | `.agents/skills/planification-revue/` | **Obligatoire** dès qu'un design est validé. Découpe en TDD et fournit la grille de revue croisée (Implémenteur vs Reviewers). |
 | **`cpp-pro`** | `.agents/skills/cpp-pro/` | Pour tout code C++20/23 : Zero-Copy (`std::span`, `std::string_view`), initialisation désignée, zéro-allocation hot-path, conteneurs cache-friendly. |
 | **`vulkan-cpp`** | `.agents/skills/vulkan-cpp/` | Pour toute manipulation Vulkan : `StructureChain`, Dynamic Rendering, `pipelineBarrier2` (Sync2), Timeline Semaphores, Push Descriptors, multi-streams sommets. |
+| **`vibe-orchestrator`** | `.agents/skills/vibe-orchestrator/` | Pour déléguer et orchestrer des tâches avec Mistral Vibe CLI (Fixeur TDD, Reviewer en lecture seule) via worktrees isolés et modèle `glm-5.2`. |
 | **`createur-de-competences`** | `.agents/skills/createur-de-competences/` | Pour concevoir et générer de nouvelles compétences au standard officiel. |
 
 ---
@@ -57,9 +58,25 @@ Pour toute nouvelle fonctionnalité, refactoring ou correction de bug, l'IA **DO
 2. Planification    ➔ Invoquer planification-revue, dupliquer TASK_REVIEW_TEMPLATE.md dans tasks/active/
 3. Approbation      ➔ Obtenir la validation formelle de l'architecture par l'utilisateur
 4. Exécution TDD    ➔ Rédiger le test unitaire d'abord, coder le minimum, valider CTest, commiter de manière atomique
-5. Revue Croisée    ➔ Valider les checkpoints Implémenteur et Reviewer dans la fiche
+5. Revue Systématique➔ Revue de code croisée OBLIGATOIRE par un second agent/reviewer, validation des checkpoints
 6. Clôture          ➔ Consigner 1 entrée compacte (3 lignes) dans tasks/HISTORY.md et déplacer vers tasks/archive/
 ```
+
+---
+
+## 🛡️ Protocole de Traitement des Bugs & Double Check Croisé
+
+Pour garantir l'intégrité du moteur et éliminer les faux positifs ou hallucinations :
+
+1. **Posture Critique Obligatoire (Zéro Confiance Aveugle) :**
+   - L'agent chargé d'un correctif de bug (qu'il provienne d'une revue `[CHANGES REQUESTED]` ou du catalogue `tasks/CODE_REVIEW.md`) **ne doit JAMAIS modifier le code sans vérification préalable**.
+   - Il doit inspecter le code source actuel et confirmer de manière critique que l'anomalie est bien présente, reproductible et non encore résolue.
+2. **Double Check par Deux Agents :**
+   - L'existence du bug requiert le consensus de deux regards : l'**Agent Rapporteur** (qui isole et documente le problème) et l'**Agent Fixeur** (qui revalide de façon indépendante la réalité du problème avant d'agir). En cas de faux positif, l'agent fixeur le démontre techniquement dans la fiche de tâche.
+3. **Reproduction TDD :**
+   - Écrire un test unitaire qui échoue (RED) avant d'implémenter la moindre ligne de correctif.
+4. **Revue de Validation Systématique :**
+   - Une fois le fix appliqué et les tests validés (GREEN), une revue de code formelle par un second agent/reviewer est obligatoire pour vérifier l'absence d'effets de bord et signer `APPROVED`.
 
 ---
 

@@ -1,6 +1,6 @@
 # [TÂCHE-XXX] : [Nom de la Fonctionnalité ou Correctif]
 
-- **Statut :** [DRAFT | READY FOR REVIEW | IN PROGRESS | CODE REVIEW | DONE]
+- **Statut :** [DRAFT | READY FOR ARCHITECTURE REVIEW | APPROVED | IN PROGRESS | READY FOR CODE REVIEW | CHANGES REQUESTED | DONE]
 - **Auteur / Implémenteur :** @nom_ou_agent
 - **Reviewer(s) :** @nom_ou_agent
 - **Branche Git :** `feat/nom-de-branche` ou `fix/...`
@@ -13,15 +13,24 @@
 
 ---
 
+## 1.bis Revalidation Critique du Bug (Obligatoire si Tâche de type Bug Fix)
+<!-- Si la tâche traite un bug rapporté (CODE_REVIEW.md ou retour de revue), l'agent fixeur DOIT vérifier de manière critique son existence dans le code actuel (Double Check). -->
+- **Bug ID / Signalement :** [ex: B8 dans tasks/CODE_REVIEW.md]
+- **Diagnostic critique indépendant :** [L'agent fixeur décrit son analyse du code source live : confirmation ou réfutation du bug]
+- **Preuve technique / Scénario de panne :** [Fichier, ligne exacte, conditions de déclenchement]
+- **Statut Double Check :** [ ] CONFIRMÉ (Bug réel et reproductible) / [ ] RÉFUTÉ (Faux positif argumenté)
+
+---
+
 ## 2. Découpage en Tâches Atomiques (Approche TDD)
 
 ### Tâche 1 : [Composant / Fichier]
 - **Fichiers modifiés / créés :** `include/bb3d/...`, `src/bb3d/...`, `tests/...`
 - **Test unitaire associé :** `tests/unit_test_xxx.cpp`
-- **Étape 1 (Test) :** Écrire le test unitaire qui échoue initialement.
-- **Étape 2 (Vérification échec) :** `cmake --build build && ctest -R test_xxx`
+- **Étape 1 (Test) :** Écrire le test unitaire qui échoue initialement (reproduction du bug ou nouveau comportement).
+- **Étape 2 (Vérification échec) :** `cmake --build build && ctest -R test_xxx` (RED).
 - **Étape 3 (Code minimal) :** Implémenter le code source minimal nécessaire.
-- **Étape 4 (Vérification succès) :** `cmake --build build && ctest -R test_xxx` (PASS).
+- **Étape 4 (Vérification succès) :** `cmake --build build && ctest -R test_xxx` (PASS / GREEN).
 - **Étape 5 (Commit) :** `git commit -m "feat/fix: description concise"`
 
 ---
@@ -29,8 +38,9 @@
 ## 3. Grille de Revue & Checkpoints
 
 ### 🛠️ Checkpoints de l'Implémenteur (Avant soumission en revue)
-- [ ] **TDD & Tests :** Les nouveaux tests et les 29 tests unitaires existants passent (`ctest`).
-- [ ] **Standards C++ (`cpp_pro`) :**
+- [ ] **Double Check Bug (si correctif) :** L'existence du bug a été vérifiée de manière critique et confirmée dans le code source avant toute modification (pas de faux positif).
+- [ ] **TDD & Tests :** Les nouveaux tests et les tests unitaires existants passent (`ctest`).
+- [ ] **Standards C++ (`cpp-pro`) :**
   - [ ] Zéro allocation dynamique dans le *Hot Path* (`render()` / `update()`).
   - [ ] `std::span` et `std::string_view` utilisés pour le passage de paramètres (Zero-Copy).
   - [ ] Initialisation désignée C++20 (`Type{.field = val}`).
@@ -46,8 +56,8 @@
 
 ---
 
-### 🔍 Checkpoints des Reviewers (Validation & Approbation)
-- [ ] **Architecture & Opacité (`GEMINI.md`) :**
+### 🔍 Checkpoints des Reviewers (Revue de Code Systématique & Approbation)
+- [ ] **Architecture & Opacité (`AGENTS.md`) :**
   - [ ] Les types Vulkan (`vk::*`) restent 100% opaques vis-à-vis du code utilisateur/scene.
   - [ ] Respect de la séparation CPU/GPU (pas de transfert inutile par frame).
   - [ ] Multi-streams sommets respecté (pas d'Uber-Vertex sur les passes d'ombres/picking).
