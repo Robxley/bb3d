@@ -124,7 +124,11 @@ namespace bb3d {
         }
 
         m_impl->tempAllocator = CreateScope<JPH::TempAllocatorImpl>(10 * 1024 * 1024);
-        m_impl->jobSystem = CreateScope<JPH::JobSystemThreadPool>(JPH::cMaxPhysicsJobs, JPH::cMaxPhysicsBarriers, (int)std::thread::hardware_concurrency() - 1);
+        m_impl->jobSystem = CreateScope<JPH::JobSystemThreadPool>(
+            JPH::cMaxPhysicsJobs,
+            JPH::cMaxPhysicsBarriers,
+            std::max(1, static_cast<int>(std::thread::hardware_concurrency()) - 1)
+        );
 
         m_impl->physicsSystem = CreateScope<JPH::PhysicsSystem>();
         m_impl->physicsSystem->Init(1024, 0, 1024, 1024, m_impl->bpLayerInterface, m_impl->objVsBpFilter, m_impl->objLayerPairFilter);
@@ -157,7 +161,11 @@ namespace bb3d {
         // Characters use specific logic as they are not standard RigidBodies.
         for (auto it = m_impl->characters.begin(); it != m_impl->characters.end(); ) {
             entt::entity handle = static_cast<entt::entity>(it->first);
-            if (!scene.getRegistry().valid(handle)) { it = m_impl->characters.erase(it); continue; }
+            if (!scene.getRegistry().valid(handle) || 
+                !scene.getRegistry().all_of<CharacterControllerComponent, TransformComponent>(handle)) {
+                it = m_impl->characters.erase(it);
+                continue;
+            }
 
             auto& charV = it->second;
             auto& cc = scene.getRegistry().get<CharacterControllerComponent>(handle);
@@ -294,6 +302,11 @@ namespace bb3d {
     void PhysicsWorld::createRigidBody(Entity entity) {
         if (!m_impl->initialized || !entity.has<PhysicsComponent>()) return;
 
+        if (!entity.has<TransformComponent>()) {
+            BB_CORE_WARN("PhysicsWorld: Cannot create rigid body for entity without TransformComponent");
+            return;
+        }
+
         auto& phys = entity.get<PhysicsComponent>();
         auto& tf = entity.get<TransformComponent>();
         auto& bodyInterface = m_impl->physicsSystem->GetBodyInterface();
@@ -373,6 +386,10 @@ namespace bb3d {
         }
 
         JPH::Body* body = bodyInterface.CreateBody(settings);
+        if (!body) {
+            BB_CORE_ERROR("PhysicsWorld: Failed to create Jolt body (body limit reached or invalid settings)");
+            return;
+        }
         bodyInterface.AddBody(body->GetID(), JPH::EActivation::Activate);
         phys.bodyID = body->GetID().GetIndexAndSequenceNumber();
     }
@@ -394,6 +411,11 @@ namespace bb3d {
     void PhysicsWorld::createCharacterController(Entity entity) {
         if (!m_impl->initialized || !entity.has<CharacterControllerComponent>()) return;
 
+        if (!entity.has<TransformComponent>()) {
+            BB_CORE_WARN("PhysicsWorld: Cannot create character controller without TransformComponent");
+            return;
+        }
+
         auto& tf = entity.get<TransformComponent>();
         auto& cc = entity.get<CharacterControllerComponent>();
 
@@ -411,6 +433,11 @@ namespace bb3d {
         
         auto character = new JPH::CharacterVirtual(&settings, toJPH(tf.translation), toJPH(glm::quat(tf.rotation)), m_impl->physicsSystem.get());
         m_impl->characters[static_cast<uint32_t>(entity.getHandle())] = character;
+    }
+
+    void PhysicsWorld::destroyCharacterController(Entity entity) {
+        if (!m_impl || !m_impl->initialized) return;
+        m_impl->characters.erase(static_cast<uint32_t>(entity.getHandle()));
     }
 
     RaycastResult PhysicsWorld::raycast(const glm::vec3& origin, const glm::vec3& direction, float maxDistance) {

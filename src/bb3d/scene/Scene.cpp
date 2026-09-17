@@ -152,6 +152,15 @@ View<SkySphereComponent> Scene::createSkySphere(const std::string& name, const s
 }
 
 void Scene::destroyEntity(Entity entity) {
+    if (m_EngineContext && m_EngineContext->GetPhysicsWorld()) {
+        if (entity.has<PhysicsComponent>()) {
+            m_EngineContext->physics().destroyRigidBody(entity);
+        }
+        if (entity.has<CharacterControllerComponent>()) {
+            m_EngineContext->physics().destroyCharacterController(entity);
+        }
+    }
+
     std::string name = "Unknown";
     if (entity.has<TagComponent>()) {
         name = entity.get<TagComponent>().tag;

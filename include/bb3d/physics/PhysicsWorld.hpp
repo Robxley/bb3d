@@ -73,6 +73,9 @@ namespace bb3d {
         /** @brief Crée un CharacterController virtuel (idéal pour le joueur). */
         void createCharacterController(Entity entity);
 
+        /** @brief Supprime le CharacterController virtuel associé à une entité. */
+        void destroyCharacterController(Entity entity);
+
         /** 
          * @brief Lance un rayon dans la scène physique.
          * @param origin Point de départ.

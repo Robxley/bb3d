@@ -5,6 +5,11 @@ Ce fichier consigne l'historique compact de tous les chantiers et correctifs ter
 
 ---
 
+- **[2026-09-17] [TASK-PHYSICS-GUARDS] Robustesse Jolt Physics (B14, B15, B16, B20, B21)** (@Antigravity / @bb3d-reviewer & @User)
+  - Scope: `include/bb3d/physics/PhysicsWorld.hpp`, `src/bb3d/physics/PhysicsWorld.cpp`, `src/bb3d/scene/Scene.cpp`, `tests/unit_test_27_physics_guards.cpp`
+  - Bilan: B14 (clamp threads), B15/B20 (gardes Transform), B16 (check CreateBody != null), B21 (nettoyage Jolt dans destroyEntity), test 27 PASS (0.48s), revue APPROVED.
+  - Archive: [archive/TASK-PHYSICS-GUARDS.md](archive/TASK-PHYSICS-GUARDS.md)
+
 - **[2026-09-17] [TASK-POSTPROCESS] Liaison PostProcessUBO & Synchronisation Viewport Éditeur (N1)** (@Antigravity / @User)
   - Scope: `src/bb3d/render/Renderer.cpp`, `include/bb3d/render/Renderer.hpp`, `include/bb3d/core/Config.hpp`, `src/bb3d/core/PickingSystem.cpp`, `CMakeLists.txt`
   - Bilan: PostProcessUBO lié au pipeline de copie (N1 résolu, 0 crash GPU), synchronisation picking/RenderTarget 1:1, timeouts CTest (15s) et fence (2s), tests PASS.
