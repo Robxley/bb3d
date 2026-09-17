@@ -1,6 +1,8 @@
 # Build directories
 build*/
 out/
+Testing/
+tmp/
 
 # Visual Studio & CMake
 .vs/
@@ -16,3 +18,7 @@ unit_test_logs/
 
 # Compiled Shaders
 *.spv
+
+# Runtime & Editor temp files
+imgui.ini
+*.bak

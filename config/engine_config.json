@@ -7,13 +7,13 @@
         "resizable": true
     },
     "graphics": {
-        "vsync": true,
+        "vsync": false,
         "fpsMax": 0,
         "buffering": "triple",
         "msaaSamples": 1,
         "anisotropy": 16.0,
         "shadowMapResolution": 2048,
-        "enableValidationLayers": true,
+        "enableValidationLayers": false,
         "enableFrustumCulling": true,
         "enableMipmapping": true,
         "enableOffscreenRendering": false,

@@ -2,7 +2,7 @@
 
 Ce document centralise le plan de développement du moteur **biobazard3d**, ainsi que toutes les tâches (Features, Optimisations, Refactoring) en cours ou à venir.
 
-**Philosophie :** Chaque étape (Milestone) est validée par un exécutable de test unitaire autonome (Sandbox) qui prouve le fonctionnement du module de manière isolée avant l'intégration globale. De plus, chaque nouvelle fonctionnalité passe obligatoirement par un processus de Brainstorming et de Planification documenté dans `docs/plans/`.
+**Philosophie :** Chaque étape (Milestone) est validée par un exécutable de test unitaire autonome (Sandbox) qui prouve le fonctionnement du module de manière isolée avant l'intégration globale. De plus, chaque nouvelle fonctionnalité passe obligatoirement par un processus de Brainstorming et de Planification documenté dans `tasks/active/`.
 
 ---
 
@@ -52,23 +52,28 @@ Ce document centralise le plan de développement du moteur **biobazard3d**, ains
 - [x] 🏎️ **Optimisation du JobSystem** : Parallélisation du Culling & Tri terminé.
 - [x] 🗺️ **Mipmapping & Compression (BC7)** : Réduction de la BP globale.
 - [x] 🧹 **Élimination Goulots Allocations (Heap Pressure)** : Terminée (reserve/clear).
-- [ ] 🚀 **Async Texture Upload** : Remplacer `waitIdle` (bloquant) par des Fences et une `TransferQueue` asynchrone pour le streaming.
+- [ ] 🚀 **Vulkan Synchronization2 (`pipelineBarrier2`)** : Modernisation complète des barrières mémoire vers l'API Vulkan 1.3+ (*cf. [Audit Vulkan](vulkan_audit/RAPPORT_AUDIT_VULKAN_MODERNE.md)*).
+- [ ] ⏱️ **Timeline Semaphores & Async Queue** : Remplacement des semaphores binaires et `waitIdle()` bloquants par des Timeline Semaphores et file de transfert dédiée.
+- [ ] 🎛️ **Push Descriptors & Descriptor Allocator** : Élimination de l'allocation de descriptor sets par matériau et correction des fuites de pool.
 - [ ] 📦 **Material Storage Buffer** : Remplacer les UBOs / matériaux par un unique SSBO global (Material Array).
 - [ ] 💡 **Dynamic Lights (SSBO)** : Supprimer la limite des 10 lumières via un SSBO redimensionnable.
 - [ ] 🔗 **Bindless Textures (Descriptor Indexing)** : Tableau global pour éliminer les changements de bindings.
 - [ ] 🛡️ **Z-Prepass** : Passe de profondeur initiale (Depth Pre-pass).
 
 ### **🟡 Priorité Moyenne (Refactoring & CPU)**
+- [ ] 📐 **Découplage Vertex Layout (Multi-Streams)** : Séparer `VertexPos` (12o) pour shadows/Z-prepass de `VertexStatic` (36o), fin de l'Uber-Vertex unique (conforme GEMINI.md).
+- [ ] 🎚️ **Extended Dynamic State (Vulkan 1.3)** : Cull mode, depth compare et primitive topology dynamiques pour réduire la multiplication des pipelines.
+- [ ] 💾 **Pipeline Cache Persistant** : Sauvegarder le blob binaire `vk::PipelineCache` sur disque (`assets/cache/pipelines.bin`) pour éliminer les micro-saccades au démarrage.
+- [ ] 🏷️ **Vulkan DebugUtils Labels & Tracy GPU** : Baliser chaque passe de rendu avec `vkCmdBeginDebugUtilsLabelEXT` et instrumenter avec `TracyVkZone`.
 - [ ] ♻️ **Mesh Update** : Optimiser `Mesh::updateVertices` avec un Mapping persistant ou Staging.
-- [ ] 🧩 **Modularisation** : Découpler Swampchain et Pipelines du global `Renderer`.
+- [ ] 🧩 **Modularisation** : Découpler Swapchain et Pipelines du global `Renderer`.
 - [ ] 📉 **LOD (Level of Detail)** : Switch de modèles ou tesselation basée sur la distance.
-- [ ] 💾 **Pipeline Cache** : Sauvegarder l'état des pipelines sur disque.
-- [ ] 🏭 **Descriptor Allocator Dynamique** : Créer un allocator gérant de multiples pools.
-- [ ] 📐 **Standardisation Vertex Layout** : Vérification stricte du SSOT (Single Source of Truth).
 - [ ] 🛡️ **Libération RAM Mesh** : Appeler `releaseCPUData()` auto sur les meshes statiques.
 
 ### **🔴 Priorité Basse / Recherche**
 - [ ] ⚡ **GPU-Driven Rendering** : `DrawIndirect` + Compute Shader Culling.
 - [ ] 🧪 **Stress Test Instancing** : Faire une démo de benchmark à > 10 000 objets animés.
-- [ ] 🧼 **Nettoyage Validation Layers** : Corriger les derniers probables warnings d'interface SPIR-V.
+- [ ] 🧼 **Nettoyage Validation Layers** : Activer `Synchronization Validation` en debug et corriger les derniers avertissements SPIR-V.
 - [ ] 🧠 **Initialisation Réactive Physique** : Utiliser les observers EnTT pour générer les RigidBodies Jolt à la volée.
+- [ ] 🛡️ **Migration progressive `vk::raii`** : Sécurisation RAII des objets Vulkan internes.
+

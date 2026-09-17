@@ -471,12 +471,12 @@ int main(int argc, char** argv) {
         auto config = Config::Load("config/engine_config.json")
             .title("AstroBazard - Kerbal Space 2D")
             .resolution(1280, 720)
-            .vsync(true)
+            .vsync(false)
             .enablePhysics(PhysicsBackend::Jolt)
             .enableOffscreenRendering(true)
             .enableEditor(enableEditor);
             
-        config.graphics.setShadows(true, 4096, 4, true);
+        config.graphics.setShadows(true, 2024, 4, true);
         auto engine = Engine::Create(config);
 
         // Logic registration

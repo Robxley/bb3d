@@ -412,13 +412,13 @@ bool Renderer::render(Scene& scene) {
         m_imagesInUseFences.assign(m_swapChain->getImageCount(), nullptr);
     }
 
-    // 1. Prepare data (Collect commands and fill instance buffers)
-    prepareRenderData(scene);
-
-    // 2. Identify active camera and setup UBO
+    // 1. Identify active camera and setup UBO (which also updates frustum)
     GlobalUBO uboData{}; // Zero-initialize to avoid rendering with garbage if update fails
     updateGlobalUBO(m_currentFrame, scene, uboData);
     BB_CORE_TRACE("Renderer: UBO updated");
+
+    // 2. Prepare data (Collect commands and fill instance buffers, using frustum for culling)
+    prepareRenderData(scene);
     
     // 3. Begin Command Buffer
     auto dev = m_context.getDevice();
@@ -810,6 +810,17 @@ void Renderer::prepareRenderData(Scene& scene) {
         }
     }
 
+    // Frustum Culling: Remove objects outside the view frustum
+    if (m_config.graphics.enableFrustumCulling && !m_renderCommands.empty()) {
+        auto it = std::remove_if(m_renderCommands.begin(), m_renderCommands.end(),
+            [&](const RenderCommand& cmd) {
+                if (!cmd.mesh) return false;
+                AABB worldBounds = cmd.mesh->getBounds().transform(cmd.transform);
+                return !m_frustum.intersects(worldBounds);
+            });
+        m_renderCommands.erase(it, m_renderCommands.end());
+    }
+
     std::ranges::sort(m_renderCommands, [](const RenderCommand& a, const RenderCommand& b) {
         if (a.type != b.type) return a.type < b.type;
         if (a.material != b.material) return a.material < b.material;
@@ -837,7 +848,9 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
 
     float nearZ = activeCamera->getNearPlane();
     float farZ = activeCamera->getFarPlane();
-    auto splits = ShadowCascade::calculateSplitDistances(m_config.graphics.shadowCascades, nearZ, farZ, 0.5f);
+    // Use a larger far plane for shadow cascades to ensure distant objects (moon, asteroids) are covered
+    float shadowFarZ = std::max(farZ, 1000.0f);
+    auto splits = ShadowCascade::calculateSplitDistances(m_config.graphics.shadowCascades, nearZ, shadowFarZ, 0.5f);
     
     glm::mat4 camProj = activeCamera->getProjectionMatrix();
     glm::mat4 camViewMat = activeCamera->getViewMatrix();

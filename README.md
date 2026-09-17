@@ -208,4 +208,40 @@ bb3d::Entity hit = scene->pickEntity(mouseUV);
 
 ---
 
+## 🛠️ Build & Tests
+
+### Prerequisites
+- **C++20 Compiler** (MSVC 2022+, GCC 12+, Clang 15+)
+- **CMake** (3.20 or newer)
+- **Vulkan SDK** (1.3+ / 1.4 recommended) with `glslc` accessible in PATH or `$VULKAN_SDK/bin`
+
+### Build Commands
+```bash
+# 1. Configure
+cmake -B build -DCMAKE_BUILD_TYPE=Debug
+
+# 2. Build Engine, Apps and Tests
+cmake --build build --config Debug -j
+
+# 3. Run Unit Tests (29 automated tests)
+ctest --test-dir build -C Debug --output-on-failure
+```
+*Executables and deployed assets are generated directly in the common `bin/` directory.*
+
+---
+
+## 🤝 Contributing & Tasks Workflow
+
+All engine developments, bug fixes, and reviews are strictly tracked in the [`tasks/`](tasks/) directory:
+
+1. **Backlog & Priorities:** Consult [`tasks/ROADMAP.md`](tasks/ROADMAP.md) for planned features and [`tasks/CODE_REVIEW.md`](tasks/CODE_REVIEW.md) for known bugs (B1 to B28).
+2. **Task Creation:** Copy [`tasks/templates/TASK_REVIEW_TEMPLATE.md`](tasks/templates/TASK_REVIEW_TEMPLATE.md) to `tasks/active/YYYY-MM-DD-<feature>.md`.
+3. **TDD Methodology:** Write unit tests first, implement the minimal code, ensure `ctest` passes, and commit atomically.
+4. **Code Review Checkpoints:** Fill out author checklists and submit to reviewers for validation (`APPROVED`).
+5. **Close & Archive:** Log a concise 3-line entry in [`tasks/HISTORY.md`](tasks/HISTORY.md) and move the task file to `tasks/archive/`.
+
+For complete architectural and API documentation, refer to the [`docs/`](docs/) directory.
+
+---
+
 *biobazard3d architecture and codebase developed per standard documentation constraints. All namespaces isolate strictly underneath `bb3d::`.*

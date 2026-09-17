@@ -25,8 +25,8 @@ Tu dois créer une tâche pour chacun de ces points et les compléter dans l'ord
 2. **Poser des questions de clarification** : Une à la fois pour bien comprendre le but, les contraintes et les critères de réussite.
 3. **Proposer 2 à 3 approches** : Présenter les avantages/inconvénients et ta recommandation.
 4. **Présenter le design** : Par sections adaptées à la complexité, en demandant l'approbation de l'utilisateur après chaque section.
-5. **Écrire le document de conception (Design Doc)** : Sauvegarder dans `docs/plans/YYYY-MM-DD-<sujet>-design.md` (adapter si un autre dossier de docs existe).
-6. **Transition vers l'implémentation** : Invoquer la compétence de `planification` pour créer le plan d'implémentation.
+5. **Écrire le document de conception (Design Doc)** : Sauvegarder dans `tasks/active/YYYY-MM-DD-<sujet>-design.md`.
+6. **Transition vers l'implémentation** : Invoquer la compétence `planification-revue` pour créer le plan d'implémentation et la grille de revue de code.
 
 ## Le Processus en Détail
 
@@ -50,7 +50,7 @@ Tu dois créer une tâche pour chacun de ces points et les compléter dans l'ord
 ## Après le Design
 
 **Documentation :**
-- Rédige le design tel que validé dans le dossier cible (généralement `docs/plans/...-design.md` ou dans un path défini par le projet).
+- Rédige le design tel que validé dans `tasks/active/YYYY-MM-DD-<sujet>-design.md`.
 
 **Implémentation :**
-- Invoque immédiatement la compétence `planification` pour créer le plan d'implémentation détaillé. Ne lance aucune autre compétence.
+- Invoque immédiatement la compétence `planification-revue` pour créer le plan d'implémentation détaillé et initialiser la grille de revue. Ne lance aucune autre compétence.

@@ -56,14 +56,13 @@ float ShadowCalculation(vec3 fragPosWorldSpace, vec3 N, vec3 lightDir) {
     vec4 viewPos = ubo.view * vec4(offsetPos, 1.0);
     float depth = abs(viewPos.z);
     
-    int layer = -1;
-    for(int i = 0; i < 4; ++i) {
-        if(depth < ubo.shadowSplitDepths[i]) {
+    int layer = 0;
+    for(int i = 1; i < 4; ++i) {
+        if(depth <= ubo.shadowSplitDepths[i]) {
             layer = i;
             break;
         }
     }
-    if (layer == -1) layer = 3;
 
     vec4 fragPosLightSpace = ubo.shadowCascades[layer] * vec4(offsetPos, 1.0);
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;

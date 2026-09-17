@@ -64,7 +64,8 @@ glm::mat4 ShadowCascade::calculateLightSpaceMatrix(
     radius = std::ceil(radius * 16.0f) / 16.0f; // Stabilize radius
 
     // 4. Calculate Light View properly positioned behind the bounding sphere
-    float backMargin = radius * 3.0f + 1000.0f; 
+    // Adapt back margin to scene scale (radius * 3 + 10% of scene depth)
+    float backMargin = radius * 3.0f + (farZ - nearZ) * 0.1f; 
     glm::vec3 eye = center - lightDir * backMargin;
     glm::vec3 up = std::abs(lightDir.y) > 0.999f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
     glm::mat4 lightView = glm::lookAt(eye, center, up);
@@ -72,7 +73,9 @@ glm::mat4 ShadowCascade::calculateLightSpaceMatrix(
     // 5. Fixed Orthographic Matrix based strictly on sphere radius
     float extents = radius; 
     float zNear_ortho = 0.0f; 
-    float zFar_ortho = backMargin + radius + 1000.0f;
+    // Adapt far plane to scene scale to handle large distances (moon at 25m, camera at 100m+)
+    float sceneScale = farZ - nearZ;
+    float zFar_ortho = backMargin + radius + sceneScale * 0.5f;
     
     glm::mat4 lightProj = glm::ortho(-extents, extents, -extents, extents, zNear_ortho, zFar_ortho);
     
