@@ -366,46 +366,6 @@ void Scene::onUpdate(float deltaTime) {
                 m_EngineContext->physics().createRigidBody(entity);
             }
         }
-
-        // --- OPTIMIZATION: Horizon Culling ---
-        if (planet.model) {
-            entt::entity activeCamera = entt::null;
-            auto camView = m_registry.view<CameraComponent>();
-            for (auto camEnt : camView) {
-                if (camView.get<CameraComponent>(camEnt).active) {
-                    activeCamera = camEnt;
-                    break;
-                }
-            }
-
-            if (activeCamera != entt::null) {
-                auto& camTransform = m_registry.get<TransformComponent>(activeCamera);
-                glm::vec3 camPos = camTransform.translation;
-                
-                auto& planetTransform = entity.get<TransformComponent>();
-                glm::vec3 planetPos = planetTransform.translation;
-                glm::mat4 planetRotation = glm::toMat4(glm::quat(planetTransform.rotation));
-                
-                // The 6 directions representing the faces of the cube (must match ProceduralMeshGenerator)
-                static const std::vector<glm::vec3> faceDirections = {
-                    { 1.0f,  0.0f,  0.0f}, {-1.0f,  0.0f,  0.0f},
-                    { 0.0f,  1.0f,  0.0f}, { 0.0f, -1.0f,  0.0f},
-                    { 0.0f,  0.0f,  1.0f}, { 0.0f,  0.0f, -1.0f}
-                };
-
-/*
-                const auto& meshes = planet.model->getMeshes();
-                for (size_t i = 0; i < meshes.size() && i < faceDirections.size(); ++i) {
-                    glm::vec3 worldNormal = glm::normalize(glm::vec3(planetRotation * glm::vec4(faceDirections[i], 0.0f)));
-                    glm::vec3 toPlanet = glm::normalize(planetPos - camPos);
-                    // Simple Horizon Culling: If the face normal is too far from the camera direction (pointing away)
-                    // We use 0.55f (approx sin(33 deg)) to account for the angular span of a cube face over the sphere.
-                    float dot = glm::dot(worldNormal, toPlanet);
-                    meshes[i]->setVisible(dot < 0.55f);
-                }
-*/
-            }
-        }
     }
 
     // --- SYSTEM: Particles ---
