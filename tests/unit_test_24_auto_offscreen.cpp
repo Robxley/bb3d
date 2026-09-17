@@ -15,8 +15,6 @@ int main() {
     config.system.logDirectory = "unit_test_logs";
     config.system.logFileName = "unit_test_24.log";
     config.graphics.enableOffscreenRendering = false; // We want to test AUTO-activation
-    config.graphics.enableTonemapping = true;
-    config.graphics.exposure = 1.0f;
     config.modules.enablePhysics = false;
     config.modules.enableEditor = true;
 
@@ -37,7 +35,7 @@ int main() {
         auto houseModelRes = engine->assets().load<Model>("assets/models/house.obj");
         
         auto houseModel = Ref<Model>(houseModelRes);
-        houseModel->normalize(2.0f);
+        houseModel->normalize(glm::vec3(2.0f));
         
         auto houseEntity = scene->createEntity("House");
         houseEntity.add<ModelComponent>(houseModel);

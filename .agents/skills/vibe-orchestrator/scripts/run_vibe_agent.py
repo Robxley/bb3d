@@ -13,6 +13,12 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Ensure UTF-8 output encoding across Windows consoles and pipes
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 
 def find_vibe_executable() -> str:
     """Find the path to vibe.exe in PATH or common local locations."""
@@ -74,7 +80,9 @@ Task Title: {task_info['title']}
 
 Implementation Instructions (TDD Workflow):
 1. Review '{task_rel_path}' and strictly obey all guidelines in 'AGENTS.md'.
-2. Write a failing unit test in 'tests/unit_test_*.cpp' demonstrating the bug or new feature (RED).
+   Focus EXCLUSIVELY on implementing the code changes for '{task_rel_path}'. Do NOT create or modify other task files.
+2. If section 1.bis is already confirmed, proceed directly to code implementation and test verification.
+3. Write/update the unit test in 'tests/unit_test_*.cpp'.
 3. Build and test to verify failure:
    cmake --build build --config Debug -j && ctest --test-dir build -C Debug --output-on-failure
 4. Implement the minimal necessary C++20 code in 'src/bb3d/' and 'include/bb3d/' (GREEN).
@@ -147,14 +155,17 @@ def run_vibe(
     logs_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     log_file = logs_dir / f"{task_file.stem}_{role}_{timestamp}.log"
+    raw_log_file = logs_dir / f"{task_file.stem}_{role}_{timestamp}.raw.jsonl"
+    status_file = logs_dir / "live_status.json"
 
-    # Build CLI command
+    # Build CLI command with streaming output for real-time monitoring
     cmd = [
         vibe_bin,
         "-p", prompt,
         "--agent", agent,
         "--auto-approve",
         "--trust",
+        "--output", "streaming",
         "--max-turns", str(max_turns),
     ]
 
@@ -163,6 +174,8 @@ def run_vibe(
 
     env = os.environ.copy()
     env["VIBE_ACTIVE_MODEL"] = model
+    env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
 
     print(f"[+] Launching Vibe CLI ({role.upper()}) on task: {task_file.name}")
     print(f"    - Model: {model}")
@@ -170,12 +183,100 @@ def run_vibe(
     if worktree:
         print(f"    - Worktree: {worktree}")
     print(f"    - Log file: {log_file}")
+    print(f"    - Live status: {status_file}")
     print("-" * 60)
 
+    def write_status(state: str, action: str):
+        try:
+            status_data = {
+                "task": task_file.name,
+                "role": role,
+                "agent": agent,
+                "state": state,
+                "last_action": action,
+                "updated_at": datetime.datetime.now().isoformat(),
+                "log_file": str(log_file),
+            }
+            status_file.write_text(json.dumps(status_data, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    write_status("RUNNING", "Started agent process")
+
+    def format_event(event: dict) -> tuple[str, str]:
+        """Convert a Vibe streaming JSON event into a human-readable string and brief action summary."""
+        try:
+            etype = event.get("type")
+            now = datetime.datetime.now().strftime("%H:%M:%S")
+
+            if etype == "reasoning":
+                text = (event.get("text") or "").strip()
+                first_line = text.splitlines()[0] if text else ""
+                return f"[{now}] 💭 [Thinking] {text}\n", f"Thinking: {first_line[:60]}"
+
+            elif etype == "effect":
+                detail_dict = event.get("detail") or {}
+                tool_name = event.get("title") or detail_dict.get("toolName", "tool")
+                inputs = detail_dict.get("input") or {}
+                state = event.get("state") or {}
+                status = state.get("status", "running")
+                dur = state.get("durationMs")
+                dur_str = f" ({dur:.0f}ms)" if dur else ""
+
+                if isinstance(inputs, dict):
+                    if "command" in inputs:
+                        detail = str(inputs["command"])
+                    elif "filePath" in inputs:
+                        detail = str(inputs["filePath"])
+                    elif "path" in inputs:
+                        detail = str(inputs["path"])
+                    else:
+                        detail = json.dumps(inputs)
+                else:
+                    detail = str(inputs)
+
+                action_summary = f"{tool_name}: {detail[:60]}"
+                msg = f"[{now}] 🔧 [{tool_name}] {detail} -> status={status}{dur_str}\n"
+
+                out = state.get("outputText")
+                if not out:
+                    output_dict = state.get("output")
+                    if isinstance(output_dict, dict):
+                        out = output_dict.get("stdout") or output_dict.get("output") or ""
+                    elif isinstance(output_dict, str):
+                        out = output_dict
+
+                if out and str(out).strip():
+                    lines = str(out).strip().splitlines()
+                    preview = "\n      ".join(lines[:6])
+                    if len(lines) > 6:
+                        preview += f"\n      ... (+{len(lines) - 6} more lines)"
+                    msg += f"   Output:\n      {preview}\n"
+
+                return msg, action_summary
+
+            elif etype == "message" and event.get("role") == "assistant":
+                content_list = event.get("content") or []
+                parts = []
+                for c in content_list:
+                    if isinstance(c, dict) and c.get("type") == "text":
+                        parts.append(c.get("text", ""))
+                    elif isinstance(c, str):
+                        parts.append(c)
+                msg = "".join(parts).strip()
+                return f"[{now}] 🤖 [Assistant] {msg}\n", f"Assistant message ({len(msg)} chars)"
+
+        except Exception as e:
+            return f"[{now}] [EVENT {event.get('type')}] {e}\n", f"Event {event.get('type')}"
+
+        return "", ""
+
+
     try:
-        with open(log_file, "w", encoding="utf-8") as lf:
+        with open(log_file, "w", encoding="utf-8") as lf, open(raw_log_file, "w", encoding="utf-8") as rf:
             process = subprocess.Popen(
                 cmd,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -184,11 +285,35 @@ def run_vibe(
                 env=env,
             )
 
-            # Stream output live and tee into log file
-            for line in process.stdout:
-                sys.stdout.write(line)
+            for raw_line in process.stdout:
+                rf.write(raw_line)
+                rf.flush()
+
+                stripped = raw_line.strip()
+                if not stripped:
+                    continue
+
+                # Try parsing as streaming JSON
+                if stripped.startswith("{") and stripped.endswith("}"):
+                    try:
+                        event = json.loads(stripped)
+                        formatted, action_summary = format_event(event)
+                        if formatted:
+                            sys.stdout.write(formatted)
+                            sys.stdout.flush()
+                            lf.write(formatted)
+                            lf.flush()
+                        if action_summary:
+                            write_status("RUNNING", action_summary)
+                        continue
+                    except json.JSONDecodeError:
+                        pass
+
+                # Fallback to plain text line
+                sys.stdout.write(raw_line)
                 sys.stdout.flush()
-                lf.write(line)
+                lf.write(raw_line)
+                lf.flush()
 
             process.wait(timeout=timeout_sec)
             ret_code = process.returncode
@@ -196,16 +321,20 @@ def run_vibe(
         print("-" * 60)
         if ret_code == 0:
             print(f"[+] Vibe CLI completed successfully (exit code 0).")
+            write_status("COMPLETED", "Task completed successfully")
         else:
             print(f"[-] Vibe CLI exited with code {ret_code}. See log: {log_file}", file=sys.stderr)
+            write_status("FAILED", f"Exited with code {ret_code}")
         return ret_code
 
     except subprocess.TimeoutExpired:
         print(f"[-] Error: Vibe CLI timed out after {timeout_sec} seconds.", file=sys.stderr)
+        write_status("TIMEOUT", f"Timed out after {timeout_sec}s")
         process.kill()
         return 124
     except Exception as e:
         print(f"[-] Error executing Vibe CLI: {e}", file=sys.stderr)
+        write_status("ERROR", str(e))
         return 1
 
 

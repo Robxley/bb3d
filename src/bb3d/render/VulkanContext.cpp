@@ -123,6 +123,9 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
 
     std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
     vk::PhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures(VK_TRUE);
+    vk::PhysicalDeviceSynchronization2Features sync2Features(VK_TRUE);
+    dynamicRenderingFeatures.pNext = &sync2Features;
+
     vk::PhysicalDeviceFeatures deviceFeatures{};
     vk::DeviceCreateInfo deviceCreateInfo({}, static_cast<uint32_t>(queueCreateInfos.size()), queueCreateInfos.data(), 0, nullptr, static_cast<uint32_t>(deviceExtensions.size()), deviceExtensions.data(), &deviceFeatures);
     deviceCreateInfo.pNext = &dynamicRenderingFeatures;

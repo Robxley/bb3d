@@ -121,10 +121,11 @@ foreach(TEST_SOURCE ${TEST_SOURCES})
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
     
     # All tests run from the common bin directory (where assets/ is deployed)
-    set_tests_properties(${TEST_NAME} PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+    set_tests_properties(${TEST_NAME} PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} TIMEOUT 15)
     
     add_dependencies(${TEST_NAME} DeployAssets)
 endforeach()
 
 # --- Applications ---
 add_subdirectory(apps)
+

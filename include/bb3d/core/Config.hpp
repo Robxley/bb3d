@@ -66,6 +66,12 @@ namespace bb3d {
         float shadowDepthBiasSlope = 1.75f;       ///< Pente de biais appliquée au Pipeline Vulkan.
         float shadowShaderDepthBias = 0.0005f;    ///< Biais de profondeur dans le shader.
 
+        // Post-Processing
+        float exposure = 1.0f;            ///< Exposition globale pour le tonemapping.
+        float gamma = 2.2f;               ///< Facteur gamma pour la correction gamma.
+        bool enableTonemapping = false;   ///< Active le tonemapping ACES.
+        bool enableGammaCorrection = true;///< Active la correction gamma.
+
         GraphicsConfig& setVsync(bool v) { vsync = v; return *this; }
         GraphicsConfig& setFpsMax(int fps) { fpsMax = fps; return *this; }
         GraphicsConfig& setBuffering(std::string_view b) { buffering = b; return *this; }
@@ -76,8 +82,12 @@ namespace bb3d {
         GraphicsConfig& setOffscreenRendering(bool e) { enableOffscreenRendering = e; return *this; }
         GraphicsConfig& setRenderScale(float s) { renderScale = s; return *this; }
         GraphicsConfig& setShadows(bool e, uint32_t res = 2048, uint32_t c = 4, bool pcf = true) { shadowsEnabled = e; shadowMapResolution = res; shadowCascades = c; shadowPCF = pcf; return *this; }
+        GraphicsConfig& setExposure(float e) { exposure = e; return *this; }
+        GraphicsConfig& setGamma(float g) { gamma = g; return *this; }
+        GraphicsConfig& setTonemapping(bool e) { enableTonemapping = e; return *this; }
+        GraphicsConfig& setGammaCorrection(bool e) { enableGammaCorrection = e; return *this; }
 
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers, enableFrustumCulling, enableMipmapping, enableOffscreenRendering, renderScale, shadowsEnabled, shadowCascades, shadowPCF)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers, enableFrustumCulling, enableMipmapping, enableOffscreenRendering, renderScale, shadowsEnabled, shadowCascades, shadowPCF, exposure, gamma, enableTonemapping, enableGammaCorrection)
     };
 
     /**
@@ -169,6 +179,7 @@ namespace bb3d {
         EngineConfig& vsync(bool v) { graphics.setVsync(v); return *this; }
         EngineConfig& fpsMax(int f) { graphics.setFpsMax(f); return *this; }
         EngineConfig& enablePhysics(PhysicsBackend b) { modules.setPhysics(b != PhysicsBackend::None, b); return *this; }
+        EngineConfig& enablePhysics(bool e) { modules.setPhysics(e, e ? PhysicsBackend::Jolt : PhysicsBackend::None); return *this; }
         EngineConfig& enableAudio(bool e) { modules.setAudio(e); return *this; }
         EngineConfig& frustumCulling(bool e) { graphics.setFrustumCulling(e); return *this; }
         EngineConfig& mipmapping(bool e) { graphics.setMipmapping(e); return *this; }

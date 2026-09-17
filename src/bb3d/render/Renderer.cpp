@@ -36,6 +36,7 @@ Renderer::Renderer(VulkanContext& context, Window& window, JobSystem& jobSystem,
     createGlobalDescriptors();
     createPipelines(config);
     createCopyPipeline();
+    createPickingResources();
 
     m_skyboxCube = MeshGenerator::createCube(m_context, 1.0f); 
     m_particleQuad = MeshGenerator::createQuad(m_context, 1.0f);
@@ -92,14 +93,7 @@ Renderer::~Renderer() {
         if (m_hoveredMat) m_hoveredMat.reset();
 
         // Picking cleanup
-        m_pickingPipeline.reset();
-        m_pickingStagingBuffer.reset();
-        if (m_pickingImageView) dev.destroyImageView(m_pickingImageView);
-        if (m_pickingImage) vmaDestroyImage(m_context.getAllocator(), m_pickingImage, m_pickingAllocation);
-        if (m_pickingDepthImageView) dev.destroyImageView(m_pickingDepthImageView);
-        if (m_pickingDepthImage) vmaDestroyImage(m_context.getAllocator(), m_pickingDepthImage, m_pickingDepthAllocation);
-        m_pickingInstanceBuffers.clear();
-        m_pickingDescriptorSets.clear();
+        cleanupPickingResources();
 
         if (m_descriptorPool) dev.destroyDescriptorPool(m_descriptorPool);
         if (m_shadowSampler) dev.destroySampler(m_shadowSampler);
@@ -332,8 +326,11 @@ void Renderer::createCopyPipeline() {
     if (!m_config.graphics.enableOffscreenRendering) return;
     auto device = m_context.getDevice();
     if (!m_copyLayout) {
-        vk::DescriptorSetLayoutBinding binding{0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment};
-        m_copyLayout = device.createDescriptorSetLayout({{}, 1, &binding});
+        std::array<vk::DescriptorSetLayoutBinding, 2> bindings = {
+            vk::DescriptorSetLayoutBinding{0, vk::DescriptorType::eCombinedImageSampler, 1, vk::ShaderStageFlagBits::eFragment},
+            vk::DescriptorSetLayoutBinding{1, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eFragment}
+        };
+        m_copyLayout = device.createDescriptorSetLayout({{}, static_cast<uint32_t>(bindings.size()), bindings.data()});
     }
     if (!m_copyPipeline) {
         EngineConfig copyConfig = m_config; copyConfig.rasterizer.setCullMode("None");
@@ -345,11 +342,26 @@ void Renderer::createCopyPipeline() {
         m_copyDescriptorSets = device.allocateDescriptorSets({ m_descriptorPool, MAX_FRAMES_IN_FLIGHT, layouts.data() });
         BB_CORE_TRACE("Renderer: Allocated {0} copy descriptor sets.", m_copyDescriptorSets.size());
     }
+    if (!m_postProcessUbo) {
+        m_postProcessUbo = CreateScope<Buffer>(m_context, sizeof(PostProcessUBO),
+            vk::BufferUsageFlagBits::eUniformBuffer, VMA_MEMORY_USAGE_CPU_TO_GPU, VMA_ALLOCATION_CREATE_MAPPED_BIT);
+        PostProcessUBO defaultPp{
+            .exposure = m_config.graphics.exposure,
+            .gamma = m_config.graphics.gamma,
+            .enableTonemapping = m_config.graphics.enableTonemapping ? 1 : 0,
+            .enableGammaCorrection = m_config.graphics.enableGammaCorrection ? 1 : 0
+        };
+        m_postProcessUbo->upload(&defaultPp, sizeof(defaultPp));
+    }
     if (m_renderTarget && !m_copyDescriptorSets.empty()) {
         for (uint32_t i = 0; i < m_copyDescriptorSets.size(); i++) {
             vk::DescriptorImageInfo imgInfo(m_renderTarget->getSampler(), m_renderTarget->getColorImageView(), vk::ImageLayout::eShaderReadOnlyOptimal);
-            vk::WriteDescriptorSet write(m_copyDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &imgInfo, nullptr, nullptr);
-            device.updateDescriptorSets(write, nullptr);
+            vk::DescriptorBufferInfo uboInfo(m_postProcessUbo->getHandle(), 0, sizeof(PostProcessUBO));
+            std::array<vk::WriteDescriptorSet, 2> writes = {
+                vk::WriteDescriptorSet(m_copyDescriptorSets[i], 0, 0, 1, vk::DescriptorType::eCombinedImageSampler, &imgInfo, nullptr, nullptr),
+                vk::WriteDescriptorSet(m_copyDescriptorSets[i], 1, 0, 1, vk::DescriptorType::eUniformBuffer, nullptr, &uboInfo, nullptr)
+            };
+            device.updateDescriptorSets(writes, nullptr);
         }
     }
 }
@@ -404,12 +416,38 @@ void Renderer::onResize(int width, int height) {
 
 bool Renderer::render(Scene& scene) {
     if (m_window.GetWidth() == 0 || m_window.GetHeight() == 0) return false;
-    
+
+    // Synchronize the per-frame material UBO/descriptor-set index with the
+    // current frame in flight. This MUST happen before any material is bound
+    // or updated so that each frame uses its own triple-buffered set (B8 fix).
+    Material::SetCurrentFrame(m_currentFrame);
+
     if (m_resizeRequested) {
         m_resizeRequested = false;
         m_context.getDevice().waitIdle();
+        // Rebuild render-finished semaphores to match the new swapchain image count (B1 fix).
+        // Without this, a change in image count (fullscreen toggle, DPI) causes OOB access.
+        for (auto semaphore : m_renderFinishedSemaphores)
+            if (semaphore) m_context.getDevice().destroySemaphore(semaphore);
         m_swapChain->recreate(m_pendingWidth, m_pendingHeight);
+        m_renderFinishedSemaphores.resize(m_swapChain->getImageCount());
+        for (size_t i = 0; i < m_renderFinishedSemaphores.size(); i++)
+            m_renderFinishedSemaphores[i] = m_context.getDevice().createSemaphore({});
         m_imagesInUseFences.assign(m_swapChain->getImageCount(), nullptr);
+
+        // Resize picking images safely outside active command buffer recording (B5 & B4 fix)
+        resizePickingImages(m_pendingWidth, m_pendingHeight);
+    }
+
+    // Synchronize picking buffer dimensions with the active render target or swapchain (ensuring 1:1 editor viewport picking)
+    uint32_t targetW = m_renderTarget ? m_renderTarget->getExtent().width : m_swapChain->getExtent().width;
+    uint32_t targetH = m_renderTarget ? m_renderTarget->getExtent().height : m_swapChain->getExtent().height;
+    if (m_pickingReady && (targetW != m_pickingWidth || targetH != m_pickingHeight)) {
+        m_context.getDevice().waitIdle();
+        resizePickingImages(targetW, targetH);
+        if (m_renderTarget) {
+            createCopyPipeline();
+        }
     }
 
     // 1. Identify active camera and setup UBO (which also updates frustum)
@@ -450,6 +488,8 @@ bool Renderer::render(Scene& scene) {
     if (m_pickingRequested) {
         renderEntityIds(scene);
         m_pickingRequested = false; 
+    } else {
+        m_pickingRendered = false;
     }
 
     vk::Extent2D extent;
@@ -517,7 +557,15 @@ void Renderer::submitAndPresent() {
     try {
         m_context.getGraphicsQueue().submit(submitInfo, m_inFlightFences[m_currentFrame]);
         m_swapChain->present(m_renderFinishedSemaphores[imageIndex], imageIndex);
-    } catch (...) { onResize(m_window.GetWidth(), m_window.GetHeight()); }
+    } catch (...) {
+        // The fence was reset (in render()) before submit. If submit failed, the fence
+        // is unsignaled and will never be signaled by the GPU. Recreate it as signaled
+        // to prevent waitForFences blocking forever on the next frame (B2 fix).
+        auto dev = m_context.getDevice();
+        dev.destroyFence(m_inFlightFences[m_currentFrame]);
+        m_inFlightFences[m_currentFrame] = dev.createFence({ vk::FenceCreateFlagBits::eSignaled });
+        onResize(m_window.GetWidth(), m_window.GetHeight());
+    }
     m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
@@ -619,6 +667,16 @@ void Renderer::renderSkybox(vk::CommandBuffer cb, Scene& scene) {
 }
 
 void Renderer::compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex) {
+    if (m_postProcessUbo) {
+        PostProcessUBO ppData{
+            .exposure = m_config.graphics.exposure,
+            .gamma = m_config.graphics.gamma,
+            .enableTonemapping = m_config.graphics.enableTonemapping ? 1 : 0,
+            .enableGammaCorrection = m_config.graphics.enableGammaCorrection ? 1 : 0
+        };
+        m_postProcessUbo->upload(&ppData, sizeof(ppData));
+    }
+
     vk::Image swapImage = m_swapChain->getImage(imageIndex);
     vk::ImageMemoryBarrier barrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
     cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, barrier);
@@ -928,6 +986,7 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
             // Skip non-shadow casters
             if (!cmd.castShadows) {
                 flushShadowBatch();
+                lastMesh = nullptr; // Reset to start a fresh batch after the gap (B3 fix).
                 continue;
             }
 
@@ -963,6 +1022,9 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
 void Renderer::createPickingResources() {
     auto dev = m_context.getDevice();
     auto allocator = m_context.getAllocator();
+
+    // Clean up any existing picking resources first (ensuring freeDescriptorSets is called - B4 fix)
+    cleanupPickingResources();
 
     // Use the same dimensions as the render target (or swapchain if no RT)
     m_pickingWidth = m_renderTarget ? m_renderTarget->getExtent().width : m_swapChain->getExtent().width;
@@ -1027,9 +1089,12 @@ void Renderer::createPickingResources() {
     
     vk::PushConstantRange pushRange(vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment, 0, sizeof(uint32_t));
     
+    EngineConfig pickConfig = m_config;
+    pickConfig.rasterizer.setCullMode("None");
+
     m_pickingPipeline = CreateScope<GraphicsPipeline>(
         m_context, vk::Format::eR32Uint, depthFormat,
-        *pickVert, *pickFrag, m_config,
+        *pickVert, *pickFrag, pickConfig,
         std::vector<vk::DescriptorSetLayout>{m_globalDescriptorLayout},
         std::vector<vk::PushConstantRange>{pushRange},
         true,   // useVertexInput
@@ -1039,8 +1104,6 @@ void Renderer::createPickingResources() {
         vk::PrimitiveTopology::eTriangleList,
         BlendMode::Opaque
     );
-
-    BB_CORE_INFO("Renderer: GPU Color Picking resources created ({}x{}).", m_pickingWidth, m_pickingHeight);
 
     // 5. Create picking instance buffers and descriptor sets (one per frame)
     m_pickingInstanceBuffers.clear();
@@ -1065,52 +1128,152 @@ void Renderer::createPickingResources() {
         dev.updateDescriptorSets(pickingWrites, {});
     }
 
+    // 6. Create dedicated transient command pool, command buffer and fence for readback (B6 fix)
+    m_pickingCommandPool = dev.createCommandPool({
+        vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+        m_context.getGraphicsQueueFamily()
+    });
+    auto bufs = dev.allocateCommandBuffers({ m_pickingCommandPool, vk::CommandBufferLevel::ePrimary, 1 });
+    m_pickingCommandBuffer = bufs[0];
+    m_pickingFence = dev.createFence({});
+
     m_pickingReady = true;
+    BB_CORE_INFO("Renderer: GPU Color Picking resources created ({}x{}).", m_pickingWidth, m_pickingHeight);
+}
+
+void Renderer::resizePickingImages(uint32_t width, uint32_t height) {
+    if (!m_pickingReady) return;
+    if (m_renderTarget) {
+        width = m_renderTarget->getExtent().width;
+        height = m_renderTarget->getExtent().height;
+    }
+    width = std::max(1u, width);
+    height = std::max(1u, height);
+
+    if (width == m_pickingWidth && height == m_pickingHeight) return;
+
+    auto dev = m_context.getDevice();
+    auto allocator = m_context.getAllocator();
+
+    // Destroy old images & views
+    if (m_pickingImageView) { dev.destroyImageView(m_pickingImageView); m_pickingImageView = nullptr; }
+    if (m_pickingImage) { vmaDestroyImage(allocator, m_pickingImage, m_pickingAllocation); m_pickingImage = nullptr; m_pickingAllocation = nullptr; }
+    if (m_pickingDepthImageView) { dev.destroyImageView(m_pickingDepthImageView); m_pickingDepthImageView = nullptr; }
+    if (m_pickingDepthImage) { vmaDestroyImage(allocator, m_pickingDepthImage, m_pickingDepthAllocation); m_pickingDepthImage = nullptr; m_pickingDepthAllocation = nullptr; }
+
+    m_pickingWidth = width;
+    m_pickingHeight = height;
+    m_pickingRendered = false;
+
+    // 1. Create R32_UINT color image for entity IDs
+    VkImageCreateInfo pickImgInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    pickImgInfo.imageType = VK_IMAGE_TYPE_2D;
+    pickImgInfo.format = VK_FORMAT_R32_UINT;
+    pickImgInfo.extent = {m_pickingWidth, m_pickingHeight, 1};
+    pickImgInfo.mipLevels = 1;
+    pickImgInfo.arrayLayers = 1;
+    pickImgInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    pickImgInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    pickImgInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    pickImgInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VmaAllocationCreateInfo pickAllocInfo{};
+    pickAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    VkImage rawPickImg;
+    vmaCreateImage(allocator, &pickImgInfo, &pickAllocInfo, &rawPickImg, &m_pickingAllocation, nullptr);
+    m_pickingImage = rawPickImg;
+
+    vk::ImageViewCreateInfo pickViewInfo({}, m_pickingImage, vk::ImageViewType::e2D, vk::Format::eR32Uint,
+        {}, {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+    m_pickingImageView = dev.createImageView(pickViewInfo);
+
+    // 2. Create depth image for picking pass
+    vk::Format depthFormat = m_renderTarget ? m_renderTarget->getDepthFormat() : m_swapChain->getDepthFormat();
+    VkImageCreateInfo pickDepthInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+    pickDepthInfo.imageType = VK_IMAGE_TYPE_2D;
+    pickDepthInfo.format = static_cast<VkFormat>(depthFormat);
+    pickDepthInfo.extent = {m_pickingWidth, m_pickingHeight, 1};
+    pickDepthInfo.mipLevels = 1;
+    pickDepthInfo.arrayLayers = 1;
+    pickDepthInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+    pickDepthInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    pickDepthInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    pickDepthInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    VmaAllocationCreateInfo pickDepthAllocInfo{};
+    pickDepthAllocInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+    VkImage rawPickDepthImg;
+    vmaCreateImage(allocator, &pickDepthInfo, &pickDepthAllocInfo, &rawPickDepthImg, &m_pickingDepthAllocation, nullptr);
+    m_pickingDepthImage = rawPickDepthImg;
+
+    vk::ImageViewCreateInfo pickDepthViewInfo({}, m_pickingDepthImage, vk::ImageViewType::e2D, depthFormat,
+        {}, {vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1});
+    m_pickingDepthImageView = dev.createImageView(pickDepthViewInfo);
+
+    BB_CORE_INFO("Renderer: GPU Color Picking images resized ({}x{}).", m_pickingWidth, m_pickingHeight);
+}
+
+void Renderer::cleanupPickingResources() {
+    auto dev = m_context.getDevice();
+    auto allocator = m_context.getAllocator();
+
+    m_pickingPipeline.reset();
+    m_pickingStagingBuffer.reset();
+    if (m_pickingImageView) { dev.destroyImageView(m_pickingImageView); m_pickingImageView = nullptr; }
+    if (m_pickingImage) { vmaDestroyImage(allocator, m_pickingImage, m_pickingAllocation); m_pickingImage = nullptr; m_pickingAllocation = nullptr; }
+    if (m_pickingDepthImageView) { dev.destroyImageView(m_pickingDepthImageView); m_pickingDepthImageView = nullptr; }
+    if (m_pickingDepthImage) { vmaDestroyImage(allocator, m_pickingDepthImage, m_pickingDepthAllocation); m_pickingDepthImage = nullptr; m_pickingDepthAllocation = nullptr; }
+
+    m_pickingInstanceBuffers.clear();
+    if (!m_pickingDescriptorSets.empty()) {
+        if (m_descriptorPool) {
+            try { dev.freeDescriptorSets(m_descriptorPool, m_pickingDescriptorSets); } catch(...) {}
+        }
+        m_pickingDescriptorSets.clear();
+    }
+
+    if (m_pickingFence) {
+        dev.destroyFence(m_pickingFence);
+        m_pickingFence = nullptr;
+    }
+    if (m_pickingCommandPool) {
+        dev.destroyCommandPool(m_pickingCommandPool);
+        m_pickingCommandPool = nullptr;
+        m_pickingCommandBuffer = nullptr;
+    }
+
+    m_pickingReady = false;
+    m_pickingRendered = false;
 }
 
 void Renderer::renderEntityIds(Scene& scene) {
+    if (!m_pickingReady || !m_pickingPipeline || m_pickingInstanceBuffers.empty() || m_pickingDescriptorSets.empty()) return;
+    if (!m_pickingImage || !m_pickingImageView || !m_pickingDepthImage || !m_pickingDepthImageView) return;
+
     auto& cb = m_commandBuffers[m_currentFrame];
-    if (!m_pickingPipeline) {
-        createPickingResources();
-        if (!m_pickingPipeline) return;
-    }
-    if (!m_pickingReady || m_pickingInstanceBuffers.empty() || m_pickingDescriptorSets.empty()) return;
 
-    // Resize if needed
-    uint32_t targetW = m_renderTarget ? m_renderTarget->getExtent().width : m_swapChain->getExtent().width;
-    uint32_t targetH = m_renderTarget ? m_renderTarget->getExtent().height : m_swapChain->getExtent().height;
-    if (targetW != m_pickingWidth || targetH != m_pickingHeight) {
-        // Cleanup old
-        auto dev = m_context.getDevice();
-        dev.waitIdle();
-        if (m_pickingImageView) dev.destroyImageView(m_pickingImageView);
-        if (m_pickingImage) vmaDestroyImage(m_context.getAllocator(), m_pickingImage, m_pickingAllocation);
-        if (m_pickingDepthImageView) dev.destroyImageView(m_pickingDepthImageView);
-        if (m_pickingDepthImage) vmaDestroyImage(m_context.getAllocator(), m_pickingDepthImage, m_pickingDepthAllocation);
-        m_pickingImage = nullptr; m_pickingDepthImage = nullptr;
-        m_pickingAllocation = nullptr; m_pickingDepthAllocation = nullptr;
-        createPickingResources();
-        if (!m_pickingPipeline) return;
-    }
-
-    // The 'cb' variable is already declared above, remove the redeclaration
-    // auto& cb = m_commandBuffers[m_currentFrame];
-
-    // Transition picking images to attachment
-    vk::ImageMemoryBarrier pickBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, 
+    // Transition picking images to attachment using modern Vulkan Sync2 (AGENTS.md rule 4)
+    vk::ImageMemoryBarrier2 pickBarrier(
+        vk::PipelineStageFlagBits2::eTopOfPipe, {},
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
         vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
-        VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, m_pickingImage,
-        {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
-    cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, 
-        {}, nullptr, nullptr, pickBarrier);
+        VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+        m_pickingImage, {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}
+    );
 
-    vk::ImageMemoryBarrier pickDepthBarrier({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+    vk::ImageMemoryBarrier2 pickDepthBarrier(
+        vk::PipelineStageFlagBits2::eTopOfPipe, {},
+        vk::PipelineStageFlagBits2::eEarlyFragmentTests, vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
         vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal,
-        VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, m_pickingDepthImage,
-        {vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1});
-    cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests,
-        {}, nullptr, nullptr, pickDepthBarrier);
-    // BB_CORE_INFO("Renderer: Picking barriers done");
+        VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+        m_pickingDepthImage, {vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1}
+    );
+
+    std::array<vk::ImageMemoryBarrier2, 2> initBarriers = { pickBarrier, pickDepthBarrier };
+    vk::DependencyInfo initDepInfo({}, {}, {}, initBarriers);
+    cb.pipelineBarrier2(initDepInfo);
 
     // Begin entity ID rendering pass
     std::array<uint32_t, 4> clearIdValues = {0xFFFFFFFF, 0, 0, 0};
@@ -1182,29 +1345,30 @@ void Renderer::renderEntityIds(Scene& scene) {
 
     cb.endRendering();
 
-    // Transition picking image to transfer src for readback
-    vk::ImageMemoryBarrier readBarrier(vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eTransferRead,
+    // Transition picking image to transfer src for readback using modern Vulkan Sync2
+    vk::ImageMemoryBarrier2 readBarrier(
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
+        vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead,
         vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferSrcOptimal,
-        VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, m_pickingImage,
-        {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
-    cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eTransfer,
-        {}, nullptr, nullptr, readBarrier);
+        VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
+        m_pickingImage, {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1}
+    );
+    vk::DependencyInfo readDepInfo({}, {}, {}, readBarrier);
+    cb.pipelineBarrier2(readDepInfo);
 
     m_pickingRendered = true;
 }
 
 uint32_t Renderer::readEntityIdAt(uint32_t x, uint32_t y) {
-    if (!m_pickingRendered || !m_pickingImage || !m_pickingStagingBuffer) return 0xFFFFFFFF;
-    if (x >= m_pickingWidth || y >= m_pickingHeight) return 0xFFFFFFFF;
+    if (!m_pickingRendered || !m_pickingImage || !m_pickingStagingBuffer) return kPickingNoEntity;
+    if (x >= m_pickingWidth || y >= m_pickingHeight) return kPickingNoEntity;
+    if (!m_pickingCommandBuffer || !m_pickingFence) return kPickingNoEntity;
 
     auto dev = m_context.getDevice();
-    
-    // We need a one-shot command to copy a single pixel from the picking image to the staging buffer
-    vk::CommandBufferAllocateInfo allocInfo(m_commandPool, vk::CommandBufferLevel::ePrimary, 1);
-    auto cmdBufs = dev.allocateCommandBuffers(allocInfo);
-    auto cmd = cmdBufs[0];
-    
-    cmd.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
+
+    // Reset and record into dedicated picking command buffer (B6 fix: no m_commandPool contention)
+    m_pickingCommandBuffer.reset({});
+    m_pickingCommandBuffer.begin({vk::CommandBufferUsageFlagBits::eOneTimeSubmit});
 
     // Copy single pixel from picking image to staging buffer
     vk::BufferImageCopy region;
@@ -1215,25 +1379,30 @@ uint32_t Renderer::readEntityIdAt(uint32_t x, uint32_t y) {
     region.imageOffset = vk::Offset3D(static_cast<int32_t>(x), static_cast<int32_t>(y), 0);
     region.imageExtent = vk::Extent3D(1, 1, 1);
     
-    cmd.copyImageToBuffer(m_pickingImage, vk::ImageLayout::eTransferSrcOptimal, 
+    m_pickingCommandBuffer.copyImageToBuffer(m_pickingImage, vk::ImageLayout::eTransferSrcOptimal, 
         m_pickingStagingBuffer->getHandle(), region);
 
-    cmd.end();
+    m_pickingCommandBuffer.end();
 
-    vk::SubmitInfo submitInfo({}, {}, cmd, {});
-    m_context.getGraphicsQueue().submit(submitInfo, {});
-    m_context.getGraphicsQueue().waitIdle();
+    (void)dev.resetFences(1, &m_pickingFence);
+    vk::SubmitInfo submitInfo({}, {}, m_pickingCommandBuffer, {});
+    m_context.getGraphicsQueue().submit(submitInfo, m_pickingFence);
 
-    dev.freeCommandBuffers(m_commandPool, cmdBufs);
+    // Wait only for the picking copy fence instead of stalling the whole queue with waitIdle() (B6 fix)
+    // 2-second safety timeout prevents blocking the thread indefinitely if the GPU hangs
+    vk::Result waitRes = dev.waitForFences(1, &m_pickingFence, VK_TRUE, 2000000000ULL);
+    if (waitRes != vk::Result::eSuccess) {
+        BB_CORE_ERROR("Renderer: readEntityIdAt fence wait timed out or failed ({})", vk::to_string(waitRes));
+        return kPickingNoEntity;
+    }
 
     // Read back the value
-    uint32_t entityId = 0xFFFFFFFF;
+    uint32_t entityId = kPickingNoEntity;
     void* mapped = m_pickingStagingBuffer->getMappedData();
     if (mapped) {
         memcpy(&entityId, mapped, sizeof(uint32_t));
     }
 
-    m_pickingRendered = false;
     return entityId;
 }
 

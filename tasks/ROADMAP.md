@@ -39,14 +39,14 @@ flowchart LR
 ### 🛡️ Jalon 1 : Fiabilisation & Résolution des Bugs Critiques
 > **Objectif :** Éliminer les conditions de course GPU, deadlocks, comportements indéfinis et fuites de mémoire identifiés dans [`tasks/CODE_REVIEW.md`](CODE_REVIEW.md) avant d'ajouter de nouvelles couches architecturales.
 
-- [ ] **Course CPU/GPU UBO Matériaux (`B8`)** : Appeler `Material::SetCurrentFrame(m_currentFrame)` au début de `Renderer::render()` pour activer le triple buffering et éviter la réécriture concurrente de la frame 0.
-- [ ] **Sécurité Swapchain Resize (`B1`)** : Reconstruire `m_renderFinishedSemaphores` lors du redimensionnement de la swapchain pour éviter les accès hors-limites (UB/crash en bascule plein écran).
-- [ ] **Deadlock de Fence sur échec Submit (`B2`)** : Réordonner `resetFences()` après un `submit()` réussi ou re-signaler la fence dans le catch avant déclenchement du resize.
-- [ ] **Offset Batch Ombres (`B3`)** : Réinitialiser `lastMesh = nullptr` lorsqu'un non-caster est sauté dans `flushShadowBatch()` pour éviter la réutilisation d'anciennes matrices de transformation.
-- [ ] **Picking GPU & Fuites de Sets (`B4`, `B5`, `B6`)** :
-  - Libérer les descriptor sets de picking via `freeDescriptorSets` lors des redimensionnements (`B4`).
-  - Déplacer l'allocation des pipelines/ressources de picking hors du flux `cb.begin()` pour supprimer les `dev.waitIdle()` intempestifs (`B5`).
-  - Pipeliner ou isoler le command pool de lecture de pixel (`B6`).
+- [x] **Course CPU/GPU UBO Matériaux (`B8`)** : Synchronisation activée via `Material::SetCurrentFrame(m_currentFrame)` au début de `Renderer::render()`, test unitaire validé (`unit_test_25_material_frame`).
+- [x] **Sécurité Swapchain Resize (`B1`)** : Reconstruction propre et symétrique de `m_renderFinishedSemaphores` selon le nouveau `imageCount` lors du resize.
+- [x] **Deadlock de Fence sur échec Submit (`B2`)** : Re-signalement propre de `m_inFlightFences` dans le catch de `submitAndPresent()` pour éliminer tout deadlock à la frame suivante.
+- [x] **Offset Batch Ombres (`B3`)** : Réinitialisation `lastMesh = nullptr` sur le saut de non-caster dans `renderShadows()` garantissant des matrices d'ombres correctes.
+- [x] **Picking GPU & Fuites de Sets (`B4`, `B5`, `B6`)** :
+  - Libération propre des descriptor sets de picking via `freeDescriptorSets` et préservation des buffers lors des redimensionnements (`B4`).
+  - Allocation eager des pipelines/ressources à l'init et redimensionnement d'images dédié dans `m_resizeRequested` hors `cb.begin()`, éliminant les `dev.waitIdle()` mid-frame (`B5`).
+  - Synchronisation de readback par fence isolée (`m_pickingFence`) et pool transitoire dédié, éliminant le stall `queue.waitIdle()` global (`B6`), test unitaire validé (`unit_test_26_picking`).
 - [ ] **Robustesse Physique Jolt (`B14`, `B15`, `B16`, `B21`)** :
   - Clamper le nombre de threads (`std::max(1, hardware_concurrency - 1)`) (`B14`).
   - Ajouter des gardes `entity.has<TransformComponent>()` dans `createRigidBody` et `createCharacterController` (`B15`, `B20`).

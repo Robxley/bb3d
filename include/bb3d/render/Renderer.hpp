@@ -109,11 +109,14 @@ public:
      */
     void renderEntityIds(Scene& scene);
 
+    /// Sentinel returned by readEntityIdAt() when no entity was hit at the requested pixel (Q15).
+    static constexpr uint32_t kPickingNoEntity = 0xFFFFFFFF;
+
     /**
      * @brief Reads back the entity ID at a specific pixel coordinate from the picking buffer.
      * @param x Pixel X coordinate.
      * @param y Pixel Y coordinate.
-     * @return The entity ID (entt::entity cast to uint32_t), or 0xFFFFFFFF if nothing was hit.
+     * @return The entity ID (entt::entity cast to uint32_t), or kPickingNoEntity if nothing was hit.
      */
     uint32_t readEntityIdAt(uint32_t x, uint32_t y);
 
@@ -127,6 +130,12 @@ public:
     /** @brief Returns true if the picking render target is available. */
     bool hasPickingBuffer() const { return m_pickingReady; }
 
+    /** @brief Returns the current width of the picking buffer. */
+    [[nodiscard]] uint32_t getPickingWidth() const { return m_pickingWidth; }
+
+    /** @brief Returns the current height of the picking buffer. */
+    [[nodiscard]] uint32_t getPickingHeight() const { return m_pickingHeight; }
+
 private:
     void createSyncObjects();
     void createShadowObjects();
@@ -134,6 +143,8 @@ private:
     void createPipelines(const EngineConfig& config);
     void createCopyPipeline();
     void createPickingResources();
+    void resizePickingImages(uint32_t width, uint32_t height);
+    void cleanupPickingResources();
     
     Ref<Material> getMaterialForTexture(Ref<Texture> texture);
 
@@ -159,9 +170,16 @@ private:
     std::unordered_map<MaterialType, vk::DescriptorSetLayout> m_layouts;
     
     // Pipeline de copie (Fullscreen Quad)
+    struct alignas(16) PostProcessUBO {
+        float exposure = 1.0f;
+        float gamma = 2.2f;
+        int32_t enableTonemapping = 0;
+        int32_t enableGammaCorrection = 0;
+    };
     Scope<GraphicsPipeline> m_copyPipeline;
     vk::DescriptorSetLayout m_copyLayout;
     std::vector<vk::DescriptorSet> m_copyDescriptorSets;
+    Scope<Buffer> m_postProcessUbo;
 
     // Shaders cache
     std::unordered_map<std::string, Scope<Shader>> m_shaders;
@@ -276,6 +294,11 @@ private:
     // A separate instance buffer and descriptor set for the picking pass to avoid overwriting main pass data
     std::vector<Scope<Buffer>> m_pickingInstanceBuffers;
     std::vector<vk::DescriptorSet> m_pickingDescriptorSets;
+
+    // Dedicated transient command pool and fence for picking pixel readback (B6 fix)
+    vk::CommandPool m_pickingCommandPool;
+    vk::CommandBuffer m_pickingCommandBuffer;
+    vk::Fence m_pickingFence;
 };
 
 } // namespace bb3d

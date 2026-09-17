@@ -60,7 +60,10 @@ public:
     static void Cleanup(); 
 
     /** @brief Sets the current frame index for descriptor buffering. */
-    static void SetCurrentFrame(uint32_t frame) { s_currentFrame = frame; }
+    static void SetCurrentFrame(uint32_t frame) noexcept { s_currentFrame = frame; }
+
+    /** @brief Retrieves the current frame index used for per-frame descriptor buffering. */
+    [[nodiscard]] static uint32_t GetCurrentFrame() noexcept { return s_currentFrame; }
 
 protected:
     VulkanContext& m_context;

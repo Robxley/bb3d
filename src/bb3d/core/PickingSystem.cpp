@@ -44,17 +44,25 @@ Entity PickingSystem::pickColorPicking(glm::vec2 viewportUV, Scene& scene, Engin
         return pickPhysicsRaycast(viewportUV, scene, engine);
     }
 
-    // Convert UV to pixel coordinates in the picking buffer
-    auto* rt = renderer.getRenderTarget();
-    uint32_t width = rt ? rt->getExtent().width : renderer.getSwapChain().getExtent().width;
-    uint32_t height = rt ? rt->getExtent().height : renderer.getSwapChain().getExtent().height;
+    // Convert UV to pixel coordinates using the picking buffer's authoritative dimensions
+    uint32_t width = renderer.getPickingWidth();
+    uint32_t height = renderer.getPickingHeight();
+    if (width == 0 || height == 0) {
+        auto* rt = renderer.getRenderTarget();
+        width = rt ? rt->getExtent().width : renderer.getSwapChain().getExtent().width;
+        height = rt ? rt->getExtent().height : renderer.getSwapChain().getExtent().height;
+    }
+    if (width == 0 || height == 0) {
+        return {};
+    }
+
     uint32_t px = static_cast<uint32_t>(viewportUV.x * width);
     uint32_t py = static_cast<uint32_t>(viewportUV.y * height);
     px = std::min(px, width - 1);
     py = std::min(py, height - 1);
 
     uint32_t entityId = renderer.readEntityIdAt(px, py);
-    if (entityId == 0xFFFFFFFF) {
+    if (entityId == Renderer::kPickingNoEntity) {
         BB_CORE_TRACE("PickingSystem: ColorPicking — no entity at pixel ({}, {})", px, py);
         return {};
     }
