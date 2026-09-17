@@ -145,8 +145,6 @@ private:
     void createPickingResources();
     void resizePickingImages(uint32_t width, uint32_t height);
     void cleanupPickingResources();
-    
-    Ref<Material> getMaterialForTexture(Ref<Texture> texture);
 
     VulkanContext& m_context;
     Window& m_window;
@@ -239,13 +237,9 @@ private:
 
     // Materials
     vk::DescriptorPool m_descriptorPool; 
-    
-    // Cache pour compatibilité avec les Mesh sans Material explicite
-    std::unordered_map<std::string, Ref<Material>> m_defaultMaterials;
 
     // Optimisation : Éviter les réallocations par frame
     std::vector<RenderCommand> m_renderCommands;
-    std::vector<glm::mat4> m_instanceTransforms;
     std::mutex m_commandMutex;
 
     Scope<Mesh> m_skyboxCube;

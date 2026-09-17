@@ -21,7 +21,6 @@ Renderer::Renderer(VulkanContext& context, Window& window, JobSystem& jobSystem,
     m_swapChain = CreateScope<SwapChain>(context, config.window.width, config.window.height);
     
     m_renderCommands.reserve(1000);
-    m_instanceTransforms.reserve(MAX_INSTANCES);
 
     if (m_config.graphics.enableOffscreenRendering) {
         uint32_t w = static_cast<uint32_t>(m_swapChain->getExtent().width * m_config.graphics.renderScale);
@@ -65,8 +64,6 @@ Renderer::~Renderer() {
         try { dev.waitIdle(); } catch(...) {}
 
         m_renderCommands.clear();
-        m_instanceTransforms.clear();
-        m_defaultMaterials.clear();
         m_pipelines.clear();
         m_shaders.clear();
 
@@ -364,15 +361,6 @@ void Renderer::createCopyPipeline() {
             device.updateDescriptorSets(writes, nullptr);
         }
     }
-}
-
-Ref<Material> Renderer::getMaterialForTexture(Ref<Texture> texture) {
-    if (!texture) return nullptr;
-    std::string key = std::string(texture->getPath());
-    if (key.empty()) key = "gen_" + std::to_string((uintptr_t)texture.get());
-    if (m_defaultMaterials.contains(key)) return m_defaultMaterials[key];
-    auto material = CreateRef<PBRMaterial>(m_context); material->setAlbedoMap(texture);
-    m_defaultMaterials[key] = material; return material;
 }
 
 void Renderer::renderUI(const std::function<void(vk::CommandBuffer)>& func) {
@@ -772,7 +760,6 @@ void Renderer::updateGlobalUBO(uint32_t currentFrame, Scene& scene, GlobalUBO& u
 void Renderer::prepareRenderData(Scene& scene) {
     std::lock_guard<std::mutex> lock(m_commandMutex);
     m_renderCommands.clear();
-    m_instanceTransforms.clear();
 
     // 1. Collect MeshComponent commands
     auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
