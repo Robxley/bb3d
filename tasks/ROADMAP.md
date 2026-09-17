@@ -52,10 +52,11 @@ flowchart LR
   - Ajouter des gardes `entity.has<TransformComponent>()` dans `createRigidBody` et `createCharacterController` (`B15`, `B20`).
   - Sécuriser l'allocation de corps (`CreateBody != nullptr`) (`B16`).
 - [x] **JobSystem Busy-Poll (`B24`, `B25`)** : Architecture hybride Spin-Then-Park (`_mm_pause` hot path + park OS au repos), 0% CPU idle, wake latency 30 µs, test unitaire validé (`unit_test_08_core_systems`).
-- [ ] **Nettoyage du Code Mort & Fichiers Obsolètes (`D3`, `D4`, `D5`)** :
+- [x] **Nettoyage du Code Mort & Fichiers Obsolètes (`D3`, `D4`, `D5`, `ND1`)** :
   - Supprimer `m_instanceTransforms` non lu (`D3`).
   - Supprimer `getMaterialForTexture` et `m_defaultMaterials` inutilisés (`D4`).
-  - Nettoyer ou implémenter le bloc d'horizon culling commenté (`D5`).
+  - Supprimer le bloc d'horizon culling commenté (`D5`).
+  - Supprimer `StagingBuffer::submitCopy` non appelé et buggé (`ND1`).
 
 ---
 
