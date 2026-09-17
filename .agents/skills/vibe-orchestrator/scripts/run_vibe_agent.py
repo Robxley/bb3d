@@ -132,7 +132,7 @@ def run_vibe(
     model: str = "glm-5.2",
     agent: str = None,
     worktree: str = None,
-    max_turns: int = 25,
+    max_turns: int = 40,
     extra_prompt: str = "",
     timeout_sec: int = 900,
 ) -> int:
@@ -345,7 +345,7 @@ def main():
     parser.add_argument("--model", default="glm-5.2", help="Model to use (default: glm-5.2)")
     parser.add_argument("--agent", default=None, help="Custom agent name (default: bb3d-fixer or bb3d-reviewer)")
     parser.add_argument("--worktree", default=None, help="Optional git worktree name for isolated branch execution")
-    parser.add_argument("--max-turns", type=int, default=25, help="Max assistant turns (default: 25)")
+    parser.add_argument("--max-turns", type=int, default=40, help="Max assistant turns (default: 40)")
     parser.add_argument("--timeout", type=int, default=900, help="Timeout in seconds (default: 900)")
     parser.add_argument("--extra-prompt", default="", help="Additional prompt instructions or feedback")
 
