@@ -46,13 +46,4 @@ StagingBuffer::Allocation StagingBuffer::allocate(vk::DeviceSize size) {
     return alloc;
 }
 
-void StagingBuffer::submitCopy(const std::function<void(vk::CommandBuffer, vk::Buffer stagingBuffer, vk::DeviceSize offset)>& copyFunc) {
-    // Cette méthode centralise la soumission immédiate
-    // On suppose que l'utilisateur a fait son allocation juste avant
-    // Dans une version asynchrone, on passerait l'allocation en paramètre.
-    vk::CommandBuffer cb = m_context.beginSingleTimeCommands();
-    copyFunc(cb, m_buffer->getHandle(), m_offset); 
-    m_context.endSingleTimeCommands(cb);
-}
-
 } // namespace bb3d

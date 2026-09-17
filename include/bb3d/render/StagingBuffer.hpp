@@ -2,7 +2,6 @@
 
 #include "bb3d/render/Buffer.hpp"
 #include <mutex>
-#include <functional>
 
 namespace bb3d {
 
@@ -27,9 +26,6 @@ public:
     };
 
     Allocation allocate(vk::DeviceSize size);
-
-    /** @brief Soumet une commande de transfert immédiate (bloquante pour l'instant, mais réutilisable). */
-    void submitCopy(const std::function<void(vk::CommandBuffer, vk::Buffer stagingBuffer, vk::DeviceSize offset)>& copyFunc);
 
 private:
     VulkanContext& m_context;
