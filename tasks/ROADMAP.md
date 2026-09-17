@@ -47,11 +47,11 @@ flowchart LR
   - Libération propre des descriptor sets de picking via `freeDescriptorSets` et préservation des buffers lors des redimensionnements (`B4`).
   - Allocation eager des pipelines/ressources à l'init et redimensionnement d'images dédié dans `m_resizeRequested` hors `cb.begin()`, éliminant les `dev.waitIdle()` mid-frame (`B5`).
   - Synchronisation de readback par fence isolée (`m_pickingFence`) et pool transitoire dédié, éliminant le stall `queue.waitIdle()` global (`B6`), test unitaire validé (`unit_test_26_picking`).
-- [ ] **Robustesse Physique Jolt (`B14`, `B15`, `B16`, `B21`)** :
+- [x] **Robustesse Physique Jolt (`B14`, `B15`, `B16`, `B20`, `B21`)** :
   - Clamper le nombre de threads (`std::max(1, hardware_concurrency - 1)`) (`B14`).
   - Ajouter des gardes `entity.has<TransformComponent>()` dans `createRigidBody` et `createCharacterController` (`B15`, `B20`).
-  - Sécuriser l'allocation de corps (`CreateBody != nullptr`) et configurer une jauge adaptée aux besoins (`B16`).
-  - Nettoyer le corps Jolt lors de `Scene::destroyEntity` (`B21`).
+  - Sécuriser l'allocation de corps (`CreateBody != nullptr`) (`B16`).
+  - Nettoyer le corps Jolt et CharacterController lors de `Scene::destroyEntity` (`B21`), test unitaire validé (`unit_test_27_physics_guards`).
 - [ ] **JobSystem Busy-Poll (`B24`)** : Remplacer le prédicat condition variable `return false;` (busy-loop 1 kHz) par un test sur le nombre de tâches disponibles avec réveil réactif.
 - [ ] **Nettoyage du Code Mort & Fichiers Obsolètes (`D3`, `D4`, `D5`)** :
   - Supprimer `m_instanceTransforms` non lu (`D3`).
