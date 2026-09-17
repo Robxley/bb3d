@@ -51,8 +51,7 @@ flowchart LR
   - Clamper le nombre de threads (`std::max(1, hardware_concurrency - 1)`) (`B14`).
   - Ajouter des gardes `entity.has<TransformComponent>()` dans `createRigidBody` et `createCharacterController` (`B15`, `B20`).
   - Sécuriser l'allocation de corps (`CreateBody != nullptr`) (`B16`).
-  - Nettoyer le corps Jolt et CharacterController lors de `Scene::destroyEntity` (`B21`), test unitaire validé (`unit_test_27_physics_guards`).
-- [ ] **JobSystem Busy-Poll (`B24`)** : Remplacer le prédicat condition variable `return false;` (busy-loop 1 kHz) par un test sur le nombre de tâches disponibles avec réveil réactif.
+- [x] **JobSystem Busy-Poll (`B24`, `B25`)** : Architecture hybride Spin-Then-Park (`_mm_pause` hot path + park OS au repos), 0% CPU idle, wake latency 30 µs, test unitaire validé (`unit_test_08_core_systems`).
 - [ ] **Nettoyage du Code Mort & Fichiers Obsolètes (`D3`, `D4`, `D5`)** :
   - Supprimer `m_instanceTransforms` non lu (`D3`).
   - Supprimer `getMaterialForTexture` et `m_defaultMaterials` inutilisés (`D4`).

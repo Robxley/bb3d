@@ -5,6 +5,11 @@ Ce fichier consigne l'historique compact de tous les chantiers et correctifs ter
 
 ---
 
+- **[2026-09-17] [TASK-JOBSYSTEM] Architecture Hybride & Réveil Réactif du JobSystem (B24, B25)** (@Antigravity / @dev)
+  - Scope: `include/bb3d/core/JobSystem.hpp`, `src/bb3d/core/JobSystem.cpp`, `tests/unit_test_08_core_systems.cpp`
+  - Bilan: B24 (spin matériel _mm_pause + park OS, 0 busy-poll), B25 (callerIndex membre), wake latency 30 µs, 100% commentaires anglais, test 08 PASS, revue APPROVED.
+  - Archive: [archive/TASK-JOBSYSTEM.md](archive/TASK-JOBSYSTEM.md)
+
 - **[2026-09-17] [TASK-PHYSICS-GUARDS] Robustesse Jolt Physics (B14, B15, B16, B20, B21)** (@Antigravity / @bb3d-reviewer & @User)
   - Scope: `include/bb3d/physics/PhysicsWorld.hpp`, `src/bb3d/physics/PhysicsWorld.cpp`, `src/bb3d/scene/Scene.cpp`, `tests/unit_test_27_physics_guards.cpp`
   - Bilan: B14 (clamp threads), B15/B20 (gardes Transform), B16 (check CreateBody != null), B21 (nettoyage Jolt dans destroyEntity), test 27 PASS (0.48s), revue APPROVED.

@@ -16,15 +16,14 @@
 namespace bb3d {
 
 /**
- * @brief Un compteur atomique pour suivre l'achèvement d'un groupe de tâches.
+ * @brief Atomic counter tracking completion of a group of tasks.
  */
 using JobCounter = std::shared_ptr<std::atomic<int>>;
 
 /**
- * @brief Système de gestion de tâches (Job System) multi-threadé.
+ * @brief Multi-threaded task scheduling system (Job System).
  * 
- * Utilise un Thread Pool avec vol de travail (Work Stealing) pour répartir
- * la charge CPU sur tous les cœurs disponibles.
+ * Uses a work-stealing thread pool to balance CPU load across all available cores.
  */
 class JobSystem {
 public:
@@ -32,27 +31,27 @@ public:
     ~JobSystem();
 
     /**
-     * @brief Initialise le pool de threads.
-     * @param threadCount Nombre de threads (0 pour détection automatique).
+     * @brief Initializes the thread pool.
+     * @param threadCount Number of worker threads (0 for automatic core count detection).
      */
     void init(uint32_t threadCount = 0);
     
     /**
-     * @brief Arrête proprement tous les threads.
+     * @brief Stops all worker threads cleanly.
      */
     void shutdown();
 
-    /** @brief Récupère le nombre de threads actifs. */
+    /** @brief Returns the number of active worker threads. */
     [[nodiscard]] inline uint32_t getThreadCount() const { return static_cast<uint32_t>(m_workers.size()); }
 
     /**
-     * @brief Lance un job asynchrone.
-     * @param job La fonction à exécuter (Callable).
-     * @param counter (Optionnel) Un compteur à décrémenter à la fin.
+     * @brief Submits an asynchronous job.
+     * @param job Callable task to execute.
+     * @param counter (Optional) Shared counter decremented upon completion.
      */
     template<typename Callable>
     void execute(Callable&& job, JobCounter counter = nullptr) {
-        auto wrappedJob = [job = std::forward<Callable>(job), counter](std::stop_token st) mutable {
+        auto wrappedJob = [job = std::forward<Callable>(job), counter]([[maybe_unused]] std::stop_token st) mutable {
             if constexpr (std::invocable<Callable, std::stop_token>) {
                 job(st);
             } else {
@@ -68,11 +67,11 @@ public:
     }
 
     /**
-     * @brief Exécute un job de manière sécurisée (capture les exceptions).
+     * @brief Executes a job with exception safety (catches and logs exceptions).
      */
     template<typename Callable>
     void executeSafe(Callable&& job, JobCounter counter = nullptr) {
-        execute([job = std::forward<Callable>(job)](std::stop_token st) mutable {
+        execute([job = std::forward<Callable>(job)]([[maybe_unused]] std::stop_token st) mutable {
             try {
                 if constexpr (std::invocable<Callable, std::stop_token>) {
                     job(st);
@@ -88,16 +87,16 @@ public:
     }
 
     /**
-     * @brief Découpe une boucle en plusieurs jobs parallèles (Parallel For).
-     * @param jobCount Nombre total d'itérations.
-     * @param groupSize Taille du batch par thread.
-     * @param func Fonction prenant (jobIndex, count).
+     * @brief Splits a loop into multiple parallel jobs (Parallel For).
+     * @param jobCount Total number of iterations.
+     * @param groupSize Batch size per thread.
+     * @param func Function accepting (jobIndex, count).
      */
     void dispatch(uint32_t jobCount, uint32_t groupSize, const std::function<void(uint32_t, uint32_t)>& func);
 
     /**
-     * @brief Attend qu'un compteur atteigne 0.
-     * @note Le thread appelant aide à exécuter les jobs en attente durant le wait.
+     * @brief Waits until the job counter reaches 0.
+     * @note The calling thread assists by executing pending jobs while waiting.
      */
     void wait(const JobCounter& counter);
 
@@ -128,6 +127,11 @@ private:
     
     std::condition_variable_any m_globalCondition;
     std::mutex m_globalMutex; 
+
+    // Hybrid reactive wake & idle management
+    std::atomic<int32_t> m_pendingJobs{0};
+    std::atomic<uint32_t> m_sleepingWorkers{0};
+    std::atomic<uint32_t> m_callerIndex{0};
 };
 
 } // namespace bb3d

@@ -21,37 +21,34 @@ void runCoreSystemsTest(const bb3d::EngineConfig& logConfig) {
     BB_PROFILE_FRAME("MainThread");
     
     bb3d::Log::Init(logConfig);
-    BB_CORE_INFO("--- Test Unitaire 08 : Core Systems ---");
+    BB_CORE_INFO("--- Unit Test 08 : Core Systems ---");
 
     // 1. TEST JOB SYSTEM
     {
         BB_CORE_INFO("[Test] JobSystem (Work Stealing & Wait)...");
         bb3d::JobSystem jobSystem;
-        jobSystem.init(); // Auto-detect threads
+        jobSystem.init(); // Auto-detect worker threads
 
         // A. Test Wait & Counter
         std::atomic<int> counterValue{0};
         const int jobCount = 50;
         
-        // On crée un compteur initialisé au nombre de jobs
         auto batchCounter = std::make_shared<std::atomic<int>>(jobCount);
 
         for (int i = 0; i < jobCount; ++i) {
-            // Note: On passe le compteur à execute, qui le décrémentera automatiquement
             jobSystem.execute([&counterValue]() {
-                // Travail simulé
                 std::this_thread::sleep_for(std::chrono::microseconds(100));
                 counterValue++;
             }, batchCounter);
         }
 
-        BB_CORE_INFO("Attente active des jobs...");
-        jobSystem.wait(batchCounter); // Le thread principal aide ici !
+        BB_CORE_INFO("Active waiting for batch jobs...");
+        jobSystem.wait(batchCounter); // Main thread assists
 
         if (counterValue == jobCount) {
-            BB_CORE_INFO("[Success] {} tâches terminées sans sleep arbitraire.", counterValue.load());
+            BB_CORE_INFO("[Success] {} tasks completed.", counterValue.load());
         } else {
-            BB_CORE_ERROR("[Fail] {}/{} tâches terminées.", counterValue.load(), jobCount);
+            BB_CORE_ERROR("[Fail] {}/{} tasks completed.", counterValue.load(), jobCount);
         }
 
         // B. Test Dispatch (Parallel For)
@@ -59,22 +56,44 @@ void runCoreSystemsTest(const bb3d::EngineConfig& logConfig) {
         const int dataSize = 1000;
         const int groupSize = 100;
 
-        BB_CORE_INFO("Dispatch sur {0} éléments...", dataSize);
+        BB_CORE_INFO("Dispatch across {0} elements...", dataSize);
         jobSystem.dispatch(dataSize, groupSize, [&](uint32_t /*index*/, uint32_t /*count*/) {
-            // Simulation travail vectoriel
             dispatchSum += 1; 
         });
 
         if (dispatchSum == dataSize) {
-            BB_CORE_INFO("[Success] Dispatch terminé. Somme = {0}", dispatchSum.load());
+            BB_CORE_INFO("[Success] Dispatch complete. Sum = {0}", dispatchSum.load());
         } else {
-            BB_CORE_ERROR("[Fail] Dispatch incorrect. Somme = {0}", dispatchSum.load());
+            BB_CORE_ERROR("[Fail] Dispatch incorrect. Sum = {0}", dispatchSum.load());
+        }
+
+        // C. Test Reactive Wakeup from Idle Park (B24 verification)
+        BB_CORE_INFO("Testing reactive wakeup from idle park (B24)...");
+        // Let workers settle into deep park (idle state)
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+
+        std::atomic<bool> wakeJobExecuted{false};
+        auto wakeCounter = std::make_shared<std::atomic<int>>(1);
+        auto tStart = std::chrono::high_resolution_clock::now();
+
+        jobSystem.execute([&wakeJobExecuted]() {
+            wakeJobExecuted = true;
+        }, wakeCounter);
+
+        jobSystem.wait(wakeCounter);
+        auto tEnd = std::chrono::high_resolution_clock::now();
+        auto wakeDurationUs = std::chrono::duration_cast<std::chrono::microseconds>(tEnd - tStart).count();
+
+        if (wakeJobExecuted && wakeDurationUs < 50000) { // Should execute well within 50ms
+            BB_CORE_INFO("[Success] Wakeup from idle state completed in {} us.", wakeDurationUs);
+        } else {
+            BB_CORE_ERROR("[Fail] Wakeup job failed or delayed (duration: {} us).", wakeDurationUs);
         }
 
         // D. Test Exception Safe
         jobSystem.executeSafe([]() {
-            BB_CORE_WARN("Job: Je vais lancer une exception (C'est prévu !)");
-            throw std::runtime_error("Erreur Volontaire pour tester executeSafe avec Logging");
+            BB_CORE_WARN("Job: Deliberate test exception (expected behavior).");
+            throw std::runtime_error("Voluntary error to test executeSafe logging");
         });
 
         // E. Test Stop Token (Long Running Job)
@@ -83,23 +102,22 @@ void runCoreSystemsTest(const bb3d::EngineConfig& logConfig) {
 
         jobSystem.execute([&](std::stop_token st) {
             longJobStarted = true;
-            BB_CORE_INFO("LongJob: Démarré.");
+            BB_CORE_INFO("LongJob: Started.");
             while (!st.stop_requested()) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
             longJobStopped = true;
         });
 
-        // Laisser le temps au job de démarrer
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         
-        BB_CORE_INFO("Arrêt du JobSystem...");
+        BB_CORE_INFO("Shutting down JobSystem...");
         jobSystem.shutdown();
 
         if (longJobStopped) {
-            BB_CORE_INFO("[Success] LongJob interrompu.");
+            BB_CORE_INFO("[Success] LongJob interrupted cleanly.");
         } else {
-             BB_CORE_WARN("[Warn] LongJob status incertain (Start:{}, Stop:{}) - Possible si shutdown trop rapide.", longJobStarted.load(), longJobStopped.load());
+            BB_CORE_WARN("[Warn] LongJob status uncertain (Start:{}, Stop:{}).", longJobStarted.load(), longJobStopped.load());
         }
     }
 
@@ -110,21 +128,19 @@ void runCoreSystemsTest(const bb3d::EngineConfig& logConfig) {
         bool received = false;
         int receivedId = 0;
 
-        // Abonnement
         eventBus.subscribe<TestEvent>([&](const TestEvent& e) {
-            BB_CORE_INFO("Event Reçu : [{}] {}", e.id, e.message);
+            BB_CORE_INFO("Event Received : [{}] {}", e.id, e.message);
             received = true;
             receivedId = e.id;
         });
 
-        // Publication
         TestEvent evt{42, "Hello EventBus"};
         eventBus.publish(evt);
 
         if (received && receivedId == 42) {
-            BB_CORE_INFO("[Success] EventBus a correctement distribué l'événement.");
+            BB_CORE_INFO("[Success] EventBus correctly dispatched event.");
         } else {
-            BB_CORE_ERROR("[Fail] EventBus n'a pas reçu l'événement.");
+            BB_CORE_ERROR("[Fail] EventBus did not receive event.");
             throw std::runtime_error("EventBus test failed");
         }
 
@@ -136,19 +152,19 @@ void runCoreSystemsTest(const bb3d::EngineConfig& logConfig) {
         eventBus.publish(PlayerDiedEvent{1});
         
         if (p1 && p2) BB_CORE_INFO("[Success] EventBus : Multi-subscriber OK.");
-        else BB_CORE_ERROR("[Fail] EventBus : Multi-subscriber échoué.");
+        else BB_CORE_ERROR("[Fail] EventBus : Multi-subscriber failed.");
 
-        // Test Queue (Différé)
+        // Test Queue (Deferred)
         bool queuedReceived = false;
         eventBus.subscribe<std::string>([&](const std::string& msg) {
-            BB_CORE_INFO("Event Différé Reçu : {}", msg);
+            BB_CORE_INFO("Deferred Event Received : {}", msg);
             queuedReceived = true;
         });
 
-        eventBus.enqueue(std::string("Je suis en retard !"));
+        eventBus.enqueue(std::string("Deferred message"));
         
         if (queuedReceived) {
-            BB_CORE_ERROR("[Fail] L'événement différé a été traité trop tôt !");
+            BB_CORE_ERROR("[Fail] Deferred event was processed too early!");
         }
 
         BB_CORE_INFO("Dispatching queue...");
@@ -157,7 +173,7 @@ void runCoreSystemsTest(const bb3d::EngineConfig& logConfig) {
         if (queuedReceived) {
             BB_CORE_INFO("[Success] EventBus : Queue dispatch OK.");
         } else {
-            BB_CORE_ERROR("[Fail] EventBus : Queue dispatch échoué.");
+            BB_CORE_ERROR("[Fail] EventBus : Queue dispatch failed.");
         }
     }
 }
