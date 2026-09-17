@@ -66,6 +66,8 @@ void JobSystem::pushInternal(std::function<void(std::stop_token)>&& job) {
     // Fast-path: only wake up a worker if at least one is currently sleeping.
     // If all workers are busy running tasks, notify is skipped entirely (zero overhead).
     if (m_sleepingWorkers.load(std::memory_order_relaxed) > 0) {
+        // Synchronize with worker parking decision to prevent lost-wakeup race (Review item A1)
+        std::lock_guard<std::mutex> wakeLock(m_globalMutex);
         m_globalCondition.notify_one();
     }
 }

@@ -67,27 +67,33 @@ void runCoreSystemsTest(const bb3d::EngineConfig& logConfig) {
             BB_CORE_ERROR("[Fail] Dispatch incorrect. Sum = {0}", dispatchSum.load());
         }
 
-        // C. Test Reactive Wakeup from Idle Park (B24 verification)
-        BB_CORE_INFO("Testing reactive wakeup from idle park (B24)...");
+        // C. Test Reactive Wakeup from Idle Park (B24 verification & Review item A3)
+        BB_CORE_INFO("Testing reactive wakeup from idle park (B24 & Review item A3)...");
         // Let workers settle into deep park (idle state)
         std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
-        std::atomic<bool> wakeJobExecuted{false};
-        auto wakeCounter = std::make_shared<std::atomic<int>>(1);
+        // Specifically test that a sleeping worker wakes up WITHOUT caller assist (no jobSystem.wait)
+        std::atomic<bool> workerOnlyExecuted{false};
         auto tStart = std::chrono::high_resolution_clock::now();
 
-        jobSystem.execute([&wakeJobExecuted]() {
-            wakeJobExecuted = true;
-        }, wakeCounter);
+        jobSystem.execute([&workerOnlyExecuted]() {
+            workerOnlyExecuted.store(true, std::memory_order_release);
+        });
 
-        jobSystem.wait(wakeCounter);
+        // Main thread waits passively on the atomic flag (cannot assist by popping)
+        int waitAttempts = 0;
+        while (!workerOnlyExecuted.load(std::memory_order_acquire) && waitAttempts < 500) {
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+            waitAttempts++;
+        }
         auto tEnd = std::chrono::high_resolution_clock::now();
         auto wakeDurationUs = std::chrono::duration_cast<std::chrono::microseconds>(tEnd - tStart).count();
 
-        if (wakeJobExecuted && wakeDurationUs < 50000) { // Should execute well within 50ms
-            BB_CORE_INFO("[Success] Wakeup from idle state completed in {} us.", wakeDurationUs);
+        if (workerOnlyExecuted.load() && wakeDurationUs < 50000) {
+            BB_CORE_INFO("[Success] Pure worker wakeup from idle park completed in {} us (without caller assist).", wakeDurationUs);
         } else {
-            BB_CORE_ERROR("[Fail] Wakeup job failed or delayed (duration: {} us).", wakeDurationUs);
+            BB_CORE_ERROR("[Fail] Worker wakeup failed or timed out (duration: {} us).", wakeDurationUs);
+            throw std::runtime_error("Worker wakeup test failed");
         }
 
         // D. Test Exception Safe
