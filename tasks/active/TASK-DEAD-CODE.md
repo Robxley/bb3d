@@ -1,6 +1,6 @@
 # [TASK-DEAD-CODE] : Nettoyage du code mort (D3, D4, D5, ND1)
 
-- **Statut :** DRAFT
+- **Statut :** READY FOR CODE REVIEW
 - **Auteur / Implémenteur :** @bb3d-fixer
 - **Reviewer(s) :** @bb3d-reviewer, @dev
 - **Branche Git :** `refactor/dead-code-cleanup`
@@ -35,27 +35,27 @@ Quatre zones de code mort confirmées dans le moteur :
 
 ### D3 — m_instanceTransforms mort
 - **Bug ID / Signalement :** D3 dans `tasks/CODE_REVIEW.md`
-- **Diagnostic critique indépendant :** [À renseigner par @bb3d-fixer]
-- **Preuve technique :** `grep -rn "m_instanceTransforms"` : `Renderer.cpp:24` (reserve), `:67` (clear), `:717` (clear), `Renderer.hpp:230` (déclaration). Aucune écriture de données, aucune lecture. L'instance SSBO est rempli depuis `m_renderCommands` (Renderer.cpp:830-835).
-- **Statut Double Check :** [ ] CONFIRMÉ / [ ] RÉFUTÉ
+- **Diagnostic critique indépendant :** Vérifié dans `Renderer.hpp:248` et `Renderer.cpp:24,68,775`. Le membre `m_instanceTransforms` n'est que réservé à l'init et vidé au `clear()`. Aucune écriture de matrices de transformation et aucune lecture n'est jamais effectuée. Le SSBO d'instanciation est directement alimenté via `m_renderCommands`.
+- **Preuve technique :** `grep -rn "m_instanceTransforms"` : uniquement `Renderer.cpp:24` (reserve), `:68` (clear), `:775` (clear), et `Renderer.hpp:248` (déclaration).
+- **Statut Double Check :** [x] CONFIRMÉ / [ ] RÉFUTÉ
 
 ### D4 — getMaterialForTexture + m_defaultMaterials morts
 - **Bug ID / Signalement :** D4 dans `tasks/CODE_REVIEW.md`
-- **Diagnostic critique indépendant :** [À renseigner par @bb3d-fixer]
-- **Preuve technique :** `grep -rn "getMaterialForTexture"` : seul appelant = la définition elle-même (`Renderer.cpp:357`) + déclaration (`Renderer.hpp:138`). `m_defaultMaterials` n'est utilisé que par cette fonction morte (`Renderer.cpp:68,361,363`, `Renderer.hpp:226`).
-- **Statut Double Check :** [ ] CONFIRMÉ / [ ] RÉFUTÉ
+- **Diagnostic critique indépendant :** Vérifié dans `Renderer.hpp:149,244` et `Renderer.cpp:69,369-376`. Zéro appelant externe ou interne. `m_defaultMaterials` n'est accédé que dans `getMaterialForTexture` et vidé au destructeur.
+- **Preuve technique :** `grep -rn "getMaterialForTexture"` : uniquement déclaration (`Renderer.hpp:149`) et définition (`Renderer.cpp:369`). Aucun appelant dans tout le dépôt.
+- **Statut Double Check :** [x] CONFIRMÉ / [ ] RÉFUTÉ
 
 ### D5 — Bloc horizon culling commenté
 - **Bug ID / Signalement :** D5 dans `tasks/CODE_REVIEW.md`
-- **Diagnostic critique indépendant :** [À renseigner par @bb3d-fixer]
-- **Preuve technique :** `Scene.cpp:361-399` — calcule `planetRotation`, itère les caméras, définit `faceDirections`, mais le corps de culling (lignes 387-397) est commenté (`/* ... */`). Le bloc ne fait rien yet coûte du CPU par planète par frame.
-- **Statut Double Check :** [ ] CONFIRMÉ / [ ] RÉFUTÉ
+- **Diagnostic critique indépendant :** Vérifié dans `Scene.cpp:370-408`. Le bloc calcule `activeCamera`, les positions, `planetRotation`, et initialise `faceDirections`, mais la boucle de visibilité sous-jacente est entièrement sous bloc commentaire `/* ... */`. Cela consomme du temps CPU inutilement à chaque frame pour chaque entité planète.
+- **Preuve technique :** Inspection directe de `Scene.cpp:370-408`.
+- **Statut Double Check :** [x] CONFIRMÉ / [ ] RÉFUTÉ
 
 ### ND1 — StagingBuffer::submitCopy mort + buggué
-- **Bug ID / Signalement :** ND1 (nouveau, découvert lors de la revue du 2026-09-17)
-- **Diagnostic critique indépendant :** [À renseigner par @bb3d-fixer]
-- **Preuve technique :** `grep -rn "submitCopy"` : seul appelant = la définition (`StagingBuffer.cpp:49`) + déclaration (`StagingBuffer.hpp:32`). Aucun appelant. De plus, la méthode passe `m_offset` (déjà avancé) au `copyFunc` → offset incorrect.
-- **Statut Double Check :** [ ] CONFIRMÉ / [ ] RÉFUTÉ
+- **Bug ID / Signalement :** ND1 (découvert lors de la revue du 2026-09-17)
+- **Diagnostic critique indépendant :** Vérifié dans `StagingBuffer.hpp:32` et `StagingBuffer.cpp:49-56`. Aucun appelant dans l'ensemble du projet. De plus, `submitCopy` passait `m_offset` après son incrémentation par `allocate()`, ce qui produisait un offset erroné.
+- **Preuve technique :** `grep -rn "submitCopy"` : uniquement déclaration (`StagingBuffer.hpp:32`) et définition (`StagingBuffer.cpp:49`).
+- **Statut Double Check :** [x] CONFIRMÉ / [ ] RÉFUTÉ
 
 ---
 
@@ -87,14 +87,14 @@ Quatre zones de code mort confirmées dans le moteur :
 ## 3. Grille de Revue & Checkpoints
 
 ### 🛡️ Checkpoints de l'Implémenteur (Avant soumission en revue)
-- [ ] **Double Check Bug :** Les 4 zones mortes confirmées dans le code source live.
-- [ ] **TDD & Tests :** `ctest` au vert après suppression.
-- [ ] **Standards C++ (`cpp-pro`) :**
-  - [ ] Suppression complète (pas de `_unused` renames, pas de commentaires `// removed`).
-  - [ ] Tous les call sites mis à jour.
-  - [ ] Code, commentaires en **anglais**.
-- [ ] **Qualité du Build :** Zéro warning compilateur.
-- [ ] **Commits :** 4 commits atomiques (`refactor:`).
+- [x] **Double Check Bug :** Les 4 zones mortes confirmées dans le code source live.
+- [x] **TDD & Tests :** `ctest` au vert après suppression (12/12 tests unitaires validés).
+- [x] **Standards C++ (`cpp-pro`) :**
+  - [x] Suppression complète (pas de `_unused` renames, pas de commentaires `// removed`).
+  - [x] Tous les call sites mis à jour.
+  - [x] Code, commentaires en **anglais**.
+- [x] **Qualité du Build :** Zéro warning compilateur sur biobazard3d.
+- [x] **Commits :** 4 commits atomiques (`refactor:`).
 
 ---
 
