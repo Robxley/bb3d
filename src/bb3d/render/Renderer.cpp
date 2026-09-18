@@ -488,12 +488,35 @@ bool Renderer::render(Scene& scene) {
         depthView = m_renderTarget->getDepthImageView();
         
         vk::Image rtImage = m_renderTarget->getColorImage();
-        vk::ImageMemoryBarrier rtBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-        cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, rtBarrier);
-        
+        vk::ImageMemoryBarrier2 rtBarrier{};
+        rtBarrier.srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+        rtBarrier.srcAccessMask = {};
+        rtBarrier.dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+        rtBarrier.dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite;
+        rtBarrier.oldLayout = vk::ImageLayout::eUndefined;
+        rtBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
+        rtBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        rtBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        rtBarrier.image = rtImage;
+        rtBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+
         vk::Image dImage = m_renderTarget->getDepthImage();
-        vk::ImageMemoryBarrier dBarrier({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, dImage, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 });
-        cb.pipelineBarrier(vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
+        vk::ImageMemoryBarrier2 dBarrier{};
+        dBarrier.srcStageMask = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
+        dBarrier.srcAccessMask = {};
+        dBarrier.dstStageMask = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
+        dBarrier.dstAccessMask = vk::AccessFlagBits2::eDepthStencilAttachmentWrite;
+        dBarrier.oldLayout = vk::ImageLayout::eUndefined;
+        dBarrier.newLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+        dBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        dBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        dBarrier.image = dImage;
+        dBarrier.subresourceRange = { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 };
+
+        std::array<vk::ImageMemoryBarrier2, 2> initBarriers = { rtBarrier, dBarrier };
+        vk::DependencyInfo initDepInfo{};
+        initDepInfo.setImageMemoryBarriers(initBarriers);
+        cb.pipelineBarrier2(initDepInfo);
         
         drawScene(cb, scene, colorView, depthView, extent);
         
@@ -505,24 +528,73 @@ bool Renderer::render(Scene& scene) {
             compositeToSwapchain(cb, imageIndex);
         } else {
             vk::Image swapImage = m_swapChain->getImage(imageIndex);
-            vk::ImageMemoryBarrier swBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-            cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, swBarrier);
+            vk::ImageMemoryBarrier2 swBarrier{};
+            swBarrier.srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+            swBarrier.srcAccessMask = {};
+            swBarrier.dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+            swBarrier.dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite;
+            swBarrier.oldLayout = vk::ImageLayout::eUndefined;
+            swBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
+            swBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            swBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            swBarrier.image = swapImage;
+            swBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+
+            vk::DependencyInfo swDepInfo{};
+            swDepInfo.setImageMemoryBarriers(swBarrier);
+            cb.pipelineBarrier2(swDepInfo);
         }
         
-        vk::ImageMemoryBarrier rtReadBarrier(vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eShaderRead, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-        cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, rtReadBarrier);
+        vk::ImageMemoryBarrier2 rtReadBarrier{};
+        rtReadBarrier.srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+        rtReadBarrier.srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite;
+        rtReadBarrier.dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader;
+        rtReadBarrier.dstAccessMask = vk::AccessFlagBits2::eShaderRead;
+        rtReadBarrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
+        rtReadBarrier.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        rtReadBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        rtReadBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        rtReadBarrier.image = rtImage;
+        rtReadBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+
+        vk::DependencyInfo rtReadDepInfo{};
+        rtReadDepInfo.setImageMemoryBarriers(rtReadBarrier);
+        cb.pipelineBarrier2(rtReadDepInfo);
     } else {
         extent = m_swapChain->getExtent();
         colorView = m_swapChain->getImageViews()[imageIndex];
         depthView = m_swapChain->getDepthImageView();
         
         vk::Image swImage = m_swapChain->getImage(imageIndex);
-        vk::ImageMemoryBarrier swBarrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-        cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, swBarrier);
+        vk::ImageMemoryBarrier2 swBarrier{};
+        swBarrier.srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+        swBarrier.srcAccessMask = {};
+        swBarrier.dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+        swBarrier.dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite;
+        swBarrier.oldLayout = vk::ImageLayout::eUndefined;
+        swBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
+        swBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        swBarrier.image = swImage;
+        swBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
         
         vk::Image dImage = m_swapChain->getDepthImage();
-        vk::ImageMemoryBarrier dBarrier({}, vk::AccessFlagBits::eDepthStencilAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, dImage, { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 });
-        cb.pipelineBarrier(vk::PipelineStageFlagBits::eEarlyFragmentTests, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, dBarrier);
+        vk::ImageMemoryBarrier2 dBarrier{};
+        dBarrier.srcStageMask = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
+        dBarrier.srcAccessMask = {};
+        dBarrier.dstStageMask = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
+        dBarrier.dstAccessMask = vk::AccessFlagBits2::eDepthStencilAttachmentWrite;
+        dBarrier.oldLayout = vk::ImageLayout::eUndefined;
+        dBarrier.newLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+        dBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        dBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        dBarrier.image = dImage;
+        dBarrier.subresourceRange = { vk::ImageAspectFlagBits::eDepth, 0, 1, 0, 1 };
+        
+        std::array<vk::ImageMemoryBarrier2, 2> swapInitBarriers = { swBarrier, dBarrier };
+        vk::DependencyInfo swapDepInfo{};
+        swapDepInfo.setImageMemoryBarriers(swapInitBarriers);
+        cb.pipelineBarrier2(swapDepInfo);
         
         drawScene(cb, scene, colorView, depthView, extent);
     }
@@ -537,8 +609,21 @@ void Renderer::submitAndPresent() {
     auto& cb = m_commandBuffers[m_currentFrame];
     uint32_t imageIndex = m_swapChain->getCurrentImageIndex();
     vk::Image swImage = m_swapChain->getImage(imageIndex);
-    vk::ImageMemoryBarrier presentBarrier(vk::AccessFlagBits::eColorAttachmentWrite, {}, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-    cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eBottomOfPipe, {}, nullptr, nullptr, presentBarrier);
+    vk::ImageMemoryBarrier2 presentBarrier{};
+    presentBarrier.srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+    presentBarrier.srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite;
+    presentBarrier.dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+    presentBarrier.dstAccessMask = {};
+    presentBarrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
+    presentBarrier.newLayout = vk::ImageLayout::ePresentSrcKHR;
+    presentBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    presentBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    presentBarrier.image = swImage;
+    presentBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+
+    vk::DependencyInfo presentDepInfo{};
+    presentDepInfo.setImageMemoryBarriers(presentBarrier);
+    cb.pipelineBarrier2(presentDepInfo);
     cb.end();
     vk::PipelineStageFlags waitStages[] = { vk::PipelineStageFlagBits::eColorAttachmentOutput };
     vk::SubmitInfo submitInfo(1, &m_imageAvailableSemaphores[m_currentFrame], waitStages, 1, &cb, 1, &m_renderFinishedSemaphores[imageIndex]);
@@ -666,11 +751,36 @@ void Renderer::compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex) {
     }
 
     vk::Image swapImage = m_swapChain->getImage(imageIndex);
-    vk::ImageMemoryBarrier barrier({}, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, swapImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-    cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, barrier);
+    vk::ImageMemoryBarrier2 barrier{};
+    barrier.srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+    barrier.srcAccessMask = {};
+    barrier.dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+    barrier.dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite;
+    barrier.oldLayout = vk::ImageLayout::eUndefined;
+    barrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = swapImage;
+    barrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+
     vk::Image rtImage = m_renderTarget->getColorImage();
-    vk::ImageMemoryBarrier rtBarrier(vk::AccessFlagBits::eColorAttachmentWrite, vk::AccessFlagBits::eShaderRead, vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-    cb.pipelineBarrier(vk::PipelineStageFlagBits::eColorAttachmentOutput, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, rtBarrier);
+    vk::ImageMemoryBarrier2 rtBarrier{};
+    rtBarrier.srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+    rtBarrier.srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite;
+    rtBarrier.dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader;
+    rtBarrier.dstAccessMask = vk::AccessFlagBits2::eShaderRead;
+    rtBarrier.oldLayout = vk::ImageLayout::eColorAttachmentOptimal;
+    rtBarrier.newLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+    rtBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    rtBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    rtBarrier.image = rtImage;
+    rtBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+
+    std::array<vk::ImageMemoryBarrier2, 2> copyBarriers = { barrier, rtBarrier };
+    vk::DependencyInfo copyDepInfo{};
+    copyDepInfo.setImageMemoryBarriers(copyBarriers);
+    cb.pipelineBarrier2(copyDepInfo);
+
     vk::RenderingAttachmentInfo colorAttr;
     colorAttr.imageView = m_swapChain->getImageViews()[imageIndex];
     colorAttr.imageLayout = vk::ImageLayout::eColorAttachmentOptimal;
@@ -687,8 +797,22 @@ void Renderer::compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex) {
     }
     cb.draw(3, 1, 0, 0);
     cb.endRendering();
-    vk::ImageMemoryBarrier resetBarrier(vk::AccessFlagBits::eShaderRead, vk::AccessFlagBits::eColorAttachmentWrite, vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eColorAttachmentOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, rtImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-    cb.pipelineBarrier(vk::PipelineStageFlagBits::eFragmentShader, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, resetBarrier);
+
+    vk::ImageMemoryBarrier2 resetBarrier{};
+    resetBarrier.srcStageMask = vk::PipelineStageFlagBits2::eFragmentShader;
+    resetBarrier.srcAccessMask = vk::AccessFlagBits2::eShaderRead;
+    resetBarrier.dstStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput;
+    resetBarrier.dstAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite;
+    resetBarrier.oldLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+    resetBarrier.newLayout = vk::ImageLayout::eColorAttachmentOptimal;
+    resetBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    resetBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    resetBarrier.image = rtImage;
+    resetBarrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+
+    vk::DependencyInfo resetDepInfo{};
+    resetDepInfo.setImageMemoryBarriers(resetBarrier);
+    cb.pipelineBarrier2(resetDepInfo);
 }
 
 void Renderer::updateGlobalUBO([[maybe_unused]] uint32_t currentFrame, Scene& scene, GlobalUBO& uboData) {
@@ -901,9 +1025,11 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
     glm::mat4 camViewMat = activeCamera->getViewMatrix();
 
     // Transition Depth Array to Attachment
-    vk::ImageMemoryBarrier depthBarrier = {};
+    vk::ImageMemoryBarrier2 depthBarrier{};
+    depthBarrier.srcStageMask = vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests;
     depthBarrier.srcAccessMask = {};
-    depthBarrier.dstAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+    depthBarrier.dstStageMask = vk::PipelineStageFlagBits2::eEarlyFragmentTests;
+    depthBarrier.dstAccessMask = vk::AccessFlagBits2::eDepthStencilAttachmentWrite;
     depthBarrier.oldLayout = vk::ImageLayout::eUndefined;
     depthBarrier.newLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
     depthBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -915,7 +1041,9 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
     depthBarrier.subresourceRange.baseArrayLayer = 0;
     depthBarrier.subresourceRange.layerCount = m_config.graphics.shadowCascades;
 
-    cb.pipelineBarrier(vk::PipelineStageFlagBits::eTopOfPipe, vk::PipelineStageFlagBits::eEarlyFragmentTests, {}, nullptr, nullptr, depthBarrier);
+    vk::DependencyInfo depthDepInfo{};
+    depthDepInfo.setImageMemoryBarriers(depthBarrier);
+    cb.pipelineBarrier2(depthDepInfo);
 
     vk::Extent2D shadowExtent(m_config.graphics.shadowMapResolution, m_config.graphics.shadowMapResolution);
     cb.setViewport(0, vk::Viewport(0, 0, (float)shadowExtent.width, (float)shadowExtent.height, 0, 1));
@@ -989,9 +1117,11 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
     }
 
     // Transition Depth Array to Shader Read
-    vk::ImageMemoryBarrier depthReadBarrier = {};
-    depthReadBarrier.srcAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-    depthReadBarrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+    vk::ImageMemoryBarrier2 depthReadBarrier{};
+    depthReadBarrier.srcStageMask = vk::PipelineStageFlagBits2::eLateFragmentTests;
+    depthReadBarrier.srcAccessMask = vk::AccessFlagBits2::eDepthStencilAttachmentWrite;
+    depthReadBarrier.dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader;
+    depthReadBarrier.dstAccessMask = vk::AccessFlagBits2::eShaderRead;
     depthReadBarrier.oldLayout = vk::ImageLayout::eDepthStencilAttachmentOptimal;
     depthReadBarrier.newLayout = vk::ImageLayout::eDepthStencilReadOnlyOptimal;
     depthReadBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1003,7 +1133,9 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
     depthReadBarrier.subresourceRange.baseArrayLayer = 0;
     depthReadBarrier.subresourceRange.layerCount = m_config.graphics.shadowCascades;
 
-    cb.pipelineBarrier(vk::PipelineStageFlagBits::eLateFragmentTests, vk::PipelineStageFlagBits::eFragmentShader, {}, nullptr, nullptr, depthReadBarrier);
+    vk::DependencyInfo depthReadDepInfo{};
+    depthReadDepInfo.setImageMemoryBarriers(depthReadBarrier);
+    cb.pipelineBarrier2(depthReadDepInfo);
 }
 
 void Renderer::createPickingResources() {
@@ -1243,7 +1375,7 @@ void Renderer::renderEntityIds(Scene& scene) {
 
     // Transition picking images to attachment using modern Vulkan Sync2 (AGENTS.md rule 4)
     vk::ImageMemoryBarrier2 pickBarrier(
-        vk::PipelineStageFlagBits2::eTopOfPipe, {},
+        vk::PipelineStageFlagBits2::eColorAttachmentOutput, {},
         vk::PipelineStageFlagBits2::eColorAttachmentOutput, vk::AccessFlagBits2::eColorAttachmentWrite,
         vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal,
         VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
@@ -1251,7 +1383,7 @@ void Renderer::renderEntityIds(Scene& scene) {
     );
 
     vk::ImageMemoryBarrier2 pickDepthBarrier(
-        vk::PipelineStageFlagBits2::eTopOfPipe, {},
+        vk::PipelineStageFlagBits2::eEarlyFragmentTests, {},
         vk::PipelineStageFlagBits2::eEarlyFragmentTests, vk::AccessFlagBits2::eDepthStencilAttachmentWrite,
         vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal,
         VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED,
@@ -1408,8 +1540,21 @@ void Renderer::saveScreenshot(const std::string& filepath) {
     vk::CommandBuffer cb = m_context.beginSingleTimeCommands();
 
     // Transition swapchain image to TransferSrc (current layout is PresentSrc)
-    vk::ImageMemoryBarrier barrier({}, vk::AccessFlagBits::eTransferRead, vk::ImageLayout::ePresentSrcKHR, vk::ImageLayout::eTransferSrcOptimal, VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, srcImage, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
-    cb.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, nullptr, nullptr, barrier);
+    vk::ImageMemoryBarrier2 barrier{};
+    barrier.srcStageMask = vk::PipelineStageFlagBits2::eTransfer;
+    barrier.srcAccessMask = {};
+    barrier.dstStageMask = vk::PipelineStageFlagBits2::eTransfer;
+    barrier.dstAccessMask = vk::AccessFlagBits2::eTransferRead;
+    barrier.oldLayout = vk::ImageLayout::ePresentSrcKHR;
+    barrier.newLayout = vk::ImageLayout::eTransferSrcOptimal;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = srcImage;
+    barrier.subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
+
+    vk::DependencyInfo toTransferDepInfo{};
+    toTransferDepInfo.setImageMemoryBarriers(barrier);
+    cb.pipelineBarrier2(toTransferDepInfo);
 
     vk::BufferImageCopy region(0, 0, 0, { vk::ImageAspectFlagBits::eColor, 0, 0, 1 }, { 0, 0, 0 }, { extent.width, extent.height, 1 });
     cb.copyImageToBuffer(srcImage, vk::ImageLayout::eTransferSrcOptimal, stagingBuffer.getHandle(), region);
@@ -1417,9 +1562,14 @@ void Renderer::saveScreenshot(const std::string& filepath) {
     // Transition back to PresentSrc
     barrier.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
     barrier.newLayout = vk::ImageLayout::ePresentSrcKHR;
-    barrier.srcAccessMask = vk::AccessFlagBits::eTransferRead;
-    barrier.dstAccessMask = vk::AccessFlagBits::eMemoryRead;
-    cb.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, nullptr, nullptr, barrier);
+    barrier.srcStageMask = vk::PipelineStageFlagBits2::eTransfer;
+    barrier.srcAccessMask = vk::AccessFlagBits2::eTransferRead;
+    barrier.dstStageMask = vk::PipelineStageFlagBits2::eTransfer;
+    barrier.dstAccessMask = vk::AccessFlagBits2::eMemoryRead;
+
+    vk::DependencyInfo toPresentDepInfo{};
+    toPresentDepInfo.setImageMemoryBarriers(barrier);
+    cb.pipelineBarrier2(toPresentDepInfo);
 
     m_context.endSingleTimeCommands(cb);
 
