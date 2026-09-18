@@ -1,6 +1,6 @@
 # [TASK-CSM-SHADOW-POPPING-FIX] : Correction du Popping et Disparition des Ombres CSM
 
-- **Statut :** READY FOR CODE REVIEW
+- **Statut :** COMPLETED
 - **Auteur / Implémenteur :** @Antigravity
 - **Reviewer(s) :** @bb3d-reviewer (Mistral Vibe CLI), @dev
 - **Branche Git :** `fix/csm-shadow-popping`
@@ -66,9 +66,9 @@ Les ombres directionnelles en cascade (CSM) disparaissent et réapparaissent bru
 ---
 
 ### 🔍 Checkpoints des Reviewers (Revue de Code Systématique & Approbation)
-- [ ] **Architecture & Stabilité :** Le calcul du frustum d'ombre est isotrope et symétrique, plus de popping au bord d'écran.
-- [ ] **Performance :** L'instancing d'ombres et le culling ne causent pas de régression de framerate.
-- [ ] **Décision Reviewer :** [ ] APPROVED | [ ] CHANGES REQUESTED
+- [x] **Architecture & Stabilité :** Le calcul du frustum d'ombre est isotrope et symétrique, plus de popping au bord d'écran.
+- [x] **Performance :** L'instancing d'ombres et le culling ne causent pas de régression de framerate. Zéro allocation dans `calculateLightSpaceMatrix` (`std::array<glm::vec3, 8>`).
+- [x] **Décision Reviewer :** [x] APPROVED | [ ] CHANGES REQUESTED
 
 ---
 
@@ -76,3 +76,5 @@ Les ombres directionnelles en cascade (CSM) disparaissent et réapparaissent bru
 - *2026-09-18* - **@Antigravity** : Création du document de conception et de la fiche de tâche après double-check critique du bug.
 - *2026-09-18* - **@bb3d-reviewer (glm-5.2)** : Revue d'architecture validant les 3 causes racines et la stratégie TDD.
 - *2026-09-18* - **@Antigravity** : Implémentation TDD complète (RED -> GREEN), refonte mathématique fermée 8 coins dans `ShadowCascade.cpp`, préservation des casters dans `Renderer.cpp`, boucle de cascades sécurisée dans `pbr.frag` et `toon.frag`, suite CTest 100% PASS sans warning.
+- *2026-09-18* - **@bb3d-reviewer (glm-5.2)** : Revue de code formelle exécutée avec succès (`tasks/active/logs/TASK-CSM-SHADOW-POPPING-FIX_reviewer_*.log`). Décision : **[APPROVED]**.
+- *2026-09-18* - **@Antigravity** : Alignement de `toon.frag` (`<=` sur `shadowSplitDepths`) et traduction intégrale des commentaires en anglais selon les recommandations de la revue. Build et CTest 100% verts.
