@@ -104,19 +104,29 @@ Implementation Instructions (TDD Workflow):
 Task File: {task_rel_path}
 Task Title: {task_info['title']}
 
-Review Instructions (Systematic Code Review):
-1. You are in read-only review mode. Do NOT modify any C++ or header files.
-2. Inspect the latest git diff and unit tests created for this task.
+Review Instructions (Strict Read-Only Inspection & Reporting Mode):
+1. PURE REVIEW FOR CODE 0:
+   - Your sole responsibility is to inspect the code changes and produce a structured review report in your assistant response.
+   - Do NOT run 'cmake --build' or any recompilation commands (the build and test verification has already been conducted).
+   - Do NOT modify ANY files: do NOT edit C++, headers, markdown docs, or task files.
+2. Inspect the changes using:
+   - 'git diff main...HEAD' (or 'git diff HEAD~1')
+   - Read the task specification in '{task_rel_path}'
+   - Read relevant source or test files if needed.
 3. Verify:
-   - Bug Double Check: Did the implementer verify and document section '1.bis' if this is a fix?
-   - Architecture & Opacity: Are Vulkan types hidden from client headers?
-   - C++20 Standards: Zero hot-path allocations, std::span / std::string_view zero-copy, designated initializers?
+   - Bug Double Check: Is section '1.bis' filled with proof if this is a fix?
+   - Architecture & Opacity: Are Vulkan/SDL types hidden from client headers?
+   - C++20 Standards: Zero hot-path allocations, std::span / std::string_view, designated initializers?
    - Vulkan Modern Standards: Synchronization2 (pipelineBarrier2), no descriptor leaks, no blocking waitIdle()?
-   - Tests: Run 'ctest --test-dir build -C Debug --output-on-failure' to confirm tests pass.
-4. Deliverable:
-   - Update '{task_rel_path}': Check off verified boxes under 'Checkpoints des Reviewers'.
-   - Add a signed review entry in 'Journal des Échanges' with date and constructive feedback.
-   - Render decision: '[APPROVED]' (and update task status to '[DONE]') or '[CHANGES REQUESTED]' with specific actionable items.
+   - Code hygiene: technical English comments/logs, no orphaned includes or dead code.
+4. Deliverable - Structured Text Report in Assistant Response:
+   - Output a clear, comprehensive markdown report directly in your response with:
+     * Executive Summary
+     * Checkpoints Verification (Double-Check, Architecture, C++20, Vulkan Modern, Hygiene)
+     * Strengths & Observations / Risks (if any)
+     * Verdict: [APPROVED] or [CHANGES REQUESTED] (with actionable list for fixer)
+   - Do NOT edit the task file on disk; the orchestrator will double-check your report and apply all updates.
+   - Conclude your report and stop to ensure a clean exit code 0.
 
 {extra_prompt}
 """

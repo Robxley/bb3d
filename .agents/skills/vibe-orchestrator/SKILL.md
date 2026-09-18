@@ -58,10 +58,10 @@ python .agents/skills/vibe-orchestrator/scripts/run_vibe_agent.py `
 ```
 
 > **Comportement de l'agent Reviewer :**
-> - Analyse `git diff` et les tests créés.
-> - Vérifie les règles : opacité API, zéro-allocation hot-path, Vulkan Sync2 (`pipelineBarrier2`), multi-streams.
-> - Remplit la grille Reviewer et le journal des échanges dans le fichier markdown.
-> - Rend le verdict final : `[APPROVED]` ou `[CHANGES REQUESTED]`.
+> - Mode inspection pure : zéro recompilation (`cmake --build` proscrit) et zéro modification de fichier pour garantir une terminaison propre avec le **code 0**.
+> - Analyse `git diff`, conformité architecturale, standards C++20 (`cpp-pro`) et Vulkan Sync2 (`vulkan-cpp`).
+> - Produit un rapport de revue structuré directement dans sa réponse texte (stdout).
+> - L'orchestrateur (Antigravity) réalise ensuite le **double check** indépendant du rapport, coche les checkpoints dans la fiche de tâche (`TASK-XXX.md`), et enregistre la décision.
 
 ---
 
