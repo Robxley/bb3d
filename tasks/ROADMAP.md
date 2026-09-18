@@ -63,8 +63,8 @@ flowchart LR
 ### ⚡ Jalon 2 : Socle Vulkan 1.3 / 1.4 Moderne & Synchronisation
 > **Objectif :** Aligner l'infrastructure graphique sur les standards modernes documentés dans le [Rapport d'Audit Vulkan](../docs/vulkan_audit/RAPPORT_AUDIT_VULKAN_MODERNE.md) (SDK `1.4.335.0` actif).
 
-- [ ] **Initialisation Vulkan 1.3/1.4 via `vk::StructureChain`** :
-  - Moderniser l'activation des features (`vk::PhysicalDeviceVulkan13Features`, `vk::PhysicalDeviceSynchronization2Features`, `vk::PhysicalDeviceDynamicRenderingFeatures`) sans caste brut `void*`.
+- [x] **Initialisation Vulkan 1.3/1.4 via `vk::StructureChain`** :
+  - Négociation dynamique `VK_API_VERSION_1_4` / fallback 1.3, interrogation préalable type-safe via `m_physicalDevice.getFeatures2(&queryChain)`, activation `StructureChain` des features core (`synchronization2`, `dynamicRendering`, `timelineSemaphore`, `pushDescriptor`, bindless), VMA aligné (`unit_test_02_vulkan_init` PASS).
 - [ ] **Migration Synchronization2 (`pipelineBarrier2`)** :
   - Bannir l'API legacy `pipelineBarrier` (17+ occurrences).
   - Utiliser systématiquement `vk::DependencyInfo` et `vk::ImageMemoryBarrier2` avec les stages et accès 64-bit (`vk::PipelineStageFlagBits2`, `vk::AccessFlagBits2`).

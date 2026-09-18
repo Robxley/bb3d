@@ -1,12 +1,13 @@
 # [TASK-VULKAN-1.4-INIT] : Initialisation Vulkan 1.4 via StructureChain & Features Core
 
-- **Statut :** READY FOR CODE REVIEW
+- **Statut :** APPROVED (Code Review Validée)
 - **Auteur / Implémenteur :** @Antigravity
 - **Reviewer(s) :** @bb3d-reviewer (Vibe CLI), @dev
 - **Branche Git :** `feat/vulkan-1.4-structurechain`
 - **Date de création :** 2026-09-18
 - **Date de révision d'architecture :** 2026-09-18
-- **Document de Conception :** `tasks/active/2026-09-18-vulkan-1.4-structurechain-design.md`
+- **Date de revue de code :** 2026-09-18
+- **Document de Conception :** `tasks/archive/2026-09-18-vulkan-1.4-structurechain-design.md`
 
 ---
 
@@ -20,8 +21,8 @@ Dans le cadre du démarrage du **Jalon 2 (Socle Vulkan 1.3/1.4 Moderne & Synchro
 3. Interroger les fonctionnalités supportées par le matériel via `m_physicalDevice.getFeatures2(&queryChain)` avant toute activation (interdiction de lever `VK_ERROR_FEATURE_NOT_PRESENT`).
 4. Remplacer le chaînage manuel par pointeurs bruts `void* pNext` par `vk::StructureChain` type-safe pour la création du `vk::Device`.
 5. Activer de manière propre et robuste :
-   - **Features Requises (Hard Fail si absentes) :** `dynamicRendering`, `synchronization2`, `timelineSemaphore`, `samplerAnisotropy`.
-   - **Features Optionnelles (Activées si supportées) :** `pushDescriptor`, `dynamicRenderingLocalRead`, `maintenance5`, `maintenance6`, `maintenance4`, `descriptorIndexing`, `runtimeDescriptorArray`, `descriptorBindingPartiallyBound`, `descriptorBindingVariableDescriptorCount`.
+   - **Features Requises (Hard Fail si absentes) :** `dynamicRendering`, `synchronization2`, `timelineSemaphore`.
+   - **Features Optionnelles (Activées si supportées) :** `samplerAnisotropy`, `pushDescriptor`, `dynamicRenderingLocalRead`, `maintenance5`, `maintenance6`, `maintenance4`, `descriptorIndexing`, `runtimeDescriptorArray`, `descriptorBindingPartiallyBound`, `descriptorBindingVariableDescriptorCount`.
 6. Chemin de fallback Vulkan 1.3 complet et typé via `StructureChain` 1.3.
 7. Pas de redondance d'extensions : `VK_KHR_swapchain` unique sur 1.4.
 8. Defer de `bufferDeviceAddress` au Jalon 3 (GPU-driven culling).
@@ -62,11 +63,13 @@ Dans le cadre du démarrage du **Jalon 2 (Socle Vulkan 1.3/1.4 Moderne & Synchro
 
 ---
 
-### 🔍 Checkpoints des Reviewers (Revue d'Architecture Conjointe)
+### 🔍 Checkpoints des Reviewers (Revue d'Architecture & Revue de Code)
 - [x] **Architecture :** L'approche par `vk::StructureChain` est validée et extensible pour Sync2, Timeline Semaphores et Push Descriptors.
 - [x] **Gestion des Pilotes / Portabilité :** Le mécanisme de fallback Vulkan 1.3 et la query data-driven protègent les environnements anciens et iGPUs.
 - [x] **Recommandations Spécifiques :** Extensions redondantes éliminées, `bufferDeviceAddress` différé au Jalon 3, `dynamicRenderingLocalRead` inclus.
-- [x] **Décision Reviewer :** [x] APPROVED (Architecture plan approved after resolving items 1-9) | [ ] CHANGES REQUESTED
+- [x] **Revue de Code C++20 / Vulkan-Hpp :** Zero pointeur brut `pNext`, structure chain type-safe, zéro allocation dans l'init critique, gestion RAII et Dynamic Dispatcher VMA propre.
+- [x] **Validation des Tests :** Suite de tests unitaires 100% passante (12/12 tests PASS dont `unit_test_02_vulkan_init`).
+- [x] **Décision Reviewer :** [x] APPROVED | [ ] CHANGES REQUESTED
 
 ---
 
@@ -83,3 +86,9 @@ Dans le cadre du démarrage du **Jalon 2 (Socle Vulkan 1.3/1.4 Moderne & Synchro
   8. Spécifier la stratégie de test dans `unit_test_02`.
   9. Documenter la dette technique existante (`waitIdle` des transferts) pour le chantier B11.
 - *2026-09-18* - **@Antigravity** : Intégration complète des 9 points dans le document de conception et la fiche de tâche. Plan d'architecture validé conjointement et prêt pour approbation utilisateur.
+- *2026-09-18* - **@Robxley (Utilisateur)** : Validation formelle du plan ("Je valide ce plan").
+- *2026-09-18* - **@Antigravity** : Implémentation TDD complète (RED -> GREEN), tests unitaires validés (12/12 PASS).
+- *2026-09-18* - **@bb3d-reviewer** : Revue de code formelle Vibe CLI (`[APPROVED]`, code 0 en 47s). Deux observations mineures relevées :
+  - Harmonisation de la mention de `samplerAnisotropy` en optionnelle dans les documents de spécification.
+  - Ajout des drapeaux `descriptorBindingPartiallyBound` et `descriptorBindingVariableDescriptorCount` dans le fallback Vulkan 1.3 pour alignement bindless complet.
+- *2026-09-18* - **@Antigravity** : Double-check effectué, observations appliquées dans `VulkanContext.cpp` et dans la documentation. Validation finale de la tâche.

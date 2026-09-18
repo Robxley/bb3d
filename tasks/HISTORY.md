@@ -5,6 +5,11 @@ Ce fichier consigne l'historique compact de tous les chantiers et correctifs ter
 
 ---
 
+- **[2026-09-18] [TASK-VULKAN-1.4-INIT] Initialisation Vulkan 1.4 via StructureChain & Features Core** (@Antigravity / @bb3d-reviewer & @Robxley)
+  - Scope: `include/bb3d/render/VulkanContext.hpp`, `src/bb3d/render/VulkanContext.cpp`, `tests/unit_test_02_vulkan_init.cpp`
+  - Bilan: Vulkan 1.4/1.3 négocié, StructureChain type-safe avec query getFeatures2, core features (Sync2, DynamicRendering, TimelineSemaphore, PushDescriptor, Bindless), VMA aligné, tests 100% PASS, revue APPROVED.
+  - Archive: [archive/TASK-VULKAN-1.4-INIT.md](archive/TASK-VULKAN-1.4-INIT.md)
+
 - **[2026-09-17] [TASK-DEAD-CODE] Nettoyage du Code Mort Moteur (D3, D4, D5, ND1)** (@Antigravity / @bb3d-reviewer & @dev)
   - Scope: `include/bb3d/render/Renderer.hpp`, `src/bb3d/render/Renderer.cpp`, `src/bb3d/scene/Scene.cpp`, `include/bb3d/render/StagingBuffer.hpp`, `src/bb3d/render/StagingBuffer.cpp`
   - Bilan: D3 (m_instanceTransforms), D4 (getMaterialForTexture + m_defaultMaterials), D5 (horizon culling commenté), ND1 (StagingBuffer::submitCopy) supprimés sans régression, tests unitaires PASS, revue APPROVED.

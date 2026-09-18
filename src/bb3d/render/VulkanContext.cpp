@@ -268,6 +268,14 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
             feat12.runtimeDescriptorArray = VK_TRUE;
             m_enabledFeatures.runtimeDescriptorArray = true;
         }
+        if (supp12.descriptorBindingPartiallyBound) {
+            feat12.descriptorBindingPartiallyBound = VK_TRUE;
+            m_enabledFeatures.descriptorBindingPartiallyBound = true;
+        }
+        if (supp12.descriptorBindingVariableDescriptorCount) {
+            feat12.descriptorBindingVariableDescriptorCount = VK_TRUE;
+            m_enabledFeatures.descriptorBindingVariableDescriptorCount = true;
+        }
 
         auto& feat13 = createChain.get<vk::PhysicalDeviceVulkan13Features>();
         feat13.dynamicRendering = VK_TRUE;
@@ -395,7 +403,7 @@ vk::Fence VulkanContext::endTransferCommandsAsync(vk::CommandBuffer commandBuffe
 
     // Free the command buffer after submission
     // Texture no longer stores it, so we free it here
-    m_device.waitForFences(fence, true, std::numeric_limits<uint64_t>::max());
+    (void)m_device.waitForFences(fence, true, std::numeric_limits<uint64_t>::max());
     m_device.freeCommandBuffers(m_transferCommandPool, commandBuffer);
 
 
