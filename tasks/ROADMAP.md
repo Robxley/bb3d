@@ -69,9 +69,10 @@ flowchart LR
   - 18 barrières Vulkan 1.0 éliminées de `Renderer.cpp` et `Texture.cpp`.
   - Utilisation systématique de `vk::DependencyInfo` et `vk::ImageMemoryBarrier2` avec les stages et accès 64-bit (`vk::PipelineStageFlagBits2`, `vk::AccessFlagBits2`).
   - Batching couleur+profondeur via `std::array<vk::ImageMemoryBarrier2, 2>`, 0 pseudo-stage (`eTopOfPipe`/`eBottomOfPipe`), test TDD `unit_test_32_synchronization2` validé (0.74s).
-- [ ] **Timeline Semaphores & Transferts Réellement Asynchrones (`B11`)** :
-  - Remplacer les semaphores binaires et `waitForFences()` bloquants par des Timeline Semaphores.
-  - Découpler les chargements d'assets (textures, meshes) sur une file de transfert dédiée sans stall de la frame (`dev.waitIdle()`).
+- [x] **Timeline Semaphores & Transferts Réellement Asynchrones (`B11`, `P11`)** :
+  - Timeline Semaphore Core 1.3/1.4 dédié à la file de transfert (`m_transferQueue`), 0 appel bloquant `waitForFences(UINT64_MAX)` dans `endTransferCommandsAsync` (B11 résolu).
+  - Élimination des fences brutes dans `Texture` (`uint64_t m_uploadTimelineValue`), `Texture::isReady()` 100% non-bloquant.
+  - Recyclage différé et proactif des command buffers de transfert dans `Renderer::render()`, test TDD `unit_test_33_timeline_transfers` validé (0.71s).
 - [ ] **Instrumentation DebugUtils & Profiling Tracy GPU** :
   - Baliser les command buffers et passes de rendu avec `vkCmdBeginDebugUtilsLabelEXT` / `vkCmdEndDebugUtilsLabelEXT`.
   - Intégrer les zones de timing GPU via `TracyVkZone`.

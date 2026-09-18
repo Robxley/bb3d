@@ -1,6 +1,6 @@
 # [TASK-TIMELINE-SEMAPHORES-TRANSFERS] : Timeline Semaphores & Transferts Réellement Asynchrones (B11, P11)
 
-- **Statut :** READY FOR CODE REVIEW
+- **Statut :** COMPLETED
 - **Auteur / Implémenteur :** @Antigravity
 - **Reviewer(s) :** @bb3d-reviewer (Mistral Vibe CLI), @dev
 - **Branche Git :** `feat/timeline-semaphores-transfers`
@@ -66,12 +66,14 @@ L'objectif est d'éliminer les attentes CPU bloquantes (`waitForFences(UINT64_MA
 ---
 
 ### 🔍 Checkpoints des Reviewers (Revue de Code Systématique & Approbation)
-- [ ] **Architecture & Opacité :** L'API publique reste découplée des types Vulkan (`vk::*`).
-- [ ] **Performance :** Les chargements d'assets ne bloquent plus la boucle principale CPU.
-- [ ] **Décision Reviewer :** [ ] APPROVED | [ ] CHANGES REQUESTED
+- [x] **Architecture & Opacité :** L'API publique reste découplée des types Vulkan (`vk::*`).
+- [x] **Performance :** Les chargements d'assets ne bloquent plus la boucle principale CPU.
+- [x] **Décision Reviewer :** [x] APPROVED | [ ] CHANGES REQUESTED
 
 ---
 
 ## 4. Journal des Échanges & Retours de Revue
 - *2026-09-18* - **@Antigravity** : Création du document de conception (`2026-09-18-timeline-semaphores-transfers-design.md`) et de la fiche de tâche. Approche A validée par l'utilisateur.
 - *2026-09-18* - **@Antigravity** : Implémentation complète de l'Approche A : `m_transferTimelineSemaphore` dans `VulkanContext`, `endTransferCommandsAsync` non-bloquant retournant `uint64_t`, recyclage des command buffers, refonte de `Texture::isReady()` sans `vk::Fence`. Test unitaire TDD `unit_test_33_timeline_transfers` (PASS, 0.72s), suite CTest 15/15 PASS (100%), 0 warning MSVC. Soumission en revue de code formelle.
+- *2026-09-18* - **@bb3d-reviewer (glm-5.2)** : Revue de code formelle exécutée avec succès (`tasks/active/logs/TASK-TIMELINE-SEMAPHORES-TRANSFERS_reviewer_*.log`). Décision : **[APPROVED]**.
+- *2026-09-18* - **@Antigravity** : Application immédiate des 3 recommandations du reviewer : câblage proactif de `pollTransferCompletions()` en début de frame dans `Renderer::render()`, barrières transfer-compatibles dans `unit_test_33`, et simplification des flags du pool de transfert. Suite CTest 15/15 PASS.

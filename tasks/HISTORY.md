@@ -5,6 +5,11 @@ Ce fichier consigne l'historique compact de tous les chantiers et correctifs ter
 
 ---
 
+- **[2026-09-18] [TASK-TIMELINE-SEMAPHORES-TRANSFERS] Timeline Semaphores & Transferts Réellement Asynchrones (B11, P11)** (@Antigravity / @bb3d-reviewer & @Robxley)
+  - Scope: `include/bb3d/render/VulkanContext.hpp`, `src/bb3d/render/VulkanContext.cpp`, `include/bb3d/render/Texture.hpp`, `src/bb3d/render/Texture.cpp`, `src/bb3d/render/Renderer.cpp`, `tests/unit_test_33_timeline_transfers.cpp`
+  - Bilan: Timeline Semaphore Vulkan 1.3/1.4 sur transfer queue (B11 résolu, 0 waitForFences bloquant), Texture::isReady non-bloquant sans fence, recyclage proactif, test 33 PASS (0.71s), revue APPROVED.
+  - Archive: [archive/TASK-TIMELINE-SEMAPHORES-TRANSFERS.md](archive/TASK-TIMELINE-SEMAPHORES-TRANSFERS.md)
+
 - **[2026-09-18] [TASK-CSM-SHADOW-POPPING-FIX] Correction du Popping et Disparition des Ombres CSM** (@Antigravity / @bb3d-reviewer & @Robxley)
   - Scope: `src/bb3d/render/ShadowCascade.cpp`, `src/bb3d/render/Renderer.cpp`, `assets/shaders/pbr.frag`, `assets/shaders/toon.frag`, `tests/unit_test_shadows.cpp`
   - Bilan: Frustum d'ombre isotrope 8-coins NDC symétrique, casters hors-frustum préservés, cascade loop i=0 sécurisée, test TDD 8-coins PASS, revue APPROVED.
