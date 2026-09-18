@@ -47,7 +47,7 @@ float ShadowCalculation(vec3 fragPosWorldSpace, vec3 N, vec3 lightDir) {
     
     int layer = -1;
     for(int i = 0; i < 4; ++i) {
-        if(depth < ubo.shadowSplitDepths[i]) {
+        if(depth <= ubo.shadowSplitDepths[i]) {
             layer = i;
             break;
         }
@@ -61,7 +61,7 @@ float ShadowCalculation(vec3 fragPosWorldSpace, vec3 N, vec3 lightDir) {
     if(projCoords.z > 1.0 || projCoords.z < 0.0 || projCoords.x < 0.0 || projCoords.x > 1.0 || projCoords.y < 0.0 || projCoords.y > 1.0)
         return 1.0; 
 
-    // Bias adaptatif selon la normale
+    // Normal-adaptive bias
     float bias = max(0.005 * (1.0 - dot(N, lightDir)), 0.001);
     
     // PCF 3x3
@@ -79,29 +79,27 @@ void main() {
     vec3 N = normalize(fragNormal);
     vec3 V = normalize(ubo.camPos.xyz - fragPos);
     
-    // --- 1. Gestion du Contour (Outline) ---
-    // Calcul de l'angle entre la normale et la vue.
-    // Si proche de 0 (perpendiculaire), c'est un bord.
+    // --- 1. Outline edge detection ---
+    // Angle between normal and view direction; near 0 is silhouette edge.
     float NdotV = dot(N, V);
     
-    // Seuil de contour (plus c'est haut, plus le trait est Ã©pais)
-    // On utilise smoothstep pour Ã©viter l'aliasing trop dur
+    // Outline threshold with smoothstep to reduce harsh aliasing
     float outlineThickness = 0.3; 
     float outline = smoothstep(outlineThickness, outlineThickness + 0.05, NdotV);
     
-    // Si on est sur un bord, on affiche du noir (ou presque)
+    // Black outline on edges
     if (NdotV < outlineThickness) {
         outColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 
-    // --- 2. Calcul de l'Ã©clairage (Cel Shading) ---
+    // --- 2. Cel Shading illumination ---
     vec3 finalColor = vec3(0.0);
     vec3 fColor = (length(fragColor) < 0.01) ? vec3(1.0) : fragColor;
     vec3 mColor = (length(mat.baseColor.rgb) < 0.01) ? vec3(1.0) : mat.baseColor.rgb;
     vec3 albedo = texture(texSampler, fragUV).rgb * fColor * mColor;
 
-    // Ambiance minimale
+    // Minimum ambient light
     finalColor += albedo * 0.2;
 
     int numLights = int(ubo.globalParams.x);
@@ -124,13 +122,13 @@ void main() {
         float NdotL = max(dot(N, L), 0.0);
         float intensity = NdotL * attenuation;
 
-        // Ombre sur la lumiere principale
+        // Shadow on primary directional light
         float shadow = 1.0;
         if (i == 0 && ubo.lights[i].position.w < 0.5) {
             shadow = ShadowCalculation(fragPos, N, L);
         }
 
-        // Quantification (Bandes de couleur)
+        // Quantization (Toon color bands)
         float stepIntensity = 0.0;
         if (intensity * shadow > 0.8) stepIntensity = 1.0;
         else if (intensity * shadow > 0.5) stepIntensity = 0.7;
