@@ -5,6 +5,11 @@ Ce fichier consigne l'historique compact de tous les chantiers et correctifs ter
 
 ---
 
+- **[2026-09-18] [TASK-CSM-SHADOW-POPPING-FIX] Correction du Popping et Disparition des Ombres CSM** (@Antigravity / @bb3d-reviewer & @Robxley)
+  - Scope: `src/bb3d/render/ShadowCascade.cpp`, `src/bb3d/render/Renderer.cpp`, `assets/shaders/pbr.frag`, `assets/shaders/toon.frag`, `tests/unit_test_shadows.cpp`
+  - Bilan: Frustum d'ombre isotrope 8-coins NDC symétrique, casters hors-frustum préservés, cascade loop i=0 sécurisée, test TDD 8-coins PASS, revue APPROVED.
+  - Archive: [archive/TASK-CSM-SHADOW-POPPING-FIX.md](archive/TASK-CSM-SHADOW-POPPING-FIX.md)
+
 - **[2026-09-18] [TASK-SYNC2-MIGRATION] Migration Complète vers Vulkan Synchronization2 (pipelineBarrier2 & DependencyInfo)** (@Antigravity / @bb3d-reviewer & @Robxley)
   - Scope: `src/bb3d/render/Renderer.cpp`, `src/bb3d/render/Texture.cpp`, `tests/unit_test_32_synchronization2.cpp`
   - Bilan: 18 barrières Vulkan 1.0 migrées vers `pipelineBarrier2` + `DependencyInfo`, batching couleur+profondeur, 0 pseudo-stage (eTopOfPipe/eBottomOfPipe), test 32 PASS (0.74s), 0 warning, revue APPROVED.
