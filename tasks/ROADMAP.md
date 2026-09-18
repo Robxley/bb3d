@@ -65,9 +65,10 @@ flowchart LR
 
 - [x] **Initialisation Vulkan 1.3/1.4 via `vk::StructureChain`** :
   - Négociation dynamique `VK_API_VERSION_1_4` / fallback 1.3, interrogation préalable type-safe via `m_physicalDevice.getFeatures2(&queryChain)`, activation `StructureChain` des features core (`synchronization2`, `dynamicRendering`, `timelineSemaphore`, `pushDescriptor`, bindless), VMA aligné (`unit_test_02_vulkan_init` PASS).
-- [ ] **Migration Synchronization2 (`pipelineBarrier2`)** :
-  - Bannir l'API legacy `pipelineBarrier` (17+ occurrences).
-  - Utiliser systématiquement `vk::DependencyInfo` et `vk::ImageMemoryBarrier2` avec les stages et accès 64-bit (`vk::PipelineStageFlagBits2`, `vk::AccessFlagBits2`).
+- [x] **Migration Synchronization2 (`pipelineBarrier2`)** :
+  - 18 barrières Vulkan 1.0 éliminées de `Renderer.cpp` et `Texture.cpp`.
+  - Utilisation systématique de `vk::DependencyInfo` et `vk::ImageMemoryBarrier2` avec les stages et accès 64-bit (`vk::PipelineStageFlagBits2`, `vk::AccessFlagBits2`).
+  - Batching couleur+profondeur via `std::array<vk::ImageMemoryBarrier2, 2>`, 0 pseudo-stage (`eTopOfPipe`/`eBottomOfPipe`), test TDD `unit_test_32_synchronization2` validé (0.74s).
 - [ ] **Timeline Semaphores & Transferts Réellement Asynchrones (`B11`)** :
   - Remplacer les semaphores binaires et `waitForFences()` bloquants par des Timeline Semaphores.
   - Découpler les chargements d'assets (textures, meshes) sur une file de transfert dédiée sans stall de la frame (`dev.waitIdle()`).
