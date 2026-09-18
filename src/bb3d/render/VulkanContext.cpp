@@ -314,7 +314,15 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     m_pipelineCache = m_device.createPipelineCache(cacheInfo);
 
     m_shortLivedCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_graphicsQueueFamily });
-    m_transferCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_transferQueueFamily });
+    m_transferCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer, m_transferQueueFamily });
+
+    // Create Timeline Semaphore for transfer queue (B11)
+    vk::SemaphoreTypeCreateInfo timelineTypeInfo(vk::SemaphoreType::eTimeline, 0);
+    vk::SemaphoreCreateInfo timelineSemInfo{};
+    timelineSemInfo.pNext = &timelineTypeInfo;
+    m_transferTimelineSemaphore = m_device.createSemaphore(timelineSemInfo);
+    m_transferTimelineValue.store(0, std::memory_order_release);
+
     m_stagingBuffer = CreateScope<StagingBuffer>(*this);
 
     BB_CORE_INFO("VulkanContext initialized: API {}.{}.{} on {} (Vulkan 1.4: {}, PushDescriptors: {}, Sync2: {}, TimelineSemaphores: {}).",
@@ -332,6 +340,19 @@ void VulkanContext::cleanup() {
     if (m_device) {
         m_device.waitIdle();
         m_stagingBuffer.reset();
+        {
+            std::lock_guard<std::mutex> lock(m_transferMutex);
+            for (const auto& pending : m_pendingTransfers) {
+                if (pending.commandBuffer && m_transferCommandPool) {
+                    m_device.freeCommandBuffers(m_transferCommandPool, pending.commandBuffer);
+                }
+            }
+            m_pendingTransfers.clear();
+        }
+        if (m_transferTimelineSemaphore) {
+            m_device.destroySemaphore(m_transferTimelineSemaphore);
+            m_transferTimelineSemaphore = nullptr;
+        }
         if (m_shortLivedCommandPool) {
             m_device.destroyCommandPool(m_shortLivedCommandPool);
         }
@@ -378,39 +399,75 @@ void VulkanContext::endSingleTimeCommands(vk::CommandBuffer commandBuffer) {
 
 
 vk::CommandBuffer VulkanContext::beginTransferCommands() {
+    std::lock_guard<std::mutex> lock(m_transferMutex);
+    pollTransferCompletionsLocked();
 
     vk::CommandBufferAllocateInfo allocInfo(m_transferCommandPool, vk::CommandBufferLevel::ePrimary, 1);
-
     vk::CommandBuffer commandBuffer = m_device.allocateCommandBuffers(allocInfo)[0];
-
     commandBuffer.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
-
     return commandBuffer;
-
 }
 
-
-
-vk::Fence VulkanContext::endTransferCommandsAsync(vk::CommandBuffer commandBuffer) {
-
+uint64_t VulkanContext::endTransferCommandsAsync(vk::CommandBuffer commandBuffer) {
     commandBuffer.end();
 
-    vk::Fence fence = m_device.createFence({});
+    std::lock_guard<std::mutex> lock(m_transferMutex);
+    pollTransferCompletionsLocked();
 
-    vk::SubmitInfo submitInfo(0, nullptr, nullptr, 1, &commandBuffer);
+    uint64_t signalValue = ++m_transferTimelineValue;
 
-    m_transferQueue.submit(submitInfo, fence);
+    vk::TimelineSemaphoreSubmitInfo timelineInfo{};
+    timelineInfo.signalSemaphoreValueCount = 1;
+    timelineInfo.pSignalSemaphoreValues = &signalValue;
 
-    // Free the command buffer after submission
-    // Texture no longer stores it, so we free it here
-    (void)m_device.waitForFences(fence, true, std::numeric_limits<uint64_t>::max());
-    m_device.freeCommandBuffers(m_transferCommandPool, commandBuffer);
+    vk::SubmitInfo submitInfo{};
+    submitInfo.pNext = &timelineInfo;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+    submitInfo.signalSemaphoreCount = 1;
+    submitInfo.pSignalSemaphores = &m_transferTimelineSemaphore;
 
+    // Submit asynchronously to transfer queue - zero fences, zero blocking wait! (B11 resolved)
+    m_transferQueue.submit(submitInfo, nullptr);
 
-    return fence;
+    m_pendingTransfers.push_back({ commandBuffer, signalValue });
+    return signalValue;
 }
 
+uint64_t VulkanContext::getCompletedTransferTimelineValue() const {
+    if (!m_device || !m_transferTimelineSemaphore) return 0;
+    return m_device.getSemaphoreCounterValue(m_transferTimelineSemaphore);
+}
 
+void VulkanContext::waitTransferTimeline(uint64_t value, uint64_t timeoutNs) const {
+    if (!m_device || !m_transferTimelineSemaphore || value == 0) return;
+    vk::SemaphoreWaitInfo waitInfo(vk::SemaphoreWaitFlags{}, 1, &m_transferTimelineSemaphore, &value);
+    (void)m_device.waitSemaphores(waitInfo, timeoutNs);
+}
+
+void VulkanContext::pollTransferCompletions() {
+    std::lock_guard<std::mutex> lock(m_transferMutex);
+    pollTransferCompletionsLocked();
+}
+
+void VulkanContext::pollTransferCompletionsLocked() {
+    if (!m_device || !m_transferTimelineSemaphore || m_pendingTransfers.empty()) return;
+
+    uint64_t completed = m_device.getSemaphoreCounterValue(m_transferTimelineSemaphore);
+
+    auto it = std::remove_if(m_pendingTransfers.begin(), m_pendingTransfers.end(),
+        [this, completed](const PendingTransfer& pt) {
+            if (pt.timelineValue <= completed) {
+                if (pt.commandBuffer && m_transferCommandPool) {
+                    m_device.freeCommandBuffers(m_transferCommandPool, pt.commandBuffer);
+                }
+                return true;
+            }
+            return false;
+        });
+
+    m_pendingTransfers.erase(it, m_pendingTransfers.end());
+}
 
 } // namespace bb3d
 

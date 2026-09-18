@@ -122,7 +122,7 @@ Texture::Texture(VulkanContext& context, const std::array<std::string, 6>& filep
         transitionLayout(cb, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, 6);
     }
 
-    m_uploadFence = m_context.endTransferCommandsAsync(cb);
+    m_uploadTimelineValue = m_context.endTransferCommandsAsync(cb);
 
     createImageView(6);
     createSampler();
@@ -165,7 +165,7 @@ Texture::Texture(VulkanContext& context, std::span<const std::byte> data, int wi
         transitionLayout(cb, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, layers);
     }
 
-    m_uploadFence = m_context.endTransferCommandsAsync(cb);
+    m_uploadTimelineValue = m_context.endTransferCommandsAsync(cb);
 
     createImageView(layers);
     createSampler();
@@ -202,7 +202,7 @@ void Texture::initFromPixels(const unsigned char* pixels) {
         transitionLayout(cb, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, 1);
     }
 
-    m_uploadFence = m_context.endTransferCommandsAsync(cb);
+    m_uploadTimelineValue = m_context.endTransferCommandsAsync(cb);
 
     createImageView(1);
     createSampler();
@@ -213,20 +213,17 @@ void Texture::initFromPixels(const unsigned char* pixels) {
 
 bool Texture::isReady() {
     if (m_ready) return true;
-    if (!m_uploadFence) return true; 
+    if (m_uploadTimelineValue == 0) {
+        m_ready = true;
+        return true;
+    }
 
-    // Protection against concurrent calls (multi-frames)
-    auto result = m_context.getDevice().getFenceStatus(m_uploadFence);
-    if (result == vk::Result::eSuccess) {
-        // Command buffer was freed by endTransferCommandsAsync
-        // Double check to avoid multiple destruction
-        if (m_uploadFence) {
-            m_context.getDevice().destroyFence(m_uploadFence);
-            m_uploadFence = nullptr;
-            m_stagingBuffer.reset();
-            m_ready = true;
-            BB_CORE_TRACE("Texture: Upload complete and resources released.");
-        }
+    uint64_t completed = m_context.getCompletedTransferTimelineValue();
+    if (completed >= m_uploadTimelineValue) {
+        m_stagingBuffer.reset();
+        m_uploadTimelineValue = 0;
+        m_ready = true;
+        BB_CORE_TRACE("Texture: Upload complete and resources released (Timeline: {}).", completed);
         return true;
     }
     return false;
@@ -235,16 +232,12 @@ bool Texture::isReady() {
 Texture::~Texture() {
     auto device = m_context.getDevice();
     BB_CORE_TRACE("Texture: Destroying texture image ({}x{})", m_width, m_height);
-    
 
     // Ensure upload is complete before destroying resources
-    if (m_uploadFence) {
-        // Wait for upload to complete if not already done
-        (void)device.waitForFences(m_uploadFence, true, std::numeric_limits<uint64_t>::max());
-        
-        // Command buffer was freed by endTransferCommandsAsync
-        device.destroyFence(m_uploadFence);
-        m_uploadFence = nullptr;
+    if (m_uploadTimelineValue > 0 && !m_ready) {
+        m_context.waitTransferTimeline(m_uploadTimelineValue);
+        m_stagingBuffer.reset();
+        m_uploadTimelineValue = 0;
     }
 
     if (m_sampler) {

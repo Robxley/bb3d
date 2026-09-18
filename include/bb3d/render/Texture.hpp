@@ -55,9 +55,8 @@ private:
     vk::ImageView m_imageView;
     vk::Sampler m_sampler;
 
-    // Async state
-    vk::Fence m_uploadFence = nullptr;
-    vk::CommandBuffer m_uploadCommandBuffer = nullptr; // Must be freed after fence is signaled
+    // Async state (Timeline Semaphore based - B11 fix)
+    uint64_t m_uploadTimelineValue = 0;
     bool m_ready = false;
     Scope<class Buffer> m_stagingBuffer; // Kept until upload is complete
 };

@@ -6,6 +6,9 @@
 #include <vk_mem_alloc.h>
 #include <string>
 #include <string_view>
+#include <atomic>
+#include <mutex>
+#include <vector>
 
 struct SDL_Window;
 
@@ -107,20 +110,36 @@ public:
     vk::CommandBuffer beginTransferCommands();
 
     /** 
-     * @brief Soumet les commandes de transfert et retourne une Fence signalée à la fin.
+     * @brief Soumet les commandes de transfert de manière asynchrone sur la file de transfert.
      * @param commandBuffer Le buffer à soumettre.
-     * @return vk::Fence La fence à surveiller (doit être détruite par l'appelant ou gérée).
+     * @return uint64_t La valeur cible du Timeline Semaphore signalée à l'achèvement GPU (B11 résolu).
      */
-    vk::Fence endTransferCommandsAsync(vk::CommandBuffer commandBuffer);
+    uint64_t endTransferCommandsAsync(vk::CommandBuffer commandBuffer);
+
+    /** @brief Récupère la valeur maximale actuellement complétée par le GPU sur le Timeline Semaphore de transfert. */
+    [[nodiscard]] uint64_t getCompletedTransferTimelineValue() const;
+
+    /** @brief Récupère la dernière valeur soumise sur le Timeline Semaphore de transfert. */
+    [[nodiscard]] uint64_t getTransferTimelineValue() const noexcept { return m_transferTimelineValue.load(std::memory_order_relaxed); }
+
+    /** @brief Handle du Timeline Semaphore de transfert (pour synchronisation inter-queues GPU-GPU). */
+    [[nodiscard]] vk::Semaphore getTransferTimelineSemaphore() const noexcept { return m_transferTimelineSemaphore; }
+
+    /** @brief Attente CPU bloquante jusqu'à ce que la valeur timeline de transfert soit atteinte. */
+    void waitTransferTimeline(uint64_t value, uint64_t timeoutNs = std::numeric_limits<uint64_t>::max()) const;
+
+    /** @brief Recyclage non-bloquant des command buffers de transfert terminés. */
+    void pollTransferCompletions();
 
 private:
+    void pollTransferCompletionsLocked();
+
     vk::Instance m_instance;
     vk::DebugUtilsMessengerEXT m_debugMessenger;
     vk::SurfaceKHR m_surface;
     vk::PhysicalDevice m_physicalDevice;
     vk::Device m_device;
     vk::PipelineCache m_pipelineCache = nullptr;
-    
 
     vk::Queue m_graphicsQueue;
     vk::Queue m_presentQueue;
@@ -136,6 +155,17 @@ private:
     std::string m_deviceName;
     uint32_t m_apiVersion = VK_API_VERSION_1_3;
     EnabledFeatures m_enabledFeatures;
+
+    // Timeline Semaphore pour la file de transfert (B11)
+    vk::Semaphore m_transferTimelineSemaphore = nullptr;
+    std::atomic<uint64_t> m_transferTimelineValue{0};
+
+    struct PendingTransfer {
+        vk::CommandBuffer commandBuffer;
+        uint64_t timelineValue;
+    };
+    mutable std::mutex m_transferMutex;
+    std::vector<PendingTransfer> m_pendingTransfers;
 };
 
 } // namespace bb3d
