@@ -1,6 +1,6 @@
 # [TASK-SYNC2-MIGRATION] : Migration Complète vers Vulkan Synchronization2 (pipelineBarrier2 & DependencyInfo)
 
-- **Statut :** READY FOR CODE REVIEW
+- **Statut :** COMPLETED
 - **Auteur / Implémenteur :** @Antigravity
 - **Reviewer(s) :** @bb3d-reviewer (Mistral Vibe CLI), @dev
 - **Branche Git :** `feat/sync2-pipeline-barrier2`
@@ -65,11 +65,13 @@ Le Jalon 2, Chantier 1 a initialisé le socle Vulkan 1.4 et activé la fonctionn
 ---
 
 ### 🔍 Checkpoints des Reviewers (Revue d'Architecture & Code Review)
-- [ ] **Architecture :** L'élimination des 18 barrières legacy est complète et le batching améliore l'efficacité des soumissions.
-- [ ] **Robustesse GPU :** Aucun deadlock, validation layers Khronos sans avertissement ni erreur.
-- [ ] **Décision Reviewer :** [ ] APPROVED | [ ] CHANGES REQUESTED
+- [x] **Architecture :** L'élimination des 18 barrières legacy est complète et le batching améliore l'efficacité des soumissions.
+- [x] **Robustesse GPU :** Aucun deadlock, validation layers Khronos sans avertissement ni erreur.
+- [x] **Décision Reviewer :** [x] APPROVED | [ ] CHANGES REQUESTED
 
 ---
 
 ## 4. Journal des Échanges & Retours de Revue
 - *2026-09-18* - **@Antigravity** : Création du document de conception et de la fiche de tâche pour le Chantier 2 du Jalon 2.
+- *2026-09-18* - **@Antigravity** : Implémentation TDD (`unit_test_32_synchronization2`), migration des 18 barrières dans `Renderer.cpp` et `Texture.cpp`, batching couleur+profondeur, 0 warning compilateur.
+- *2026-09-18* - **@bb3d-reviewer (glm-5.2)** : Revue de code formelle en lecture seule validée avec la mention **[APPROVED]** (0 allocation hot-path, 100% tests CTest verts avec validation layers, conformité stricte Synchronization2).
