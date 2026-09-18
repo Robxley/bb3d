@@ -1139,8 +1139,14 @@ void ImGuiLayer::showToolbar() {
         if (ImGui::Button(ICON_FA_CAMERA " Screenshot")) {
             auto now = std::chrono::system_clock::now();
             auto in_time_t = std::chrono::system_clock::to_time_t(now);
+            std::tm tm_buf{};
+#if defined(_MSC_VER)
+            localtime_s(&tm_buf, &in_time_t);
+#else
+            localtime_r(&in_time_t, &tm_buf);
+#endif
             std::stringstream ss;
-            ss << "screenshots/screenshot_" << std::put_time(std::localtime(&in_time_t), "%Y%m%d_%H%M%S") << ".png";
+            ss << "screenshots/screenshot_" << std::put_time(&tm_buf, "%Y%m%d_%H%M%S") << ".png";
             engine.renderer().saveScreenshot(ss.str());
         }
     } else { 

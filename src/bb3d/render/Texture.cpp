@@ -240,7 +240,7 @@ Texture::~Texture() {
     // Ensure upload is complete before destroying resources
     if (m_uploadFence) {
         // Wait for upload to complete if not already done
-        device.waitForFences(m_uploadFence, true, std::numeric_limits<uint64_t>::max());
+        (void)device.waitForFences(m_uploadFence, true, std::numeric_limits<uint64_t>::max());
         
         // Command buffer was freed by endTransferCommandsAsync
         device.destroyFence(m_uploadFence);

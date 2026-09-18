@@ -691,7 +691,7 @@ void Renderer::compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex) {
     cb.pipelineBarrier(vk::PipelineStageFlagBits::eFragmentShader, vk::PipelineStageFlagBits::eColorAttachmentOutput, {}, nullptr, nullptr, resetBarrier);
 }
 
-void Renderer::updateGlobalUBO(uint32_t currentFrame, Scene& scene, GlobalUBO& uboData) {
+void Renderer::updateGlobalUBO([[maybe_unused]] uint32_t currentFrame, Scene& scene, GlobalUBO& uboData) {
     Camera* activeCamera = nullptr;
     auto camView = scene.getRegistry().view<CameraComponent>();
     for (auto entity : camView) {

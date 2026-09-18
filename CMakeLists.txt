@@ -1,131 +1,131 @@
-cmake_minimum_required(VERSION 3.20)
-
-project(biobazard3d LANGUAGES CXX)
-
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin)
-
-set(CMAKE_UNITY_BUILD OFF)
-
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
-endif()
-
-option(BB3D_ENABLE_EDITOR "Enable Editor features (ImGui)" ON)
-option(BB3D_ENABLE_PROFILING "Enable Tracy profiling" ON)
-
-include(FetchContent)
-
-FetchContent_Declare(spdlog GIT_REPOSITORY https://github.com/gabime/spdlog.git GIT_TAG v1.17.0)
-FetchContent_Declare(nlohmann_json GIT_REPOSITORY https://github.com/nlohmann/json.git GIT_TAG v3.12.0)
-FetchContent_Declare(tracy GIT_REPOSITORY https://github.com/wolfpld/tracy.git GIT_TAG v0.13.1)
-FetchContent_Declare(SDL GIT_REPOSITORY https://github.com/libsdl-org/SDL.git GIT_TAG release-3.4.0)
-FetchContent_Declare(VulkanMemoryAllocator GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git GIT_TAG v3.3.0)
-FetchContent_Declare(glm GIT_REPOSITORY https://github.com/g-truc/glm.git GIT_TAG 1.0.3)
-FetchContent_Declare(stb GIT_REPOSITORY https://github.com/nothings/stb.git GIT_TAG master)
-FetchContent_Declare(fastgltf GIT_REPOSITORY https://github.com/spnda/fastgltf.git GIT_TAG v0.8.0)
-FetchContent_Declare(entt GIT_REPOSITORY https://github.com/skypjack/entt.git GIT_TAG v3.13.2)
-FetchContent_Declare(freetype GIT_REPOSITORY https://github.com/freetype/freetype.git GIT_TAG VER-2-13-3)
-FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.91.8-docking)
-
-set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
-set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
-set(TARGET_UNIT_TESTS ON CACHE BOOL "" FORCE)
-set(TARGET_SAMPLES ON CACHE BOOL "" FORCE)
-set(TARGET_HELLO_WORLD ON CACHE BOOL "" FORCE)
-set(TARGET_PERFORMANCE_TEST ON CACHE BOOL "" FORCE)
-set(USE_AVX2 ON CACHE BOOL "" FORCE) 
-set(FLOATING_POINT_EXCEPTIONS_ENABLED OFF CACHE BOOL "" FORCE)
-
-FetchContent_Declare(Jolt GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git GIT_TAG v5.0.0 SOURCE_SUBDIR Build)
-
-# FreeType settings - Disable external libs to avoid build issues, Segoe will still work
-set(FT_WITH_ZLIB OFF CACHE BOOL "" FORCE)
-set(FT_WITH_PNG OFF CACHE BOOL "" FORCE)
-set(FT_WITH_BZIP2 OFF CACHE BOOL "" FORCE)
-set(FT_WITH_HARFBUZZ OFF CACHE BOOL "" FORCE)
-set(FT_WITH_BROTLI OFF CACHE BOOL "" FORCE)
-
-FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm stb fastgltf entt freetype imgui Jolt)
-
-find_package(Vulkan REQUIRED)
-find_program(GLSLC_EXECUTABLE NAMES glslc HINTS ${Vulkan_SDK}/bin $ENV{VULKAN_SDK}/bin)
-
-function(compile_shader SHADER_SOURCE SHADER_OUTPUT)
-    add_custom_command(OUTPUT ${SHADER_OUTPUT} COMMAND ${GLSLC_EXECUTABLE} ${SHADER_SOURCE} -o ${SHADER_OUTPUT} DEPENDS ${SHADER_SOURCE} COMMENT "Compiling ${SHADER_SOURCE} to ${SHADER_OUTPUT}")
-endfunction()
-
-set(SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders")
-set(SHADER_BUILD_DIR "${CMAKE_BINARY_DIR}/assets/shaders")
-file(MAKE_DIRECTORY ${SHADER_BUILD_DIR})
-set(SHADERS "${SHADER_DIR}/triangle.vert" "${SHADER_DIR}/triangle.frag" "${SHADER_DIR}/triangle_buffer.vert" "${SHADER_DIR}/simple_3d.vert" "${SHADER_DIR}/simple_3d.frag" "${SHADER_DIR}/texture_cube.vert" "${SHADER_DIR}/texture_cube.frag" "${SHADER_DIR}/textured_mesh.vert" "${SHADER_DIR}/textured_mesh.frag" "${SHADER_DIR}/pbr.vert" "${SHADER_DIR}/pbr.frag" "${SHADER_DIR}/unlit.vert" "${SHADER_DIR}/unlit.frag" "${SHADER_DIR}/toon.vert" "${SHADER_DIR}/toon.frag" "${SHADER_DIR}/shadow.vert" "${SHADER_DIR}/shadow.frag" "${SHADER_DIR}/skybox.vert" "${SHADER_DIR}/skybox.frag" "${SHADER_DIR}/skysphere.vert" "${SHADER_DIR}/skysphere.frag" "${SHADER_DIR}/fullscreen.vert" "${SHADER_DIR}/copy.frag" "${SHADER_DIR}/plasma.frag" "${SHADER_DIR}/particle.vert" "${SHADER_DIR}/particle.frag" "${SHADER_DIR}/picking.vert" "${SHADER_DIR}/picking.frag")
-set(SPV_SHADERS "")
-foreach(SHADER ${SHADERS})
-    get_filename_component(FILENAME ${SHADER} NAME)
-    set(SPV_OUTPUT "${SHADER_BUILD_DIR}/${FILENAME}.spv")
-    compile_shader(${SHADER} ${SPV_OUTPUT})
-    list(APPEND SPV_SHADERS ${SPV_OUTPUT})
-    add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv" COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SPV_OUTPUT} "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv" DEPENDS ${SPV_OUTPUT})
-    list(APPEND SPV_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv")
-endforeach()
-add_custom_target(CompileShaders ALL DEPENDS ${SPV_SHADERS})
-
-file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
-set(IMGUI_SOURCES "")
-if(BB3D_ENABLE_EDITOR)
-    set(IMGUI_SOURCES ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp ${imgui_SOURCE_DIR}/imgui_demo.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp)
-endif()
-
-add_definitions(-DTINYOBJLOADER_DISABLE_FAST_FLOAT)
-add_library(biobazard3d ${ENGINE_SOURCES} ${IMGUI_SOURCES})
-target_include_directories(biobazard3d PUBLIC include ${stb_SOURCE_DIR} ${Jolt_SOURCE_DIR})
-
-if(BB3D_ENABLE_EDITOR)
-    target_include_directories(biobazard3d PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${imgui_SOURCE_DIR}/misc/freetype)
-    target_compile_definitions(biobazard3d PUBLIC IMGUI_ENABLE_FREETYPE IMGUI_USE_WCHAR32 BB3D_ENABLE_EDITOR)
-endif()
-
-target_compile_definitions(biobazard3d PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1 $<$<CONFIG:Debug>:BB3D_DEBUG SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE> $<$<CONFIG:Release>:SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO>)
-target_link_libraries(biobazard3d PUBLIC spdlog::spdlog nlohmann_json::nlohmann_json SDL3::SDL3-shared Vulkan::Vulkan glm::glm VulkanMemoryAllocator fastgltf::fastgltf EnTT::EnTT freetype Jolt)
-target_compile_options(biobazard3d PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/W4 /bigobj /FS> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>)
-if(BB3D_ENABLE_PROFILING)
-    target_compile_definitions(biobazard3d PUBLIC BB_PROFILE)
-    target_link_libraries(biobazard3d PUBLIC TracyClient)
-endif()
-
-# --- Tests ---
-enable_testing()
-
-# Global asset deployment to the common bin directory
-add_custom_target(DeployAssets ALL
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/assets/shaders ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/shaders
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/assets ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
-    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/config ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/config
-    DEPENDS CompileShaders
-    COMMENT "Deploying all assets to common binary directory"
-)
-
-file(GLOB TEST_SOURCES "tests/unit_test_*.cpp")
-
-foreach(TEST_SOURCE ${TEST_SOURCES})
-    get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
-    
-    add_executable(${TEST_NAME} ${TEST_SOURCE})
-    target_link_libraries(${TEST_NAME} PRIVATE biobazard3d)
-    
-    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-    
-    # All tests run from the common bin directory (where assets/ is deployed)
-    set_tests_properties(${TEST_NAME} PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} TIMEOUT 15)
-    
-    add_dependencies(${TEST_NAME} DeployAssets)
-endforeach()
-
-# --- Applications ---
-add_subdirectory(apps)
+cmake_minimum_required(VERSION 3.20)
+
+project(biobazard3d LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${CMAKE_BINARY_DIR}/bin)
+
+set(CMAKE_UNITY_BUILD OFF)
+
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
+endif()
+
+option(BB3D_ENABLE_EDITOR "Enable Editor features (ImGui)" ON)
+option(BB3D_ENABLE_PROFILING "Enable Tracy profiling" ON)
+
+include(FetchContent)
+
+FetchContent_Declare(spdlog GIT_REPOSITORY https://github.com/gabime/spdlog.git GIT_TAG v1.17.0)
+FetchContent_Declare(nlohmann_json GIT_REPOSITORY https://github.com/nlohmann/json.git GIT_TAG v3.12.0)
+FetchContent_Declare(tracy GIT_REPOSITORY https://github.com/wolfpld/tracy.git GIT_TAG v0.13.1)
+FetchContent_Declare(SDL GIT_REPOSITORY https://github.com/libsdl-org/SDL.git GIT_TAG release-3.4.0)
+FetchContent_Declare(VulkanMemoryAllocator GIT_REPOSITORY https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git GIT_TAG v3.3.0)
+FetchContent_Declare(glm GIT_REPOSITORY https://github.com/g-truc/glm.git GIT_TAG 1.0.3)
+FetchContent_Declare(stb GIT_REPOSITORY https://github.com/nothings/stb.git GIT_TAG master)
+FetchContent_Declare(fastgltf GIT_REPOSITORY https://github.com/spnda/fastgltf.git GIT_TAG v0.8.0)
+FetchContent_Declare(entt GIT_REPOSITORY https://github.com/skypjack/entt.git GIT_TAG v3.13.2)
+FetchContent_Declare(freetype GIT_REPOSITORY https://github.com/freetype/freetype.git GIT_TAG VER-2-13-3)
+FetchContent_Declare(imgui GIT_REPOSITORY https://github.com/ocornut/imgui.git GIT_TAG v1.91.8-docking)
+
+set(USE_STATIC_MSVC_RUNTIME_LIBRARY OFF CACHE BOOL "" FORCE)
+set(INTERPROCEDURAL_OPTIMIZATION OFF CACHE BOOL "" FORCE)
+set(TARGET_UNIT_TESTS ON CACHE BOOL "" FORCE)
+set(TARGET_SAMPLES ON CACHE BOOL "" FORCE)
+set(TARGET_HELLO_WORLD ON CACHE BOOL "" FORCE)
+set(TARGET_PERFORMANCE_TEST ON CACHE BOOL "" FORCE)
+set(USE_AVX2 ON CACHE BOOL "" FORCE) 
+set(FLOATING_POINT_EXCEPTIONS_ENABLED OFF CACHE BOOL "" FORCE)
+
+FetchContent_Declare(Jolt GIT_REPOSITORY https://github.com/jrouwe/JoltPhysics.git GIT_TAG v5.0.0 SOURCE_SUBDIR Build)
+
+# FreeType settings - Disable external libs to avoid build issues, Segoe will still work
+set(FT_WITH_ZLIB OFF CACHE BOOL "" FORCE)
+set(FT_WITH_PNG OFF CACHE BOOL "" FORCE)
+set(FT_WITH_BZIP2 OFF CACHE BOOL "" FORCE)
+set(FT_WITH_HARFBUZZ OFF CACHE BOOL "" FORCE)
+set(FT_WITH_BROTLI OFF CACHE BOOL "" FORCE)
+
+FetchContent_MakeAvailable(spdlog nlohmann_json tracy SDL VulkanMemoryAllocator glm stb fastgltf entt freetype imgui Jolt)
+
+find_package(Vulkan REQUIRED)
+find_program(GLSLC_EXECUTABLE NAMES glslc HINTS ${Vulkan_SDK}/bin $ENV{VULKAN_SDK}/bin)
+
+function(compile_shader SHADER_SOURCE SHADER_OUTPUT)
+    add_custom_command(OUTPUT ${SHADER_OUTPUT} COMMAND ${GLSLC_EXECUTABLE} ${SHADER_SOURCE} -o ${SHADER_OUTPUT} DEPENDS ${SHADER_SOURCE} COMMENT "Compiling ${SHADER_SOURCE} to ${SHADER_OUTPUT}")
+endfunction()
+
+set(SHADER_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders")
+set(SHADER_BUILD_DIR "${CMAKE_BINARY_DIR}/assets/shaders")
+file(MAKE_DIRECTORY ${SHADER_BUILD_DIR})
+set(SHADERS "${SHADER_DIR}/triangle.vert" "${SHADER_DIR}/triangle.frag" "${SHADER_DIR}/triangle_buffer.vert" "${SHADER_DIR}/simple_3d.vert" "${SHADER_DIR}/simple_3d.frag" "${SHADER_DIR}/texture_cube.vert" "${SHADER_DIR}/texture_cube.frag" "${SHADER_DIR}/textured_mesh.vert" "${SHADER_DIR}/textured_mesh.frag" "${SHADER_DIR}/pbr.vert" "${SHADER_DIR}/pbr.frag" "${SHADER_DIR}/unlit.vert" "${SHADER_DIR}/unlit.frag" "${SHADER_DIR}/toon.vert" "${SHADER_DIR}/toon.frag" "${SHADER_DIR}/shadow.vert" "${SHADER_DIR}/shadow.frag" "${SHADER_DIR}/skybox.vert" "${SHADER_DIR}/skybox.frag" "${SHADER_DIR}/skysphere.vert" "${SHADER_DIR}/skysphere.frag" "${SHADER_DIR}/fullscreen.vert" "${SHADER_DIR}/copy.frag" "${SHADER_DIR}/plasma.frag" "${SHADER_DIR}/particle.vert" "${SHADER_DIR}/particle.frag" "${SHADER_DIR}/picking.vert" "${SHADER_DIR}/picking.frag")
+set(SPV_SHADERS "")
+foreach(SHADER ${SHADERS})
+    get_filename_component(FILENAME ${SHADER} NAME)
+    set(SPV_OUTPUT "${SHADER_BUILD_DIR}/${FILENAME}.spv")
+    compile_shader(${SHADER} ${SPV_OUTPUT})
+    list(APPEND SPV_SHADERS ${SPV_OUTPUT})
+    add_custom_command(OUTPUT "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv" COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SPV_OUTPUT} "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv" DEPENDS ${SPV_OUTPUT})
+    list(APPEND SPV_SHADERS "${CMAKE_CURRENT_SOURCE_DIR}/assets/shaders/${FILENAME}.spv")
+endforeach()
+add_custom_target(CompileShaders ALL DEPENDS ${SPV_SHADERS})
+
+file(GLOB_RECURSE ENGINE_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp")
+set(IMGUI_SOURCES "")
+if(BB3D_ENABLE_EDITOR)
+    set(IMGUI_SOURCES ${imgui_SOURCE_DIR}/imgui.cpp ${imgui_SOURCE_DIR}/imgui_draw.cpp ${imgui_SOURCE_DIR}/imgui_tables.cpp ${imgui_SOURCE_DIR}/imgui_widgets.cpp ${imgui_SOURCE_DIR}/imgui_demo.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_sdl3.cpp ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp ${imgui_SOURCE_DIR}/misc/cpp/imgui_stdlib.cpp ${imgui_SOURCE_DIR}/misc/freetype/imgui_freetype.cpp)
+endif()
+
+add_definitions(-DTINYOBJLOADER_DISABLE_FAST_FLOAT)
+add_library(biobazard3d ${ENGINE_SOURCES} ${IMGUI_SOURCES})
+target_include_directories(biobazard3d PUBLIC include ${stb_SOURCE_DIR} ${Jolt_SOURCE_DIR})
+
+if(BB3D_ENABLE_EDITOR)
+    target_include_directories(biobazard3d PUBLIC ${imgui_SOURCE_DIR} ${imgui_SOURCE_DIR}/backends ${imgui_SOURCE_DIR}/misc/freetype)
+    target_compile_definitions(biobazard3d PUBLIC IMGUI_ENABLE_FREETYPE IMGUI_USE_WCHAR32 BB3D_ENABLE_EDITOR)
+endif()
+
+target_compile_definitions(biobazard3d PUBLIC GLM_FORCE_DEPTH_ZERO_TO_ONE VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1 $<$<CONFIG:Debug>:BB3D_DEBUG SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_TRACE> $<$<CONFIG:Release>:SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO>)
+target_link_libraries(biobazard3d PUBLIC spdlog::spdlog nlohmann_json::nlohmann_json SDL3::SDL3-shared Vulkan::Vulkan glm::glm VulkanMemoryAllocator fastgltf::fastgltf EnTT::EnTT freetype Jolt)
+target_compile_options(biobazard3d PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/W4 /bigobj /FS> $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic>)
+if(BB3D_ENABLE_PROFILING)
+    target_compile_definitions(biobazard3d PUBLIC BB_PROFILE)
+    target_link_libraries(biobazard3d PUBLIC TracyClient)
+endif()
+
+# --- Tests ---
+enable_testing()
+
+# Global asset deployment to the common bin directory
+add_custom_target(DeployAssets ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/assets/shaders ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets/shaders
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/assets ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/assets
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/config ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/config
+    DEPENDS CompileShaders
+    COMMENT "Deploying all assets to common binary directory"
+)
+
+file(GLOB TEST_SOURCES "tests/unit_test_*.cpp")
+
+foreach(TEST_SOURCE ${TEST_SOURCES})
+    get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
+    
+    add_executable(${TEST_NAME} ${TEST_SOURCE})
+    target_link_libraries(${TEST_NAME} PRIVATE biobazard3d)
+    
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+    
+    # All tests run from the common bin directory (where assets/ is deployed)
+    set_tests_properties(${TEST_NAME} PROPERTIES WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} TIMEOUT 15)
+    
+    add_dependencies(${TEST_NAME} DeployAssets)
+endforeach()
+
+# --- Applications ---
+add_subdirectory(apps)
 

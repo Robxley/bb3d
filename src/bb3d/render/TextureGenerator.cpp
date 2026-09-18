@@ -7,14 +7,14 @@
 namespace bb3d {
 
 Ref<Texture> TextureGenerator::combineORM(VulkanContext& context, std::string_view aoPath, std::string_view roughnessPath, std::string_view metallicPath) {
-    int w = 0, h = 0, c = 0;
+    int w = 0, h = 0;
     stbi_uc *ao = nullptr, *rough = nullptr, *metal = nullptr;
 
-    // Helper pour charger et valider les dimensions
+    // Helper to load and validate dimensions
     auto load = [&](std::string_view path, stbi_uc*& ptr) {
         if (path.empty()) return;
         int lw, lh, lc;
-        ptr = stbi_load(path.data(), &lw, &lh, &lc, 1); // On ne charge que le canal R (grayscale)
+        ptr = stbi_load(path.data(), &lw, &lh, &lc, 1); // Load R channel only (grayscale)
         if (ptr) {
             if (w == 0) { w = lw; h = lh; }
             else if (lw != w || lh != h) {
@@ -35,15 +35,15 @@ Ref<Texture> TextureGenerator::combineORM(VulkanContext& context, std::string_vi
         return nullptr;
     }
 
-    // Buffer final RGBA (4 canaux)
+    // Final RGBA buffer (4 channels)
     std::vector<unsigned char> ormPixels(w * h * 4);
 
     for (int i = 0; i < w * h; ++i) {
-        // R = Occlusion (défaut 255/blanc)
+        // R = Occlusion (default 255 / white)
         ormPixels[i * 4 + 0] = ao ? ao[i] : 255;
-        // G = Roughness (défaut 255/blanc -> très rugueux)
+        // G = Roughness (default 255 / white -> very rough)
         ormPixels[i * 4 + 1] = rough ? rough[i] : 255;
-        // B = Metallic (défaut 0/noir -> diélectrique)
+        // B = Metallic (default 0 / black -> dielectric)
         ormPixels[i * 4 + 2] = metal ? metal[i] : 0;
         // A = Unused (255)
         ormPixels[i * 4 + 3] = 255;
@@ -56,8 +56,8 @@ Ref<Texture> TextureGenerator::combineORM(VulkanContext& context, std::string_vi
 
     BB_CORE_INFO("TextureGenerator: Generated ORM texture ({}x{})", w, h);
     
-    // Création de la texture via le constructeur existant qui prend un std::span de bytes
-    return CreateRef<Texture>(context, std::as_bytes(std::span(ormPixels)), w, h, false); // false = format linéaire (UNORM) pour les data maps
+    // Create texture using existing constructor accepting a std::span of bytes
+    return CreateRef<Texture>(context, std::as_bytes(std::span(ormPixels)), w, h, false); // false = linear UNORM format for data maps
 }
 
 } // namespace bb3d

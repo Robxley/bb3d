@@ -54,7 +54,7 @@ int main() {
         scene->createSkySphere("Environment", "assets/textures/skybox_sphere_wood_diffuse.jpeg", false);
 
         // 3. Visual Assets
-        auto sphereMeshRes = MeshGenerator::createSphere(engine->graphics(), 0.5f, 32, 32);
+        auto sphereMeshRes = MeshGenerator::createSphere(engine->graphics(), 0.5f, 32);
         auto floorMeshRes = MeshGenerator::createCheckerboardPlane(engine->graphics(), 20.0f, 20);
         
         auto sphereMesh = Ref<Mesh>(sphereMeshRes.release());
@@ -69,11 +69,11 @@ int main() {
                 e.at({(float)x * 1.5f, 1.0f, (float)z * 1.5f});
                 
                 // Each mesh must have its own unique material instance for different colors
-                auto instanceMesh = Ref<Mesh>(MeshGenerator::createSphere(engine->graphics(), 0.5f, 32, 32).release());
+                auto instanceMesh = Ref<Mesh>(MeshGenerator::createSphere(engine->graphics(), 0.5f, 32).release());
                 auto mat = CreateRef<PBRMaterial>(engine->graphics());
                 
                 PBRParameters params;
-                params.albedoFactor = { (x + 2) / 4.0f, (z + 2) / 4.0f, 0.5f, 1.0f };
+                params.baseColorFactor = { (x + 2) / 4.0f, (z + 2) / 4.0f, 0.5f, 1.0f };
                 params.roughnessFactor = 0.1f + (z + 2) / 10.0f;
                 params.metallicFactor = (x + 2) / 4.0f;
                 mat->setParameters(params);

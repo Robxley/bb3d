@@ -5,6 +5,10 @@ Ce fichier consigne l'historique compact de tous les chantiers et correctifs ter
 
 ---
 
+- **[2026-09-18] [FIX-COMPILATION-WARNINGS] Élimination Systématique des Warnings Compilateur MSVC** (@Antigravity / @Robxley)
+  - Scope: `ImGuiLayer.cpp` (C4996 localtime_s), `GraphicsPipeline.cpp` (C4335 line endings), `Renderer.cpp` (C4100 currentFrame), `Texture.cpp` (C4834 nodiscard), `TextureGenerator.cpp` (C4189 variable c), `tests/unit_test_22/23.cpp`
+  - Bilan: 100% zéro warning sur l'ensemble de la solution (biobazard3d, astro_bazard, éditeur, 31 tests), commentaires traduits en anglais, tests automatisés 100% PASS.
+
 - **[2026-09-18] [TASK-VULKAN-1.4-INIT] Initialisation Vulkan 1.4 via StructureChain & Features Core** (@Antigravity / @bb3d-reviewer & @Robxley)
   - Scope: `include/bb3d/render/VulkanContext.hpp`, `src/bb3d/render/VulkanContext.cpp`, `tests/unit_test_02_vulkan_init.cpp`
   - Bilan: Vulkan 1.4/1.3 négocié, StructureChain type-safe avec query getFeatures2, core features (Sync2, DynamicRendering, TimelineSemaphore, PushDescriptor, Bindless), VMA aligné, tests 100% PASS, revue APPROVED.

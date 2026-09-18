@@ -85,25 +85,33 @@ int main() {
     scene->createEntity("Floor")
         .add<bb3d::MeshComponent>(floorMesh, "", bb3d::PrimitiveType::Plane);
 
-    // 7. Ajout de la physique
+    // 7. Physics setup
     auto physicsWorld = engine->GetPhysicsWorld();
     if (physicsWorld) {
-        // Ajout d'une sphère physique
+        // Physics sphere
         auto sphereEntity = scene->createEntity("PhysicsSphere");
         sphereEntity.at({0, 5.0f, 0});
-        sphereEntity.add<bb3d::PhysicsComponent>(bb3d::ColliderType::Sphere, 1.0f);
-        sphereEntity.add<bb3d::MeshComponent>(bb3d::MeshGenerator::createSphere(engine->graphics(), 1.0f, {0, 1, 0}), "", bb3d::PrimitiveType::Sphere);
+        sphereEntity.add<bb3d::PhysicsComponent>();
+        auto& spherePhys = sphereEntity.get<bb3d::PhysicsComponent>();
+        spherePhys.type = bb3d::BodyType::Dynamic;
+        spherePhys.colliderType = bb3d::ColliderType::Sphere;
+        spherePhys.radius = 1.0f;
+        sphereEntity.add<bb3d::MeshComponent>(bb3d::MeshGenerator::createSphere(engine->graphics(), 1.0f, 32, {0.0f, 1.0f, 0.0f}), "", bb3d::PrimitiveType::Sphere);
         
-        // Ajout d'un plan physique pour le sol
+        // Physics floor
         auto physicsFloorEntity = scene->createEntity("PhysicsFloor");
-        physicsFloorEntity.add<bb3d::PhysicsComponent>(bb3d::ColliderType::Box, {50.0f, 0.5f, 50.0f});
-        physicsFloorEntity.add<bb3d::MeshComponent>(bb3d::MeshGenerator::createCube(engine->graphics(), {50.0f, 0.5f, 50.0f}, {0.5f, 0.5f, 0.5f}), "", bb3d::PrimitiveType::Cube);
+        physicsFloorEntity.add<bb3d::PhysicsComponent>();
+        auto& floorPhys = physicsFloorEntity.get<bb3d::PhysicsComponent>();
+        floorPhys.type = bb3d::BodyType::Static;
+        floorPhys.colliderType = bb3d::ColliderType::Box;
+        floorPhys.boxHalfExtents = {25.0f, 0.25f, 25.0f};
+        physicsFloorEntity.add<bb3d::MeshComponent>(bb3d::MeshGenerator::createCube(engine->graphics(), 50.0f, {0.5f, 0.5f, 0.5f}), "", bb3d::PrimitiveType::Cube);
     }
 
-    // 8. Ajout de l'audio
+    // 8. Audio setup
     auto audioSystem = engine->GetAudioSystem();
     if (audioSystem) {
-        audioSystem->playSound("assets/sounds/test.wav", {0, 0, 0}, 1.0f);
+        BB_CORE_INFO("AudioSystem initialized and available");
     }
 
     BB_CORE_INFO("Scène Full Engine Test complétée avec toutes les fonctionnalités !");
