@@ -50,7 +50,7 @@ VulkanContext::~VulkanContext() {
 void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enableValidationLayers) {
     VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
 
-    vk::ApplicationInfo appInfo(appName.data(), VK_MAKE_VERSION(1, 0, 0), "biobazard3d", VK_MAKE_VERSION(1, 0, 0), VK_API_VERSION_1_3);
+    vk::ApplicationInfo appInfo(appName.data(), VK_MAKE_VERSION(1, 0, 0), "biobazard3d", VK_MAKE_VERSION(1, 0, 0), VK_API_VERSION_1_4);
 
     uint32_t sdlExtensionCount = 0;
     const char* const* sdlExtensions = SDL_Vulkan_GetInstanceExtensions(&sdlExtensionCount);
@@ -87,7 +87,6 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
         auto props = device.getProperties();
         auto queueFamilies = device.getQueueFamilyProperties();
         int gIdx = -1, pIdx = -1;
-        
 
         for (uint32_t i = 0; i < queueFamilies.size(); ++i) {
             if (queueFamilies[i].queueFlags & vk::QueueFlagBits::eGraphics) gIdx = i;
@@ -99,7 +98,6 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
             int score = 0;
             if (props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu) score += 1000;
             else if (props.deviceType == vk::PhysicalDeviceType::eIntegratedGpu) score += 100;
-            
 
             if (score > bestScore) {
                 bestScore = score;
@@ -116,28 +114,181 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
         throw std::runtime_error("VulkanContext: Failed to find a suitable GPU!");
     }
 
+    uint32_t deviceApiVersion = m_physicalDevice.getProperties().apiVersion;
+    m_apiVersion = (deviceApiVersion >= VK_API_VERSION_1_4) ? VK_API_VERSION_1_4 : VK_API_VERSION_1_3;
+    bool isVulkan14 = (m_apiVersion >= VK_API_VERSION_1_4);
+
     std::set<uint32_t> uniqueQueueFamilies = { m_graphicsQueueFamily, m_presentQueueFamily, m_transferQueueFamily };
     std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
     float queuePriority = 1.0f;
     for (uint32_t family : uniqueQueueFamilies) queueCreateInfos.push_back({ {}, family, 1, &queuePriority });
 
     std::vector<const char*> deviceExtensions = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
-    vk::PhysicalDeviceDynamicRenderingFeatures dynamicRenderingFeatures(VK_TRUE);
-    vk::PhysicalDeviceSynchronization2Features sync2Features(VK_TRUE);
-    dynamicRenderingFeatures.pNext = &sync2Features;
 
-    vk::PhysicalDeviceFeatures deviceFeatures{};
-    vk::DeviceCreateInfo deviceCreateInfo({}, static_cast<uint32_t>(queueCreateInfos.size()), queueCreateInfos.data(), 0, nullptr, static_cast<uint32_t>(deviceExtensions.size()), deviceExtensions.data(), &deviceFeatures);
-    deviceCreateInfo.pNext = &dynamicRenderingFeatures;
+    if (isVulkan14) {
+        // Query hardware-supported features first to prevent VK_ERROR_FEATURE_NOT_PRESENT
+        vk::StructureChain<
+            vk::PhysicalDeviceFeatures2,
+            vk::PhysicalDeviceVulkan11Features,
+            vk::PhysicalDeviceVulkan12Features,
+            vk::PhysicalDeviceVulkan13Features,
+            vk::PhysicalDeviceVulkan14Features
+        > queryChain;
 
-    m_device = m_physicalDevice.createDevice(deviceCreateInfo);
+        m_physicalDevice.getFeatures2(&queryChain.get<vk::PhysicalDeviceFeatures2>());
+
+        const auto& supp10 = queryChain.get<vk::PhysicalDeviceFeatures2>().features;
+        const auto& supp12 = queryChain.get<vk::PhysicalDeviceVulkan12Features>();
+        const auto& supp13 = queryChain.get<vk::PhysicalDeviceVulkan13Features>();
+        const auto& supp14 = queryChain.get<vk::PhysicalDeviceVulkan14Features>();
+
+        // Required features check (hard-fail if not supported by hardware)
+        if (!supp13.dynamicRendering || !supp13.synchronization2 || !supp12.timelineSemaphore) {
+            throw std::runtime_error("VulkanContext: Required core features (DynamicRendering, Synchronization2, TimelineSemaphore) are not supported by the selected GPU!");
+        }
+
+        // Build type-safe device creation chain for Vulkan 1.4
+        vk::StructureChain<
+            vk::DeviceCreateInfo,
+            vk::PhysicalDeviceFeatures2,
+            vk::PhysicalDeviceVulkan11Features,
+            vk::PhysicalDeviceVulkan12Features,
+            vk::PhysicalDeviceVulkan13Features,
+            vk::PhysicalDeviceVulkan14Features
+        > createChain;
+
+        auto& dci = createChain.get<vk::DeviceCreateInfo>();
+        dci.setQueueCreateInfos(queueCreateInfos);
+        dci.setPEnabledExtensionNames(deviceExtensions);
+
+        // Core 1.0 / Features2
+        auto& feat10 = createChain.get<vk::PhysicalDeviceFeatures2>().features;
+        if (supp10.samplerAnisotropy) {
+            feat10.samplerAnisotropy = VK_TRUE;
+            m_enabledFeatures.samplerAnisotropy = true;
+        }
+
+        // Core 1.2
+        auto& feat12 = createChain.get<vk::PhysicalDeviceVulkan12Features>();
+        feat12.timelineSemaphore = VK_TRUE;
+        m_enabledFeatures.timelineSemaphore = true;
+        if (supp12.descriptorIndexing) {
+            feat12.descriptorIndexing = VK_TRUE;
+            m_enabledFeatures.descriptorIndexing = true;
+        }
+        if (supp12.runtimeDescriptorArray) {
+            feat12.runtimeDescriptorArray = VK_TRUE;
+            m_enabledFeatures.runtimeDescriptorArray = true;
+        }
+        if (supp12.descriptorBindingPartiallyBound) {
+            feat12.descriptorBindingPartiallyBound = VK_TRUE;
+            m_enabledFeatures.descriptorBindingPartiallyBound = true;
+        }
+        if (supp12.descriptorBindingVariableDescriptorCount) {
+            feat12.descriptorBindingVariableDescriptorCount = VK_TRUE;
+            m_enabledFeatures.descriptorBindingVariableDescriptorCount = true;
+        }
+
+        // Core 1.3
+        auto& feat13 = createChain.get<vk::PhysicalDeviceVulkan13Features>();
+        feat13.dynamicRendering = VK_TRUE;
+        feat13.synchronization2 = VK_TRUE;
+        m_enabledFeatures.dynamicRendering = true;
+        m_enabledFeatures.synchronization2 = true;
+        if (supp13.maintenance4) {
+            feat13.maintenance4 = VK_TRUE;
+            m_enabledFeatures.maintenance4 = true;
+        }
+
+        // Core 1.4
+        auto& feat14 = createChain.get<vk::PhysicalDeviceVulkan14Features>();
+        if (supp14.pushDescriptor) {
+            feat14.pushDescriptor = VK_TRUE;
+            m_enabledFeatures.pushDescriptor = true;
+        }
+        if (supp14.dynamicRenderingLocalRead) {
+            feat14.dynamicRenderingLocalRead = VK_TRUE;
+            m_enabledFeatures.dynamicRenderingLocalRead = true;
+        }
+        if (supp14.maintenance5) {
+            feat14.maintenance5 = VK_TRUE;
+            m_enabledFeatures.maintenance5 = true;
+        }
+        if (supp14.maintenance6) {
+            feat14.maintenance6 = VK_TRUE;
+            m_enabledFeatures.maintenance6 = true;
+        }
+
+        m_device = m_physicalDevice.createDevice(createChain.get<vk::DeviceCreateInfo>());
+    } else {
+        // Fallback Vulkan 1.3 chain
+        vk::StructureChain<
+            vk::PhysicalDeviceFeatures2,
+            vk::PhysicalDeviceVulkan11Features,
+            vk::PhysicalDeviceVulkan12Features,
+            vk::PhysicalDeviceVulkan13Features
+        > queryChain;
+
+        m_physicalDevice.getFeatures2(&queryChain.get<vk::PhysicalDeviceFeatures2>());
+
+        const auto& supp10 = queryChain.get<vk::PhysicalDeviceFeatures2>().features;
+        const auto& supp12 = queryChain.get<vk::PhysicalDeviceVulkan12Features>();
+        const auto& supp13 = queryChain.get<vk::PhysicalDeviceVulkan13Features>();
+
+        if (!supp13.dynamicRendering || !supp13.synchronization2 || !supp12.timelineSemaphore) {
+            throw std::runtime_error("VulkanContext: Required Vulkan 1.3 core features (DynamicRendering, Synchronization2, TimelineSemaphore) are not supported by the selected GPU!");
+        }
+
+        vk::StructureChain<
+            vk::DeviceCreateInfo,
+            vk::PhysicalDeviceFeatures2,
+            vk::PhysicalDeviceVulkan11Features,
+            vk::PhysicalDeviceVulkan12Features,
+            vk::PhysicalDeviceVulkan13Features
+        > createChain;
+
+        auto& dci = createChain.get<vk::DeviceCreateInfo>();
+        dci.setQueueCreateInfos(queueCreateInfos);
+        dci.setPEnabledExtensionNames(deviceExtensions);
+
+        auto& feat10 = createChain.get<vk::PhysicalDeviceFeatures2>().features;
+        if (supp10.samplerAnisotropy) {
+            feat10.samplerAnisotropy = VK_TRUE;
+            m_enabledFeatures.samplerAnisotropy = true;
+        }
+
+        auto& feat12 = createChain.get<vk::PhysicalDeviceVulkan12Features>();
+        feat12.timelineSemaphore = VK_TRUE;
+        m_enabledFeatures.timelineSemaphore = true;
+        if (supp12.descriptorIndexing) {
+            feat12.descriptorIndexing = VK_TRUE;
+            m_enabledFeatures.descriptorIndexing = true;
+        }
+        if (supp12.runtimeDescriptorArray) {
+            feat12.runtimeDescriptorArray = VK_TRUE;
+            m_enabledFeatures.runtimeDescriptorArray = true;
+        }
+
+        auto& feat13 = createChain.get<vk::PhysicalDeviceVulkan13Features>();
+        feat13.dynamicRendering = VK_TRUE;
+        feat13.synchronization2 = VK_TRUE;
+        m_enabledFeatures.dynamicRendering = true;
+        m_enabledFeatures.synchronization2 = true;
+        if (supp13.maintenance4) {
+            feat13.maintenance4 = VK_TRUE;
+            m_enabledFeatures.maintenance4 = true;
+        }
+
+        m_device = m_physicalDevice.createDevice(createChain.get<vk::DeviceCreateInfo>());
+    }
+
     VULKAN_HPP_DEFAULT_DISPATCHER.init(m_device);
 
     m_graphicsQueue = m_device.getQueue(m_graphicsQueueFamily, 0);
     m_presentQueue = m_device.getQueue(m_presentQueueFamily, 0);
     m_transferQueue = m_device.getQueue(m_transferQueueFamily, 0);
 
-    // VMA with explicit function pointers for Dynamic Dispatch
+    // VMA with explicit function pointers for Dynamic Dispatch and aligned API version
     VmaVulkanFunctions vmaVulkanFunctions = {};
     vmaVulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
     vmaVulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
@@ -147,7 +298,7 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     allocatorInfo.device = static_cast<VkDevice>(m_device);
     allocatorInfo.instance = static_cast<VkInstance>(m_instance);
     allocatorInfo.pVulkanFunctions = &vmaVulkanFunctions;
-    allocatorInfo.vulkanApiVersion = VK_API_VERSION_1_3;
+    allocatorInfo.vulkanApiVersion = m_apiVersion;
     vmaCreateAllocator(&allocatorInfo, &m_allocator);
 
     // Create pipeline cache for optimized shader compilation
@@ -157,7 +308,16 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     m_shortLivedCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_graphicsQueueFamily });
     m_transferCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_transferQueueFamily });
     m_stagingBuffer = CreateScope<StagingBuffer>(*this);
-    BB_CORE_INFO("VulkanContext initialized (VMA with dynamic dispatch and pipeline cache).");
+
+    BB_CORE_INFO("VulkanContext initialized: API {}.{}.{} on {} (Vulkan 1.4: {}, PushDescriptors: {}, Sync2: {}, TimelineSemaphores: {}).",
+        VK_API_VERSION_MAJOR(m_apiVersion),
+        VK_API_VERSION_MINOR(m_apiVersion),
+        VK_API_VERSION_PATCH(m_apiVersion),
+        m_deviceName,
+        isVulkan14,
+        m_enabledFeatures.pushDescriptor,
+        m_enabledFeatures.synchronization2,
+        m_enabledFeatures.timelineSemaphore);
 }
 
 void VulkanContext::cleanup() {

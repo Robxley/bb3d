@@ -66,6 +66,31 @@ public:
     /** @brief Nom commercial du GPU utilisé (ex: "NVIDIA GeForce RTX 3080"). */
     [[nodiscard]] inline std::string_view getDeviceName() const { return m_deviceName; }
 
+    struct EnabledFeatures {
+        bool dynamicRendering = false;
+        bool synchronization2 = false;
+        bool timelineSemaphore = false;
+        bool samplerAnisotropy = false;
+        bool pushDescriptor = false;
+        bool dynamicRenderingLocalRead = false;
+        bool maintenance4 = false;
+        bool maintenance5 = false;
+        bool maintenance6 = false;
+        bool descriptorIndexing = false;
+        bool runtimeDescriptorArray = false;
+        bool descriptorBindingPartiallyBound = false;
+        bool descriptorBindingVariableDescriptorCount = false;
+    };
+
+    /** @brief Check negotiated API version (e.g. VK_API_VERSION_1_4 or VK_API_VERSION_1_3). */
+    [[nodiscard]] inline uint32_t getApiVersion() const noexcept { return m_apiVersion; }
+
+    /** @brief Returns true if Vulkan 1.4 core features are supported and active on the device. */
+    [[nodiscard]] inline bool isVulkan14Supported() const noexcept { return m_apiVersion >= VK_API_VERSION_1_4; }
+
+    /** @brief Access snapshot of enabled features. */
+    [[nodiscard]] inline const EnabledFeatures& getEnabledFeatures() const noexcept { return m_enabledFeatures; }
+
     /** 
      * @brief Démarre un command buffer temporaire pour un transfert unique (CPU->GPU).
      * @note Utilise une pool de commandes dédiée aux tâches courtes sur la queue graphique.
@@ -109,6 +134,8 @@ private:
     vk::CommandPool m_transferCommandPool;
     Scope<class StagingBuffer> m_stagingBuffer;
     std::string m_deviceName;
+    uint32_t m_apiVersion = VK_API_VERSION_1_3;
+    EnabledFeatures m_enabledFeatures;
 };
 
 } // namespace bb3d
