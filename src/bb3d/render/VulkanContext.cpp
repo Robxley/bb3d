@@ -314,7 +314,7 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     m_pipelineCache = m_device.createPipelineCache(cacheInfo);
 
     m_shortLivedCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_graphicsQueueFamily });
-    m_transferCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer, m_transferQueueFamily });
+    m_transferCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_transferQueueFamily });
 
     // Create Timeline Semaphore for transfer queue (B11)
     vk::SemaphoreTypeCreateInfo timelineTypeInfo(vk::SemaphoreType::eTimeline, 0);

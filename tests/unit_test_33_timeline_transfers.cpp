@@ -47,14 +47,14 @@ int main() {
         // --- Test 2: Asynchronous Transfers with Monotonic Increments ---
         BB_CORE_INFO("Testing monotonic async transfer submissions...");
         vk::CommandBuffer cb1 = context.beginTransferCommands();
-        // Record a pipeline barrier or empty commands
-        cb1.setLineWidth(1.0f); // harmless dynamic state or pipeline barrier
+        // Record a valid transfer-compatible dependency info
+        cb1.pipelineBarrier2(vk::DependencyInfo{});
         uint64_t val1 = context.endTransferCommandsAsync(cb1);
         assert(val1 == 1);
         assert(context.getTransferTimelineValue() == 1);
 
         vk::CommandBuffer cb2 = context.beginTransferCommands();
-        cb2.setLineWidth(1.0f);
+        cb2.pipelineBarrier2(vk::DependencyInfo{});
         uint64_t val2 = context.endTransferCommandsAsync(cb2);
         assert(val2 == 2);
         assert(context.getTransferTimelineValue() == 2);

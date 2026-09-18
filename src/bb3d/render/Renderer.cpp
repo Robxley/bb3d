@@ -438,6 +438,9 @@ bool Renderer::render(Scene& scene) {
         }
     }
 
+    // 0. Proactively recycle completed async transfer command buffers without CPU stall (B11)
+    m_context.pollTransferCompletions();
+
     // 1. Identify active camera and setup UBO (which also updates frustum)
     GlobalUBO uboData{}; // Zero-initialize to avoid rendering with garbage if update fails
     Camera* activeCamera = updateGlobalUBO(m_currentFrame, scene, uboData);
