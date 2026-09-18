@@ -268,8 +268,8 @@ private:
     void drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView colorView, vk::ImageView depthView, vk::Extent2D extent);
     void compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex);
     void renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboData);
-    void updateGlobalUBO(uint32_t currentFrame, Scene& scene, GlobalUBO& uboData);
-    void prepareRenderData(Scene& scene);
+    Camera* updateGlobalUBO(uint32_t currentFrame, Scene& scene, GlobalUBO& uboData);
+    void prepareRenderData(Scene& scene, const Camera* activeCamera = nullptr);
 
     // --- GPU Color Picking ---
     vk::Image m_pickingImage;

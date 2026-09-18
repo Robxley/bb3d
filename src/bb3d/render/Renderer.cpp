@@ -440,11 +440,11 @@ bool Renderer::render(Scene& scene) {
 
     // 1. Identify active camera and setup UBO (which also updates frustum)
     GlobalUBO uboData{}; // Zero-initialize to avoid rendering with garbage if update fails
-    updateGlobalUBO(m_currentFrame, scene, uboData);
+    Camera* activeCamera = updateGlobalUBO(m_currentFrame, scene, uboData);
     BB_CORE_TRACE("Renderer: UBO updated");
 
     // 2. Prepare data (Collect commands and fill instance buffers, using frustum for culling)
-    prepareRenderData(scene);
+    prepareRenderData(scene, activeCamera);
     
     // 3. Begin Command Buffer
     auto dev = m_context.getDevice();
@@ -815,7 +815,7 @@ void Renderer::compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex) {
     cb.pipelineBarrier2(resetDepInfo);
 }
 
-void Renderer::updateGlobalUBO([[maybe_unused]] uint32_t currentFrame, Scene& scene, GlobalUBO& uboData) {
+Camera* Renderer::updateGlobalUBO([[maybe_unused]] uint32_t currentFrame, Scene& scene, GlobalUBO& uboData) {
     Camera* activeCamera = nullptr;
     auto camView = scene.getRegistry().view<CameraComponent>();
     for (auto entity : camView) {
@@ -826,7 +826,7 @@ void Renderer::updateGlobalUBO([[maybe_unused]] uint32_t currentFrame, Scene& sc
     }
     if (!activeCamera) {
         BB_CORE_WARN("Renderer: No active camera found in scene!");
-        return;
+        return nullptr;
     }
 
     if (m_config.graphics.enableFrustumCulling) {
@@ -879,9 +879,11 @@ void Renderer::updateGlobalUBO([[maybe_unused]] uint32_t currentFrame, Scene& sc
     const auto& fog = scene.getFog();
     uboData.fogColor = glm::vec4(fog.color, static_cast<float>(fog.type));
     uboData.fogParams = glm::vec4(fog.density, fog.start, fog.end, 0.0f);
+
+    return activeCamera;
 }
 
-void Renderer::prepareRenderData(Scene& scene) {
+void Renderer::prepareRenderData(Scene& scene, const Camera* activeCamera) {
     std::lock_guard<std::mutex> lock(m_commandMutex);
     m_renderCommands.clear();
 
@@ -981,20 +983,22 @@ void Renderer::prepareRenderData(Scene& scene) {
 
     // Frustum Culling: Remove objects outside the view frustum unless they are shadow casters within shadow range
     if (m_config.graphics.enableFrustumCulling && !m_renderCommands.empty()) {
-        Camera* activeCamera = nullptr;
-        auto camView = scene.getRegistry().view<CameraComponent>();
-        for (auto entity : camView) {
-            if (camView.get<CameraComponent>(entity).active) {
-                activeCamera = camView.get<CameraComponent>(entity).camera.get();
-                break;
+        const Camera* cam = activeCamera;
+        if (!cam) {
+            auto camView = scene.getRegistry().view<CameraComponent>();
+            for (auto entity : camView) {
+                if (camView.get<CameraComponent>(entity).active) {
+                    cam = camView.get<CameraComponent>(entity).camera.get();
+                    break;
+                }
             }
         }
 
         glm::vec3 camPos(0.0f);
         float shadowFarZSq = 1000.0f * 1000.0f;
-        if (activeCamera) {
-            camPos = activeCamera->getPosition();
-            float shadowFarZ = std::max(activeCamera->getFarPlane(), 1000.0f);
+        if (cam) {
+            camPos = cam->getPosition();
+            float shadowFarZ = std::max(cam->getFarPlane(), 1000.0f);
             shadowFarZSq = shadowFarZ * shadowFarZ;
         }
 

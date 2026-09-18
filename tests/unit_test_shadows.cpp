@@ -37,8 +37,8 @@ int main(int argc, char* argv[]) {
     
     auto splits = ShadowCascade::calculateSplitDistances(cascadeCount, nearPlane, farPlane, 0.5f);
     assert(splits.size() == cascadeCount);
-    assert(splits[0] > nearPlane); // La distance du premier split doit être superieur au near plane.
-    assert(splits.back() <= farPlane); // La derniere distance doit etre proche du far plane.
+    assert(splits[0] > nearPlane); // First split distance must be greater than near plane
+    assert(splits.back() <= farPlane); // Last distance must be close to far plane
     
     glm::mat4 cameraProj = glm::perspective(glm::radians(45.0f), 16.0f/9.0f, nearPlane, farPlane);
     cameraProj[1][1] *= -1; // Vulkan Y-flip
@@ -47,7 +47,7 @@ int main(int argc, char* argv[]) {
     
     glm::mat4 lightVP = ShadowCascade::calculateLightSpaceMatrix(cameraProj, cameraView, lightDir, nearPlane, splits[0], cfg.graphics.shadowMapResolution);
     
-    // Une identité indiquerait le stub par defaut
+    // Identity matrix would indicate default stub
     assert(lightVP != glm::mat4(1.0f)); 
 
     // --- Test 4: Sub-frustum Corners Coverage (Including Left & Right) ---
