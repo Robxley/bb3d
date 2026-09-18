@@ -1,0 +1,62 @@
+#version 450
+
+layout(local_size_x = 64) in;
+
+struct ObjectData {
+    mat4 model;
+    vec4 sphereBounds; // center.xyz, radius
+};
+
+struct IndexedIndirectCommand {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int  vertexOffset;
+    uint firstInstance;
+};
+
+layout(std430, binding = 0, set = 0) readonly buffer AllObjects {
+    ObjectData objects[];
+} allObjects;
+
+layout(std430, binding = 1, set = 0) buffer IndirectCommands {
+    IndexedIndirectCommand commands[];
+} indirectBuffer;
+
+layout(binding = 2, set = 0) uniform Frustum {
+    vec4 planes[6];
+} frustum;
+
+layout(push_constant) uniform PushConstants {
+    uint objectCount;
+};
+
+bool isVisible(vec3 center, float radius) {
+    for (int i = 0; i < 6; i++) {
+        if (dot(frustum.planes[i].xyz, center) + frustum.planes[i].w < -radius) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void main() {
+    uint gID = gl_GlobalInvocationID.x;
+    if (gID >= objectCount) return;
+
+    ObjectData obj = allObjects.objects[gID];
+    
+    // Test de visibilitÃ© par sphÃ¨re englobante (plus rapide en compute)
+    vec3 worldCenter = (obj.model * vec4(obj.sphereBounds.xyz, 1.0)).xyz;
+    float worldRadius = obj.sphereBounds.w * max(length(obj.model[0].xyz), max(length(obj.model[1].xyz), length(obj.model[2].xyz)));
+
+    if (isVisible(worldCenter, worldRadius)) {
+        // Dans une implÃ©mentation multi-mesh simple, on suppose ici que chaque objet 
+        // a son propre index de commande (1 objet = 1 commande indirecte).
+        // Pour du batching massif, il faudrait une passe de tri/rÃ©partition plus complexe.
+        // Ici on se contente d'activer/dÃ©sactiver l'instance.
+        atomicExchange(indirectBuffer.commands[gID].instanceCount, 1);
+    } else {
+        atomicExchange(indirectBuffer.commands[gID].instanceCount, 0);
+    }
+}

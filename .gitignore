@@ -9,7 +9,8 @@ tmp/
 CMakeUserPresets.json
 
 # Assets (binary files, generated models, etc.)
-assets/
+assets/*
+!assets/shaders/
 temp_textures/
 
 # Logs

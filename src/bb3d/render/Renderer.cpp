@@ -979,13 +979,42 @@ void Renderer::prepareRenderData(Scene& scene) {
         }
     }
 
-    // Frustum Culling: Remove objects outside the view frustum
+    // Frustum Culling: Remove objects outside the view frustum unless they are shadow casters within shadow range
     if (m_config.graphics.enableFrustumCulling && !m_renderCommands.empty()) {
+        Camera* activeCamera = nullptr;
+        auto camView = scene.getRegistry().view<CameraComponent>();
+        for (auto entity : camView) {
+            if (camView.get<CameraComponent>(entity).active) {
+                activeCamera = camView.get<CameraComponent>(entity).camera.get();
+                break;
+            }
+        }
+
+        glm::vec3 camPos(0.0f);
+        float shadowFarZSq = 1000.0f * 1000.0f;
+        if (activeCamera) {
+            camPos = activeCamera->getPosition();
+            float shadowFarZ = std::max(activeCamera->getFarPlane(), 1000.0f);
+            shadowFarZSq = shadowFarZ * shadowFarZ;
+        }
+
         auto it = std::remove_if(m_renderCommands.begin(), m_renderCommands.end(),
             [&](const RenderCommand& cmd) {
                 if (!cmd.mesh) return false;
                 AABB worldBounds = cmd.mesh->getBounds().transform(cmd.transform);
-                return !m_frustum.intersects(worldBounds);
+                if (m_frustum.intersects(worldBounds)) {
+                    return false; // Visible in camera frustum, keep!
+                }
+                // Outside camera frustum: retain if it casts shadows and is within shadow range
+                if (cmd.castShadows && m_shadowsEnabledRuntime) {
+                    glm::vec3 center = (worldBounds.min + worldBounds.max) * 0.5f;
+                    glm::vec3 diff = center - camPos;
+                    float distSq = glm::dot(diff, diff);
+                    if (distSq <= shadowFarZSq) {
+                        return false; // Keep for shadow pass
+                    }
+                }
+                return true; // Culled
             });
         m_renderCommands.erase(it, m_renderCommands.end());
     }

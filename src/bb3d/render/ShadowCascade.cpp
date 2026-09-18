@@ -1,5 +1,6 @@
 #include "bb3d/render/ShadowCascade.hpp"
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <glm/gtc/matrix_transform.hpp>
@@ -25,74 +26,84 @@ glm::mat4 ShadowCascade::calculateLightSpaceMatrix(
     float farZ, 
     uint32_t shadowMapRes
 ) {
-    // 1. Get the sub-frustum corners in view space.
+    // 1. Unproject the 4 corner rays of the camera frustum from NDC to view space.
+    // Vulkan NDC: x in [-1, 1], y in [-1, 1], z in [0, 1].
     glm::mat4 invProj = glm::inverse(cameraProj);
-    std::vector<glm::vec4> viewCorners;
-    for (unsigned int x = 0; x < 2; ++x) {
-        for (unsigned int y = 0; y < 2; ++y) {
-            for (unsigned int z = 0; z < 2; ++z) {
-                glm::vec4 pt = invProj * glm::vec4(2.0f * x - 1.0f, 2.0f * y - 1.0f, z, 1.0f);
-                viewCorners.push_back(pt / pt.w);
-            }
-        }
-    }
-    
-    // 2. Interpolate to get world space corners based on cascade splits
     glm::mat4 invView = glm::inverse(cameraView);
-    std::vector<glm::vec3> worldCorners;
+
+    const glm::vec2 ndcCorners[4] = {
+        {-1.0f, -1.0f}, // Top-Left
+        { 1.0f, -1.0f}, // Top-Right
+        {-1.0f,  1.0f}, // Bottom-Left
+        { 1.0f,  1.0f}  // Bottom-Right
+    };
+
+    std::array<glm::vec3, 8> worldCorners{};
     glm::vec3 center(0.0f);
-    
+
     for (int i = 0; i < 4; ++i) {
-        glm::vec3 dir = glm::normalize(glm::vec3(viewCorners[i + 4])); 
-        
-        glm::vec3 wNear = glm::vec3(invView * glm::vec4(dir * nearZ, 1.0f));
-        glm::vec3 wFar = glm::vec3(invView * glm::vec4(dir * farZ, 1.0f));
-        
-        worldCorners.push_back(wNear);
-        worldCorners.push_back(wFar);
-        
-        center += wNear;
-        center += wFar;
+        // Unproject point on the far plane (z = 1.0f in Vulkan NDC)
+        glm::vec4 pFar = invProj * glm::vec4(ndcCorners[i].x, ndcCorners[i].y, 1.0f, 1.0f);
+        glm::vec3 vFar = glm::vec3(pFar) / pFar.w;
+
+        // In standard camera view space (looking along -Z), depth is -z.
+        // Normalize the ray by its depth so that ray * (-distance) gives the view-space point.
+        float depth = std::abs(vFar.z);
+        glm::vec3 rayDir = (depth > 1e-6f) ? (vFar / depth) : glm::vec3(0.0f, 0.0f, -1.0f);
+
+        // Compute sub-frustum near and far corners in view space.
+        // rayDir has rayDir.z == -1.0f (looking down -Z), so multiplying by nearZ/farZ puts them in front of camera.
+        glm::vec3 vNearCorner = rayDir * nearZ;
+        glm::vec3 vFarCorner = rayDir * farZ;
+
+        // Transform to world space
+        glm::vec3 wNear = glm::vec3(invView * glm::vec4(vNearCorner, 1.0f));
+        glm::vec3 wFar = glm::vec3(invView * glm::vec4(vFarCorner, 1.0f));
+
+        worldCorners[i] = wNear;
+        worldCorners[i + 4] = wFar;
+
+        center += wNear + wFar;
     }
     center /= 8.0f;
 
-    // 3. Compute Bounding Sphere Radius around the frustum
+    // 2. Compute isotropic bounding sphere around the sub-frustum
     float radius = 0.0f;
-    for (const auto& v : worldCorners) {
-        radius = std::max(radius, glm::length(v - center));
+    for (const auto& corner : worldCorners) {
+        radius = std::max(radius, glm::distance(corner, center));
     }
-    radius = std::ceil(radius * 16.0f) / 16.0f; // Stabilize radius
+    // Stabilize radius to prevent precision jitter
+    radius = std::ceil(radius * 16.0f) / 16.0f;
 
-    // 4. Calculate Light View properly positioned behind the bounding sphere
-    // Adapt back margin to scene scale (radius * 3 + 10% of scene depth)
-    float backMargin = radius * 3.0f + (farZ - nearZ) * 0.1f; 
-    glm::vec3 eye = center - lightDir * backMargin;
-    glm::vec3 up = std::abs(lightDir.y) > 0.999f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
+    // 3. Position the light camera along lightDir pointing at center.
+    // Ensure sufficient back margin to encompass shadow casters located between the light and the frustum.
+    glm::vec3 normalizedLightDir = glm::normalize(lightDir);
+    float backMargin = radius * 4.0f + 50.0f;
+    glm::vec3 eye = center - normalizedLightDir * backMargin;
+    glm::vec3 up = (std::abs(normalizedLightDir.y) > 0.99f) ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
     glm::mat4 lightView = glm::lookAt(eye, center, up);
 
-    // 5. Fixed Orthographic Matrix based strictly on sphere radius
-    float extents = radius; 
-    float zNear_ortho = 0.0f; 
-    // Adapt far plane to scene scale to handle large distances (moon at 25m, camera at 100m+)
-    float sceneScale = farZ - nearZ;
-    float zFar_ortho = backMargin + radius + sceneScale * 0.5f;
-    
-    glm::mat4 lightProj = glm::ortho(-extents, extents, -extents, extents, zNear_ortho, zFar_ortho);
-    
-    // IMPORTANT: Fix Y axis for Vulkan depth projection mappings
+    // 4. Symmetric orthographic projection based on the bounding sphere radius.
+    // Slight margin (5%) to guarantee that sub-frustum corners remain inside after texel snapping.
+    float extents = radius * 1.05f;
+    float zNearOrtho = 0.0f;
+    float zFarOrtho = backMargin + radius * 2.0f;
+
+    glm::mat4 lightProj = glm::ortho(-extents, extents, -extents, extents, zNearOrtho, zFarOrtho);
+
+    // Vulkan Y-flip for depth projection
     lightProj[1][1] *= -1.0f;
-    
-    // 6. Texel Snapping 
+
+    // 5. Texel Snapping to prevent shadow edge shimmering when camera moves/rotates
     glm::mat4 shadowMatrix = lightProj * lightView;
     glm::vec4 shadowOrigin = shadowMatrix * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
-    shadowOrigin = shadowOrigin * (float)shadowMapRes / 2.0f;
-    
+    shadowOrigin = shadowOrigin * (static_cast<float>(shadowMapRes) * 0.5f);
+
     glm::vec4 roundedOrigin = glm::round(shadowOrigin);
-    glm::vec4 roundOffset = roundedOrigin - shadowOrigin;
-    roundOffset = roundOffset * 2.0f / (float)shadowMapRes;
-    roundOffset.z = 0.0f; 
+    glm::vec4 roundOffset = (roundedOrigin - shadowOrigin) * (2.0f / static_cast<float>(shadowMapRes));
+    roundOffset.z = 0.0f;
     roundOffset.w = 0.0f;
-    
+
     lightProj[3] += roundOffset;
 
     return lightProj * lightView;
