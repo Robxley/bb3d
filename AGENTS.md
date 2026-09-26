@@ -75,13 +75,14 @@ Pour garantir l'intégrité du moteur et éliminer les faux positifs ou hallucin
    - L'existence du bug requiert le consensus de deux regards : l'**Agent Rapporteur** (qui isole et documente le problème) et l'**Agent Fixeur** (qui revalide de façon indépendante la réalité du problème avant d'agir). En cas de faux positif, l'agent fixeur le démontre techniquement dans la fiche de tâche.
 3. **Reproduction TDD :**
    - Écrire un test unitaire qui échoue (RED) avant d'implémenter la moindre ligne de correctif.
-4. **Revue de Validation Systématique :**
-   - Une fois le fix appliqué et les tests validés (GREEN), une revue de code formelle par un second agent/reviewer est obligatoire pour vérifier l'absence d'effets de bord et signer `APPROVED`.
+4. **Revue de Validation Systématique & Audit de Performance :**
+   - Une fois le fix appliqué et les tests validés (GREEN), une revue de code formelle par un second agent/reviewer est obligatoire pour vérifier l'absence d'effets de bord, auditer l'impact de performance jeu vidéo (zéro copie masquée, structures légères, zéro régression de frametime) et signer `APPROVED`.
 
 ---
 
 ## 📜 Règles de Codage & Standards Critiques
 
+0. **Mentalité Moteur 3D & Jeu Vidéo Temps Réel (Règle Suprême) :** Toute décision d'architecture, écriture de code, refactoring, correction de bug ou revue doit être pensée et mesurée pour la performance maximale d'un jeu vidéo temps réel (frametime constant, latence minimale, 60+ FPS stables). L'architecture logicielle ne doit jamais sacrifier la performance à l'abstraction superflue : Data-Oriented Design (DOD), localité spatiale et temporelle de cache (L1/L2/L3), zéro allocation dynamique sur le chemin critique, structures de données compactes (alignement et padding optimisés), minimisation de la bande passante mémoire CPU↔GPU et élimination des indirections de pointeurs ou dispatches virtuels évitables.
 1. **Opacité de l'API Publique :** Le code client (`Engine`, `Scene`, `Component`, `Mesh`) ne doit **JAMAIS** inclure de headers Vulkan (`<vulkan/...>`) ni manipuler des types `vk::*` ou `SDL_*`.
 2. **Zero-Allocation dans le Hot Path :** Aucune allocation dynamique dans `update()` ou `render()`. Pré-allouer via `reserve()` ou buffers réutilisables.
 3. **Multi-Streams Sommets :** L'utilisation d'une structure Uber-Vertex unique est **proscrite en production**. Séparer `VertexPos` (12 octets) pour les shadow maps, le z-prepass et le picking.

@@ -20,8 +20,14 @@ description: "Rédige du code C++ idiomatique haute performance avec les fonctio
 - **Attributs :** Déclarer `[[nodiscard]]` systématiquement sur les accesseurs et fonctions retournant un état critique ou une ressource allouée.
 - **Compile-Time First :** Maximiser l'usage de `constexpr` / `consteval`, `if constexpr` pour résoudre les calculs à la compilation.
 
-### 2. Performance Moteur & Hot Path Safety
-- **Zero-Allocation dans le Hot Path :** Aucune allocation dynamique (`new`, `std::vector::push_back` provoquant une réallocation, `std::string`, `make_shared`) dans les boucles `update()` et `render()`. Pré-allouer via `reserve()` ou pools réutilisables.
+### 2. Performance Moteur 3D & Hot Path Safety (Règle 0 AGENTS.md)
+- **Mentalité Temps Réel Jeux Vidéo :** Chaque ligne de code doit viser un frametime régulier (16.6ms pour 60 FPS, 6.9ms pour 144 FPS) sans à-coups ni pics de latence.
+- **Data-Oriented Design (DOD) & Cache Locality :**
+  - Privilégier les structures contiguës et les structures de tableaux (SoA ou AoS compact) pour maximiser les hits dans les caches L1/L2 (lignes de 64 octets).
+  - Bannir les hiérarchies d'héritage virtuel profond (`virtual` / vtable dispatch) dans les boucles de mise à jour et de rendu : favoriser la composition, les templates et le modèle ECS (`EnTT`).
+- **Zero-Allocation dans le Hot Path :** Aucune allocation dynamique (`new`, `std::vector::push_back` provoquant une réallocation, `std::string`, `make_shared`, captures de lambda dynamiques) dans les boucles `update()` et `render()`. Pré-allouer via `reserve()` ou pools réutilisables.
+- **Minimisation de la Bande Passante Mémoire :** Réduire la taille des structures transférées au GPU (ex: `VertexPos` 12 octets au lieu de structures Uber-Vertex de 64+ octets pour les shadow passes).
+- **Branch Prediction :** Structurer les boucles pour favoriser la prédiction de branchement du processeur. Utiliser `[[likely]]` et `[[unlikely]]` sur les chemins froids d'erreur ou cas exceptionnels.
 - **Choix des conteneurs STL (Cache Friendly) :**
   - `std::vector` : Le choix par défaut absolu (contiguïté mémoire, respect du cache L1/L2).
   - `std::array` : Obligatoire si la taille est connue à la compilation (stack allocation, zéro overhead).

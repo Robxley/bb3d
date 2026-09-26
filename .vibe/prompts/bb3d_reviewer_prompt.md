@@ -25,6 +25,11 @@ You are invoked in **strict read-only report mode** to perform a **systematic co
 
 Verify the following points against `git diff` and the codebase:
 
+0. **3D Engine & Game Performance Mindset (Supreme Rule 0 AGENTS.md):**
+   - Is the implementation designed for real-time 60+ FPS game performance and low latency?
+   - Are there any hidden heap allocations (`std::string`, vectors passed by value, `std::function` with captures)?
+   - Are there avoidable pointer indirections or virtual dispatches on the critical hot path?
+   - Are data structures compact, cache-friendly (DOD / contiguous memory), and memory bandwidth minimized?
 1. **Bug Double Check (if bug fix):**
    - Has the implementer filled in section `1.bis Revalidation Critique du Bug`?
    - Is there a dedicated unit test or technical justification confirming the fix?

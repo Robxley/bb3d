@@ -39,6 +39,10 @@
 
 ### 🛠️ Checkpoints de l'Implémenteur (Avant soumission en revue)
 - [ ] **Double Check Bug (si correctif) :** L'existence du bug a été vérifiée de manière critique et confirmée dans le code source avant toute modification (pas de faux positif).
+- [ ] **Performance Moteur 3D & Jeu Vidéo (Règle 0) :**
+  - [ ] Architecture pensée pour le frametime temps réel (60+ FPS stables, latence minimale).
+  - [ ] Structures de données compactes, contiguës et respectueuses des lignes de cache L1/L2/L3 (Data-Oriented Design).
+  - [ ] Minimisation de la bande passante mémoire et élimination des indirections/copies superflues.
 - [ ] **TDD & Tests :** Les nouveaux tests et les tests unitaires existants passent (`ctest`).
 - [ ] **Standards C++ (`cpp-pro`) :**
   - [ ] Zéro allocation dynamique dans le *Hot Path* (`render()` / `update()`).
@@ -57,6 +61,10 @@
 ---
 
 ### 🔍 Checkpoints des Reviewers (Revue de Code Systématique & Approbation)
+- [ ] **Audit de Performance Moteur 3D & Jeu Vidéo (Règle 0) :**
+  - [ ] Zéro copie masquée (`std::string`, vecteurs passés par valeur) ni allocation cachée (`std::function`, lambdas avec capture heap).
+  - [ ] Pas de dispatch virtuel ou d'indirection superflue sur le chemin critique.
+  - [ ] Absence d'impact négatif sur le frametime, la latence CPU/GPU ou la bande passante mémoire.
 - [ ] **Architecture & Opacité (`AGENTS.md`) :**
   - [ ] Les types Vulkan (`vk::*`) restent 100% opaques vis-à-vis du code utilisateur/scene.
   - [ ] Respect de la séparation CPU/GPU (pas de transfert inutile par frame).

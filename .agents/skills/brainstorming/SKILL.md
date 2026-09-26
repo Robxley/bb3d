@@ -39,6 +39,7 @@ Tu dois créer une tâche pour chacun de ces points et les compléter dans l'ord
 
 **2. Explorer les approches :**
 - Propose 2 à 3 approches d'architecture ou de résolution différentes.
+- **Critère Prioritaire Absolu :** La performance pour un moteur 3D et jeu vidéo temps réel (Règle 0 `AGENTS.md`) est le critère prépondérant dans l'évaluation des approches (zéro overhead, frametime stable, localité cache, bande passante mémoire minimale).
 - Présente les options de façon conversationnelle en mettant en avant ta recommandation principale et le raisonnement derrière.
 
 **3. Présenter le design :**

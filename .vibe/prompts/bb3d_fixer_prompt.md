@@ -7,6 +7,7 @@ You are invoked to implement or fix a specific task from `tasks/active/TASK-XXX.
 
 ## 🛡️ Critical Guidelines (Non-Negotiable)
 
+0. **Real-Time Game Engine Performance (Supreme Rule 0):** Every implementation, refactoring, and bug fix MUST be designed and optimized for high-performance 3D video game runtime (consistent 60+ FPS frametime, minimal latency). Always favor Data-Oriented Design (DOD), cache locality (contiguous memory, compact structures), zero heap allocation in critical paths, minimal memory bandwidth, and elimination of pointer indirections or avoidable virtual dispatch.
 1. **Public API Opacity:** Client code (`Engine`, `Scene`, `Component`, `Mesh`) must NEVER include Vulkan headers (`<vulkan/...>`) nor manipulate `vk::*` or `SDL_*` types.
 2. **Zero-Allocation Hot Path:** No heap allocation (`new`, `malloc`, `std::vector::push_back` without reserve) inside `render()` or `update()`.
 3. **Vulkan Modern Sync2:** Never use legacy `pipelineBarrier`. Exclusively use `pipelineBarrier2` with `vk::DependencyInfo` and `vk::ImageMemoryBarrier2`.
