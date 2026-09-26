@@ -112,21 +112,70 @@ flowchart LR
 ---
 
 ### 🎛️ Jalon 4 : Outils, Éditeur ImGui & Ergonomie
-> **Objectif :** Offrir un environnement d'édition temps réel et de débogage visuel interactif (`BB3D_ENABLE_EDITOR`).
+> **Objectif :** Offrir un environnement d'édition temps réel modulaire, découplé et interactif (`BB3D_ENABLE_EDITOR`), conforme à la [Spécification Architecturale](../docs/editor/EDITOR_ARCHITECTURE_SPECIFICATION.md).
 
-- [ ] **Intégration Dear ImGui (Docking Branch)** :
-  - Backends SDL3 et Vulkan avec support du Dynamic Rendering.
-  - Couche d'abstraction `bb3d::ImGuiLayer` (Init, Event Intercept, Render).
-- [ ] **Viewport de Rendu Dédié** :
-  - Rendu de la scène dans une texture offscreen injectée dans une fenêtre ImGui redimensionnable avec mapping d'input relatif.
-- [ ] **Panneaux d'Édition & Inspection** :
-  - Arborescence de scène (Scene Hierarchy) avec ajout/suppression d'entités en direct.
-  - Inspecteur de composants (Transform, Mesh, Material, RigidBody, Camera, Light).
-  - Console de logs interactive branchée sur `spdlog`.
-- [ ] **Gizmos de Manipulation 3D** :
-  - Gizmos de translation, rotation et échelle dans le viewport.
-- [ ] **Moniteur de Métriques & Diagnostic** :
-  - Graphiques de frametime CPU/GPU, occupation mémoire VMA, état des pools de threads.
+#### 🧱 Phase 4.1 : Socle Modulaire & Découpage de l'Éditeur
+- [ ] **Infrastructure Centrale (`EditorContext`, `EditorPanel`)** :
+  - Définir l'interface `EditorPanel` (`onImGuiRender`, `onUpdate`, `onEvent`, `getId`, `getTitle`, `isOpen`).
+  - Implémenter `EditorContext` comme bus central (scène active, multi-sélection, barycentre pivot, état simulation).
+  - Test unitaire TDD : `unit_test_36_editor_context` (validation sélection, multi-sélection, pivot).
+- [ ] **Orchestration (`EditorPanelManager`) & Refactorisation du Monolithe `ImGuiLayer`** :
+  - Alléger `ImGuiLayer` en `EditorLayer` servant uniquement d'hôte de backend ImGui SDL3/Vulkan.
+  - Découper `ImGuiLayer.cpp` (1161 lignes) en sous-panneaux modulaires dans `src/bb3d/editor/panels/`.
+- [ ] **Éradication des Bugs Statiques Répertoriés (N5, N6, N7)** :
+  - Supprimer la branche `else if` dupliquée vide rétablissant l'inspecteur `LightComponent` (`N5`).
+  - Supprimer le statique partagé `partCol` pour une couleur par entité/composant (`N6`).
+  - Supprimer le statique partagé `s_loadConfig` pour un preset par asset/entité (`N7`).
+
+#### ⏪ Phase 4.2 : Système de Commande & Historique Undo/Redo
+- [ ] **Moteur de Commandes Borné (`EditorCommand`, `CommandHistory`)** :
+  - Pile circulaire ou deque bornée à 100 actions avec support de fusion (merging) des manipulations continues.
+  - Test unitaire TDD : `unit_test_37_editor_command_history` (validation Undo, Redo, limite mémoire, dirty flag).
+- [ ] **Commandes ECS Réversibles** :
+  - `TransformEntityCommand` (mémorisation de translation, rotation, scale avant/après manipulation).
+  - `CreateEntityCommand` & `DestroyEntityCommand` (instanciation et sérialisation/restauration JSON complète).
+  - `ChangePropertyCommand<T>` pour les modifications d'attributs de composants.
+- [ ] **Raccourcis & Menu Édition** :
+  - Raccourcis universels `Ctrl+Z` (Annuler), `Ctrl+Y` / `Ctrl+Shift+Z` (Rétablir) intégrés au menu principal.
+
+#### 🕹️ Phase 4.3 : Manipulation 3D Temps Réel & Gizmos ImGuizmo
+- [ ] **Intégration CMake d'ImGuizmo** :
+  - Déclaration `FetchContent_Declare(imguizmo ...)` sous `#if defined(BB3D_ENABLE_EDITOR)`.
+- [ ] **Intégration Mathématique dans le Viewport 3D** :
+  - Adaptation des matrices View et Projection pour Vulkan (inversion Y) sans casser le rendu.
+  - Support complet des modes Translation (`W`), Rotation (`E`), Échelle (`R`) en repère World vs Local.
+  - Snapping paramétrable (grille 0.5m, angle 15°, scale 0.1x).
+- [ ] **Multi-Sélection & Pivot Barycentrique** :
+  - Calcul du centre de masse de la sélection multiple et transformation simultanée du groupe.
+  - Synchronisation temps réel des transforms avec Jolt Physics (`updateBodyTransform`).
+  - Génération d'une commande unique d'Undo lors du relâchement du gizmo (`!ImGuizmo::IsUsing()`).
+
+#### 📂 Phase 4.4 : Ergonomie de Rendu, Navigation & Content Browser
+- [ ] **Caméra Éditeur Dédiée (`EditorCamera`)** :
+  - Caméra libre Flycam (WASD + Clic Droit, vitesse réglable à la molette) et mode Orbit (Alt + Clic Gauche).
+  - Cadrage automatique instantané de l'entité sélectionnée avec la touche `F`.
+  - Bascule en un clic entre Caméra Éditeur libre et Caméra Jeu active.
+- [ ] **Asset Browser Interactif (`AssetBrowserPanel`)** :
+  - Arborescence de dossiers sous `assets/` et affichage en grille d'icônes avec cache de miniatures.
+- [ ] **Système Universel de Drag & Drop (Natif ImGui)** :
+  - Déposer un maillage 3D (`.obj`, `.gltf`) dans le Viewport instancie le modèle au sol.
+  - Déposer une texture (`.png`, `.jpg`) sur un slot de l'Inspecteur l'assigne au matériau PBR.
+  - Déposer un fichier `.json` charge la scène correspondante.
+- [ ] **Console de Logs Temps Réel (`ConsolePanel`)** :
+  - Sink mémoire circulaire `EditorConsoleSink` pour `spdlog` avec filtres par niveau (Trace/Info/Warn/Error).
+  - Recherche textuelle, auto-scroll et copie presse-papier.
+
+#### 📊 Phase 4.5 : Diagnostics Temps Réel & Paramétrage Avancé
+- [ ] **Moniteur de Métriques & StatsOverlay** :
+  - Overlay HUD semi-transparent dans le Viewport (FPS, frametime CPU/GPU, draw calls, triangles, VRAM VMA).
+  - Décomposition des passes Tracy GPU (`BB_GPU_ZONE`).
+- [ ] **Configuration de Scène & Environnement (`SceneSettingsPanel`)** :
+  - Paramétrage interactif des biais de Cascaded Shadow Maps (CSM), brouillard atmosphérique, skybox.
+  - Réglages du post-process (Tone Mapping, Bloom).
+- [ ] **Persistance des Dispositions de Fenêtres (Docking Layouts)** :
+  - Sauvegarde et chargement de `editor_layout.ini`.
+  - Presets de disposition : "Défaut", "Level Design", "Animation", "Debug & Profilage".
+
 
 ---
 

@@ -47,6 +47,10 @@ L'agent **DOIT** consulter et activer les compétences locales selon le besoin :
 | **`vibe-orchestrator`** | `.agents/skills/vibe-orchestrator/` | Pour déléguer et orchestrer des tâches avec Mistral Vibe CLI (Fixeur TDD, Reviewer en lecture seule) via worktrees isolés et modèle `glm-5.3`. |
 | **`createur-de-competences`** | `.agents/skills/createur-de-competences/` | Pour concevoir et générer de nouvelles compétences au standard officiel. |
 
+### 🎭 Rôles Spécialisés d'Agents (Éditeur & IHM)
+- **`ui_ux_designer`** : Lead UI/UX & Graphic Designer (conception du Design System Dark Pro, tokens d'élévation, ergonomie, widgets vectoriels composites, retours visuels Drag & Drop). Spécification : `docs/editor/EDITOR_UI_UX_DESIGN_SYSTEM.md`.
+- **`engine_tools_architect`** : Principal Engine Tools Architect & Editor Designer (architecture modulaire découplée `EditorPanel`/`EditorContext`, gizmos ImGuizmo, Content Browser Drag & Drop, Command Pattern Undo/Redo). Spécification : `docs/editor/EDITOR_ARCHITECTURE_SPECIFICATION.md`.
+
 ---
 
 ## 🔄 Workflow Obligatoire pour Toute Intervention
