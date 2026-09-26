@@ -427,14 +427,8 @@ void Engine::Render() {
     // 2. UI Rendering (ImGui) overlay
     if (m_Config.modules.enableEditor && m_ImGuiLayer) {
         m_ImGuiLayer->beginDockspace();
-
-        m_ImGuiLayer->showViewport(m_Renderer->getRenderTarget(), *m_ActiveScene);
         m_ImGuiLayer->showMainMenu();
-        m_ImGuiLayer->showSceneHierarchy(*m_ActiveScene);
-        m_ImGuiLayer->showSceneSettings(*m_ActiveScene);
-        m_ImGuiLayer->showInspector();
-        m_ImGuiLayer->showToolbar();
-
+        m_ImGuiLayer->renderPanels(m_Renderer->getRenderTarget(), *m_ActiveScene);
         m_ImGuiLayer->endDockspace();
 
         if (frameStarted && m_Renderer) {
