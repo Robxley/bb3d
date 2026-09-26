@@ -5,6 +5,8 @@
 #include "bb3d/render/UniformBuffer.hpp"
 #include "bb3d/scene/Components.hpp"
 #include "bb3d/render/MeshGenerator.hpp"
+#include "bb3d/render/DebugUtils.hpp"
+#include <spdlog/fmt/fmt.h>
 #include <array>
 #include <algorithm>
 #include <stb_image_write.h>
@@ -56,12 +58,47 @@ Renderer::Renderer(VulkanContext& context, Window& window, JobSystem& jobSystem,
     // Debug Physics Collider setup (Green color)
     m_debugColliderMat = CreateRef<UnlitMaterial>(m_context);
     m_debugColliderMat->setColor({0.0f, 1.0f, 0.3f});
+
+#if defined(BB_PROFILE)
+    vk::CommandBuffer initCb = m_context.allocateShortLivedCommandBuffer();
+    m_tracyGpuContext = TracyVkContext(
+        static_cast<VkPhysicalDevice>(m_context.getPhysicalDevice()),
+        static_cast<VkDevice>(m_context.getDevice()),
+        static_cast<VkQueue>(m_context.getGraphicsQueue()),
+        static_cast<VkCommandBuffer>(initCb)
+    );
+    m_context.freeShortLivedCommandBuffer(initCb);
+    BB_CORE_INFO("Renderer: Tracy GPU profiling context initialized.");
+#endif
+
+    m_context.setObjectName(m_commandPool, "Renderer_CommandPool");
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; ++i) {
+        m_context.setObjectName(m_commandBuffers[i], fmt::format("Renderer_CommandBuffer_Frame{}", i));
+        m_context.setObjectName(m_imageAvailableSemaphores[i], fmt::format("Renderer_ImageAvailableSem_Frame{}", i));
+        m_context.setObjectName(m_inFlightFences[i], fmt::format("Renderer_InFlightFence_Frame{}", i));
+        if (i < m_cameraUbos.size() && m_cameraUbos[i]) {
+            m_context.setObjectName(m_cameraUbos[i]->getHandle(), fmt::format("Renderer_CameraUBO_Frame{}", i));
+        }
+    }
+    if (m_shadowDepthImage) {
+        m_context.setObjectName(m_shadowDepthImage, "Renderer_ShadowDepthImageArray");
+    }
+    if (m_shadowDepthView) {
+        m_context.setObjectName(m_shadowDepthView, "Renderer_ShadowDepthViewArray");
+    }
 }
 
 Renderer::~Renderer() {
     auto dev = m_context.getDevice();
     if (dev) {
         try { dev.waitIdle(); } catch(...) {}
+
+#if defined(BB_PROFILE)
+        if (m_tracyGpuContext) {
+            TracyVkDestroy(static_cast<tracy::VkCtx*>(m_tracyGpuContext));
+            m_tracyGpuContext = nullptr;
+        }
+#endif
 
         m_renderCommands.clear();
         m_pipelines.clear();
@@ -466,6 +503,8 @@ bool Renderer::render(Scene& scene) {
     cb.begin({ vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
     m_frameStarted = true;
 
+    BB_GPU_ZONE(m_tracyGpuContext, m_context, cb, "Render Scene", DebugColor::Default);
+
     // 4. Shadow Pass
     if (uboData.globalParams.y > 0.0f && m_shadowsEnabledRuntime) {
         renderShadows(cb, scene, uboData);
@@ -627,6 +666,13 @@ void Renderer::submitAndPresent() {
     vk::DependencyInfo presentDepInfo{};
     presentDepInfo.setImageMemoryBarriers(presentBarrier);
     cb.pipelineBarrier2(presentDepInfo);
+
+#if defined(BB_PROFILE)
+    if (m_tracyGpuContext) {
+        TracyVkCollect(static_cast<tracy::VkCtx*>(m_tracyGpuContext), static_cast<VkCommandBuffer>(cb));
+    }
+#endif
+
     cb.end();
     vk::PipelineStageFlags waitStages[] = { vk::PipelineStageFlagBits::eColorAttachmentOutput };
     vk::SubmitInfo submitInfo(1, &m_imageAvailableSemaphores[m_currentFrame], waitStages, 1, &cb, 1, &m_renderFinishedSemaphores[imageIndex]);
@@ -647,6 +693,7 @@ void Renderer::submitAndPresent() {
 
 void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView colorView, vk::ImageView depthView, vk::Extent2D extent) {
     BB_CORE_TRACE("Renderer: Drawing scene (Frame: {})", m_currentFrame);
+    BB_GPU_ZONE(m_tracyGpuContext, m_context, cb, "Scene PBR Pass", DebugColor::ScenePbrPass);
     
     vk::RenderingAttachmentInfo colorAttr;
     colorAttr.imageView = colorView;
@@ -720,6 +767,7 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
 }
 
 void Renderer::renderSkybox(vk::CommandBuffer cb, Scene& scene) {
+    BB_GPU_ZONE(m_tracyGpuContext, m_context, cb, "Skybox Pass", DebugColor::SkyboxPass);
     auto skySphereView = scene.getRegistry().view<SkySphereComponent>();
     if (!skySphereView.empty()) {
         auto entity = skySphereView.front(); auto& sky = skySphereView.get<SkySphereComponent>(entity);
@@ -743,6 +791,7 @@ void Renderer::renderSkybox(vk::CommandBuffer cb, Scene& scene) {
 }
 
 void Renderer::compositeToSwapchain(vk::CommandBuffer cb, uint32_t imageIndex) {
+    BB_GPU_ZONE(m_tracyGpuContext, m_context, cb, "PostProcess Composite", DebugColor::CompositePass);
     if (m_postProcessUbo) {
         PostProcessUBO ppData{
             .exposure = m_config.graphics.exposure,
@@ -1051,6 +1100,8 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
     for (auto entity : camView) { if (camView.get<CameraComponent>(entity).active) { activeCamera = camView.get<CameraComponent>(entity).camera.get(); break; } }
     if (!activeCamera) return;
 
+    BB_GPU_ZONE(m_tracyGpuContext, m_context, cb, "Shadow Pass", DebugColor::ShadowPass);
+
     float nearZ = activeCamera->getNearPlane();
     float farZ = activeCamera->getFarPlane();
     // Use a larger far plane for shadow cascades to ensure distant objects (moon, asteroids) are covered
@@ -1093,6 +1144,9 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
     cb.setDepthBias(m_config.graphics.shadowDepthBiasConstant, 0.0f, m_config.graphics.shadowDepthBiasSlope);
 
     for (uint32_t i = 0; i < m_config.graphics.shadowCascades; ++i) {
+        std::string cascadeLabelName = fmt::format("Shadow Cascade {}", i);
+        ScopedDebugLabel cascadeDebugLabel(m_context, cb, cascadeLabelName, DebugColor::ShadowPass);
+
         float minZ = (i == 0) ? nearZ : splits[i-1];
         float maxZ = splits[i];
 
@@ -1408,6 +1462,7 @@ void Renderer::renderEntityIds(Scene& scene) {
     if (!m_pickingImage || !m_pickingImageView || !m_pickingDepthImage || !m_pickingDepthImageView) return;
 
     auto& cb = m_commandBuffers[m_currentFrame];
+    BB_GPU_ZONE(m_tracyGpuContext, m_context, cb, "Picking Pass", DebugColor::PickingPass);
 
     // Transition picking images to attachment using modern Vulkan Sync2 (AGENTS.md rule 4)
     vk::ImageMemoryBarrier2 pickBarrier(

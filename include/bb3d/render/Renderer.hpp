@@ -17,6 +17,10 @@
 
 #include "bb3d/scene/Frustum.hpp"
 
+#if defined(BB_PROFILE)
+namespace tracy { class VkCtx; }
+#endif
+
 namespace bb3d {
 
 class Window; // Forward declaration
@@ -85,6 +89,10 @@ public:
     RenderTarget* getRenderTarget() { return m_renderTarget.get(); }
 
     [[nodiscard]] vk::ImageView getShadowDepthImageView() const { return m_shadowDepthView; }
+
+#if defined(BB_PROFILE)
+    [[nodiscard]] tracy::VkCtx* getTracyGpuContext() const noexcept { return m_tracyGpuContext; }
+#endif
 
     /** 
      * @brief Permet d'injecter des commandes de rendu UI après le rendu principal de la scène.
@@ -293,6 +301,10 @@ private:
     vk::CommandPool m_pickingCommandPool;
     vk::CommandBuffer m_pickingCommandBuffer;
     vk::Fence m_pickingFence;
+
+#if defined(BB_PROFILE)
+    tracy::VkCtx* m_tracyGpuContext = nullptr;
+#endif
 };
 
 } // namespace bb3d
