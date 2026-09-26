@@ -714,6 +714,21 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
     cb.beginRendering({ {}, {{0, 0}, extent}, 1, 0, 1, &colorAttr, &depthAttr });
     cb.setViewport(0, vk::Viewport(0, 0, (float)extent.width, (float)extent.height, 0, 1));
     cb.setScissor(0, vk::Rect2D({0, 0}, extent));
+
+    // Extended dynamic state: read feature flag once, then set deterministic initial
+    // state before renderSkybox() to prevent any state pollution from prior command buffers.
+    const bool extDynState = m_context.getEnabledFeatures().extendedDynamicState;
+    if (extDynState) {
+        // Default opaque scene state: back culling, CCW, depth test+write on, compare Less, triangles.
+        // renderSkybox() and the per-pipeline loop will override as needed.
+        cb.setCullMode(vk::CullModeFlagBits::eBack);
+        cb.setFrontFace(vk::FrontFace::eCounterClockwise);
+        cb.setDepthTestEnable(VK_TRUE);
+        cb.setDepthWriteEnable(VK_TRUE);
+        cb.setDepthCompareOp(vk::CompareOp::eLess);
+        cb.setPrimitiveTopology(vk::PrimitiveTopology::eTriangleList);
+    }
+
     renderSkybox(cb, scene);
     
     // The commands are already sorted and the instance buffer is filled in prepareRenderData
@@ -731,9 +746,7 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
         currentBatchCount = 0;
     };
 
-    // Extended dynamic state: determines per-material-type pipeline settings.
-    // Only emitted once per pipeline change to minimize GPU command overhead.
-    const bool extDynState = m_context.getEnabledFeatures().extendedDynamicState;
+    // Extended dynamic state is read once above (extDynState) — reused below per pipeline switch.
 
     for (uint32_t i = 0; i < (uint32_t)m_renderCommands.size(); ++i) {
         const auto& cmd = m_renderCommands[i];
