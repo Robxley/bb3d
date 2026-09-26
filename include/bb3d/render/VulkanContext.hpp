@@ -8,7 +8,9 @@
 #include <string_view>
 #include <array>
 #include <atomic>
+#include <filesystem>
 #include <mutex>
+#include <span>
 #include <vector>
 
 struct SDL_Window;
@@ -160,10 +162,36 @@ public:
     /** @brief Inserts an instantaneous debug label marker in a command buffer. */
     void cmdInsertDebugLabel(vk::CommandBuffer cb, std::string_view name, std::array<float, 4> color = {0.8f, 0.8f, 0.8f, 1.0f});
 
+    /** @brief Checks if a binary blob matches a valid Vulkan PipelineCache header for the active physical device and driver. */
+    [[nodiscard]] bool isPipelineCacheValid(std::span<const uint8_t> data) const noexcept;
+
+    /** @brief Atomically writes the current vk::PipelineCache data to disk. Creates parent directories if missing. */
+    [[nodiscard]] bool savePipelineCache(const std::filesystem::path& path) const;
+
+    /** 
+     * @brief Loads binary cache data from disk and merges/initializes it into the current vk::PipelineCache.
+     * @note Must be called from the main render thread or externally synchronized with pipeline creation.
+     */
+    [[nodiscard]] bool loadPipelineCache(const std::filesystem::path& path);
+
+    /** @brief Sets the default file path for the persistent pipeline cache. */
+    void setPipelineCachePath(std::string_view path);
+
+    /** @brief Gets the current default pipeline cache file path. */
+    [[nodiscard]] const std::filesystem::path& getPipelineCachePath() const noexcept { return m_pipelineCachePath; }
+
+    /** @brief Enables or disables disk persistence for vk::PipelineCache. */
+    void setPipelineCacheEnabled(bool enabled) noexcept { m_enablePipelineCache = enabled; }
+
+    /** @brief Returns true if pipeline cache disk persistence is enabled. */
+    [[nodiscard]] bool isPipelineCacheEnabled() const noexcept { return m_enablePipelineCache; }
+
 private:
     void pollTransferCompletionsLocked();
 
     bool m_debugUtilsSupported = false;
+    std::filesystem::path m_pipelineCachePath = "assets/cache/pipelines.bin";
+    bool m_enablePipelineCache = true;
 
     vk::Instance m_instance;
     vk::DebugUtilsMessengerEXT m_debugMessenger;

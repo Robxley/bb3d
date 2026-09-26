@@ -72,6 +72,10 @@ namespace bb3d {
         bool enableTonemapping = false;   ///< Active le tonemapping ACES.
         bool enableGammaCorrection = true;///< Active la correction gamma.
 
+        // Pipeline Cache
+        bool enablePipelineCache = true;                  ///< Enables disk persistence for vk::PipelineCache.
+        std::string pipelineCachePath = "assets/cache/pipelines.bin"; ///< Path to binary pipeline cache file.
+
         GraphicsConfig& setVsync(bool v) { vsync = v; return *this; }
         GraphicsConfig& setFpsMax(int fps) { fpsMax = fps; return *this; }
         GraphicsConfig& setBuffering(std::string_view b) { buffering = b; return *this; }
@@ -86,8 +90,10 @@ namespace bb3d {
         GraphicsConfig& setGamma(float g) { gamma = g; return *this; }
         GraphicsConfig& setTonemapping(bool e) { enableTonemapping = e; return *this; }
         GraphicsConfig& setGammaCorrection(bool e) { enableGammaCorrection = e; return *this; }
+        GraphicsConfig& setPipelineCache(bool e) { enablePipelineCache = e; return *this; }
+        GraphicsConfig& setPipelineCache(bool e, std::string_view path) { enablePipelineCache = e; pipelineCachePath = path; return *this; }
 
-        NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers, enableFrustumCulling, enableMipmapping, enableOffscreenRendering, renderScale, shadowsEnabled, shadowCascades, shadowPCF, exposure, gamma, enableTonemapping, enableGammaCorrection)
+        NLOHMANN_DEFINE_TYPE_INTRUSIVE_WITH_DEFAULT(GraphicsConfig, vsync, fpsMax, buffering, msaaSamples, anisotropy, shadowMapResolution, enableValidationLayers, enableFrustumCulling, enableMipmapping, enableOffscreenRendering, renderScale, shadowsEnabled, shadowCascades, shadowPCF, exposure, gamma, enableTonemapping, enableGammaCorrection, enablePipelineCache, pipelineCachePath)
     };
 
     /**
