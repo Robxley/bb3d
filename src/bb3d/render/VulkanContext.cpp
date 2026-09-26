@@ -18,6 +18,7 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include <SDL3/SDL_vulkan.h>
 #include <set>
 #include <limits>
+#include <cstring>
 
 namespace bb3d {
 
@@ -500,12 +501,22 @@ void VulkanContext::pollTransferCompletionsLocked() {
 }
 
 void VulkanContext::setDebugObjectName(uint64_t objectHandle, vk::ObjectType objectType, std::string_view name) {
-    if (!m_debugUtilsSupported || !m_device || objectHandle == 0) return;
-    std::string nameStr(name);
+    if (!m_debugUtilsSupported || !m_device || objectHandle == 0 || name.empty()) return;
+    char stackBuf[128];
+    const char* pName = nullptr;
+    std::string heapName;
+    if (name.size() < sizeof(stackBuf)) {
+        std::memcpy(stackBuf, name.data(), name.size());
+        stackBuf[name.size()] = '\0';
+        pName = stackBuf;
+    } else {
+        heapName = std::string(name);
+        pName = heapName.c_str();
+    }
     vk::DebugUtilsObjectNameInfoEXT nameInfo{};
     nameInfo.objectType = objectType;
     nameInfo.objectHandle = objectHandle;
-    nameInfo.pObjectName = nameStr.c_str();
+    nameInfo.pObjectName = pName;
     try {
         m_device.setDebugUtilsObjectNameEXT(nameInfo);
     } catch (const std::exception& e) {
@@ -514,10 +525,20 @@ void VulkanContext::setDebugObjectName(uint64_t objectHandle, vk::ObjectType obj
 }
 
 void VulkanContext::cmdBeginDebugLabel(vk::CommandBuffer cb, std::string_view name, std::array<float, 4> color) {
-    if (!m_debugUtilsSupported || !cb) return;
-    std::string nameStr(name);
+    if (!m_debugUtilsSupported || !cb || name.empty()) return;
+    char stackBuf[128];
+    const char* pName = nullptr;
+    std::string heapName;
+    if (name.size() < sizeof(stackBuf)) {
+        std::memcpy(stackBuf, name.data(), name.size());
+        stackBuf[name.size()] = '\0';
+        pName = stackBuf;
+    } else {
+        heapName = std::string(name);
+        pName = heapName.c_str();
+    }
     vk::DebugUtilsLabelEXT labelInfo{};
-    labelInfo.pLabelName = nameStr.c_str();
+    labelInfo.pLabelName = pName;
     labelInfo.color = color;
     cb.beginDebugUtilsLabelEXT(labelInfo);
 }
@@ -528,10 +549,20 @@ void VulkanContext::cmdEndDebugLabel(vk::CommandBuffer cb) {
 }
 
 void VulkanContext::cmdInsertDebugLabel(vk::CommandBuffer cb, std::string_view name, std::array<float, 4> color) {
-    if (!m_debugUtilsSupported || !cb) return;
-    std::string nameStr(name);
+    if (!m_debugUtilsSupported || !cb || name.empty()) return;
+    char stackBuf[128];
+    const char* pName = nullptr;
+    std::string heapName;
+    if (name.size() < sizeof(stackBuf)) {
+        std::memcpy(stackBuf, name.data(), name.size());
+        stackBuf[name.size()] = '\0';
+        pName = stackBuf;
+    } else {
+        heapName = std::string(name);
+        pName = heapName.c_str();
+    }
     vk::DebugUtilsLabelEXT labelInfo{};
-    labelInfo.pLabelName = nameStr.c_str();
+    labelInfo.pLabelName = pName;
     labelInfo.color = color;
     cb.insertDebugUtilsLabelEXT(labelInfo);
 }

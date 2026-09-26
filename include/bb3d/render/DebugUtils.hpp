@@ -91,7 +91,7 @@ private:
         TracyVkNamedZoneC(tracyCtx, BB3D_CONCAT_INTERNAL(_tracy_gpu_zone_, __LINE__), static_cast<VkCommandBuffer>(cb), name, \
             ((static_cast<uint32_t>((color)[0] * 255.0f) << 16) | \
              (static_cast<uint32_t>((color)[1] * 255.0f) << 8)  | \
-             (static_cast<uint32_t>((color)[2] * 255.0f))), true)
+             (static_cast<uint32_t>((color)[2] * 255.0f))), ((tracyCtx) != nullptr))
 #else
     #define BB_GPU_ZONE(tracyCtx, contextRef, cb, name, color) \
         ::bb3d::ScopedDebugLabel BB3D_CONCAT_INTERNAL(_scoped_debug_label_, __LINE__)(contextRef, cb, name, color)

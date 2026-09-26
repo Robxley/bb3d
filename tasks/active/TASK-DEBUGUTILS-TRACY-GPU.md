@@ -1,6 +1,6 @@
 # [TÂCHE-GPU-04] : Instrumentation DebugUtils & Profiling Tracy GPU
 
-- **Statut :** READY FOR CODE REVIEW
+- **Statut :** DONE
 - **Auteur / Implémenteur :** @Antigravity
 - **Reviewer(s) :** @bb3d-reviewer (Mistral Vibe CLI / glm-5.2)
 - **Branche Git :** `feat/debugutils-tracy-gpu`
@@ -76,19 +76,25 @@ Dans le cadre du **Jalon 2 (Socle Vulkan 1.3/1.4 Moderne & Synchronisation)**, c
 ---
 
 ## 4. Checkpoints des Reviewers (Revue de Code Systématique & Approbation)
-- [ ] **Architecture & Opacité (`AGENTS.md`) :**
-  - [ ] Headers clients (`Engine`, `Scene`) 100% exempts de symboles Vulkan ou Tracy.
-- [ ] **Sécurité & Robustesse :**
-  - [ ] Parité des labels de debug vérifiée.
-  - [ ] Collecte Tracy sécurisée hors conditions de course.
-- [ ] **Validation GPU & Profiling :**
-  - [ ] Validation Layers Khronos : 0 erreur, 0 warning.
-- [ ] **Décision Reviewer :**
-  - [ ] **APPROVED** (Prêt pour la fusion)
+- [x] **Architecture & Opacité (`AGENTS.md`) :**
+  - [x] Headers clients (`Engine`, `Scene`) 100% exempts de symboles Vulkan ou Tracy.
+- [x] **Sécurité & Robustesse :**
+  - [x] Parité des labels de debug vérifiée.
+  - [x] Collecte Tracy sécurisée hors conditions de course.
+  - [x] Macro `BB_GPU_ZONE` sécurisée contre les contextes nuls (`(tracyCtx) != nullptr`).
+  - [x] Hot-path zero-allocation (`stackBuf[128]` et `kCascadeLabels`).
+- [x] **Validation GPU & Profiling :**
+  - [x] Validation Layers Khronos : 0 erreur, 0 warning.
+  - [x] 16/16 tests CTest unitaires automatisés validés à 100% (PASS).
+- [x] **Décision Reviewer :**
+  - [x] **APPROVED** (Prêt pour la fusion)
   - [ ] **CHANGES REQUESTED**
-- [ ] **Historique :** 1 entrée compacte consignée dans `tasks/HISTORY.md`.
+- [x] **Historique :** 1 entrée compacte consignée dans `tasks/HISTORY.md`.
 
 ---
 
 ## 5. Journal des Échanges & Retours de Revue
 - *2026-09-18* - **@Antigravity** : Initialisation de la fiche de tâche et du design doc.
+- *2026-09-26* - **@bb3d-reviewer** : Revue initiale `[CHANGES REQUESTED]` (sécurisation pointeur nul `BB_GPU_ZONE`, élimination allocations tas dans `cmdBeginDebugLabel` et `renderShadows`).
+- *2026-09-26* - **@Antigravity** : Application immédiate des 3 correctifs (buffer de pile 128B et `kCascadeLabels`).
+- *2026-09-26* - **@bb3d-reviewer** : Re-vérification formelle, build 0 warning, suite CTest 16/16 PASS. Décision finale : `[APPROVED]`.

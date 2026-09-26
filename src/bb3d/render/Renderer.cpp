@@ -1143,8 +1143,12 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
     // Dynamic depth bias (increased for 32-bit float depth stability)
     cb.setDepthBias(m_config.graphics.shadowDepthBiasConstant, 0.0f, m_config.graphics.shadowDepthBiasSlope);
 
+    static constexpr std::array<std::string_view, 4> kCascadeLabels = {
+        "Shadow Cascade 0", "Shadow Cascade 1", "Shadow Cascade 2", "Shadow Cascade 3"
+    };
+
     for (uint32_t i = 0; i < m_config.graphics.shadowCascades; ++i) {
-        std::string cascadeLabelName = fmt::format("Shadow Cascade {}", i);
+        std::string_view cascadeLabelName = (i < kCascadeLabels.size()) ? kCascadeLabels[i] : "Shadow Cascade";
         ScopedDebugLabel cascadeDebugLabel(m_context, cb, cascadeLabelName, DebugColor::ShadowPass);
 
         float minZ = (i == 0) ? nearZ : splits[i-1];
