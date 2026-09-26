@@ -115,14 +115,14 @@ flowchart LR
 > **Objectif :** Offrir un environnement d'édition temps réel modulaire, découplé et interactif (`BB3D_ENABLE_EDITOR`), conforme à la [Spécification Architecturale](../docs/editor/EDITOR_ARCHITECTURE_SPECIFICATION.md).
 
 #### 🧱 Phase 4.1 : Socle Modulaire & Découpage de l'Éditeur
-- [ ] **Infrastructure Centrale (`EditorContext`, `EditorPanel`)** :
+- [x] **Infrastructure Centrale (`EditorContext`, `EditorPanel`)** :
   - Définir l'interface `EditorPanel` (`onImGuiRender`, `onUpdate`, `onEvent`, `getId`, `getTitle`, `isOpen`).
   - Implémenter `EditorContext` comme bus central (scène active, multi-sélection, barycentre pivot, état simulation).
-  - Test unitaire TDD : `unit_test_36_editor_context` (validation sélection, multi-sélection, pivot).
-- [ ] **Orchestration (`EditorPanelManager`) & Refactorisation du Monolithe `ImGuiLayer`** :
-  - Alléger `ImGuiLayer` en `EditorLayer` servant uniquement d'hôte de backend ImGui SDL3/Vulkan.
-  - Découper `ImGuiLayer.cpp` (1161 lignes) en sous-panneaux modulaires dans `src/bb3d/editor/panels/`.
-- [ ] **Éradication des Bugs Statiques Répertoriés (N5, N6, N7)** :
+  - Test unitaire TDD : `unit_test_38_editor_context` (validation sélection, multi-sélection, pivot).
+- [x] **Orchestration (`EditorPanelManager`) & Refactorisation du Monolithe `ImGuiLayer`** :
+  - Alléger `ImGuiLayer` servant uniquement d'hôte de backend ImGui SDL3/Vulkan et délégant à `EditorPanelManager`.
+  - Découper `ImGuiLayer.cpp` (allégé de 1161 à 314 lignes) en 6 sous-panneaux modulaires dans `src/bb3d/editor/panels/`.
+- [x] **Éradication des Bugs Statiques Répertoriés (N5, N6, N7)** :
   - Supprimer la branche `else if` dupliquée vide rétablissant l'inspecteur `LightComponent` (`N5`).
   - Supprimer le statique partagé `partCol` pour une couleur par entité/composant (`N6`).
   - Supprimer le statique partagé `s_loadConfig` pour un preset par asset/entité (`N7`).

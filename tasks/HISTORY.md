@@ -5,6 +5,11 @@ Ce fichier consigne l'historique compact de tous les chantiers et correctifs ter
 
 ---
 
+- **[2026-09-26] [TASK-EDITOR-MODULAR-CORE] Phase 4.1 — Socle Modulaire & Découpage de l'Éditeur** (@Antigravity / @Editor Architecture Reviewer)
+  - Scope: `include/bb3d/editor/*`, `src/bb3d/editor/*`, `include/bb3d/core/ImGuiLayer.hpp`, `src/bb3d/core/ImGuiLayer.cpp`, `src/bb3d/core/Engine.cpp`, `tests/unit_test_38_editor_context.cpp`
+  - Bilan: Architecture modulaire découplée (EditorContext, EditorPanel, EditorPanelManager), thème Dark Pro, 6 panneaux autonomes (Viewport, Hierarchy, Inspector, Toolbar, SceneSettings, Console), ImGuiLayer réduit de 1161 à 314 lignes, N5/N6/N7 résolus, test 38 PASS (0.48s), revue APPROVED.
+  - Archive: [archive/TASK-EDITOR-MODULAR-CORE.md](archive/TASK-EDITOR-MODULAR-CORE.md)
+
 - **[2026-09-26] [TASK-EXTENDED-DYNAMIC-STATE] Extended Dynamic State Vulkan 1.3 Core (Chantier 6)** (@Antigravity / @Vulkan Architecture Reviewer)
   - Scope: `include/bb3d/render/VulkanContext.hpp`, `src/bb3d/render/VulkanContext.cpp`, `src/bb3d/render/GraphicsPipeline.cpp`, `src/bb3d/render/Renderer.cpp`, `tests/unit_test_37_extended_dynamic_state.cpp`
   - Bilan: 9 états dynamiques (cull, frontFace, depthTest/Write/CompareOp, topology), StructureChain 1.3/1.4, binding déterministe par pipeline, test 37 PASS (3.79s), 0 allocation hot-path, 150+ FPS maintenu, revue APPROVED.
