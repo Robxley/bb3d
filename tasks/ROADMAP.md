@@ -73,9 +73,9 @@ flowchart LR
   - Timeline Semaphore Core 1.3/1.4 dédié à la file de transfert (`m_transferQueue`), 0 appel bloquant `waitForFences(UINT64_MAX)` dans `endTransferCommandsAsync` (B11 résolu).
   - Élimination des fences brutes dans `Texture` (`uint64_t m_uploadTimelineValue`), `Texture::isReady()` 100% non-bloquant.
   - Recyclage différé et proactif des command buffers de transfert dans `Renderer::render()`, test TDD `unit_test_33_timeline_transfers` validé (0.71s).
-- [ ] **Instrumentation DebugUtils & Profiling Tracy GPU** :
-  - Baliser les command buffers et passes de rendu avec `vkCmdBeginDebugUtilsLabelEXT` / `vkCmdEndDebugUtilsLabelEXT`.
-  - Intégrer les zones de timing GPU via `TracyVkZone`.
+- [x] **Instrumentation DebugUtils & Profiling Tracy GPU** :
+  - Baliser les command buffers et passes de rendu avec `vkCmdBeginDebugUtilsLabelEXT` / `vkCmdEndDebugUtilsLabelEXT` via RAII `ScopedDebugLabel`.
+  - Intégrer les zones de timing GPU via `TracyVkZone` (`BB_GPU_ZONE`), collecte par frame `TracyVkCollect`, et nommage type-safe des objets Vulkan (`setObjectName`). Test unitaire `unit_test_34_debug_utils_profiling` validé.
 - [ ] **Pipeline Cache Persistant** :
   - Sérialiser l'objet `vk::PipelineCache` dans `assets/cache/pipelines.bin` pour éliminer les micro-saccades lors des lancements ultérieurs.
 - [ ] **Extended Dynamic State (Vulkan 1.3)** :
