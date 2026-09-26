@@ -6,6 +6,7 @@
 #include <vk_mem_alloc.h>
 #include <string>
 #include <string_view>
+#include <array>
 #include <atomic>
 #include <mutex>
 #include <vector>
@@ -56,6 +57,7 @@ public:
     [[nodiscard]] inline uint32_t getTransferQueueFamily() const { return m_transferQueueFamily; }
     [[nodiscard]] inline vk::PipelineCache getPipelineCache() const { return m_pipelineCache; }
     [[nodiscard]] inline vk::CommandPool getTransferCommandPool() const { return m_transferCommandPool; }
+    [[nodiscard]] inline vk::CommandPool getShortLivedCommandPool() const { return m_shortLivedCommandPool; }
     /** @} */
 
 
@@ -103,6 +105,12 @@ public:
     /** @brief Soumet et termine un command buffer de transfert, puis attend la fin de l'exécution (bloquant). */
     void endSingleTimeCommands(vk::CommandBuffer commandBuffer);
 
+    /** @brief Alloue un command buffer primaire non démarré (état initial) depuis le pool court-terme. */
+    [[nodiscard]] vk::CommandBuffer allocateShortLivedCommandBuffer();
+
+    /** @brief Libère un command buffer alloué via allocateShortLivedCommandBuffer. */
+    void freeShortLivedCommandBuffer(vk::CommandBuffer commandBuffer);
+
     /** 
      * @brief Démarre un command buffer sur la file de transfert (si dispo) ou graphique.
      * Idéal pour les uploads de textures en arrière-plan.
@@ -131,8 +139,31 @@ public:
     /** @brief Recyclage non-bloquant des command buffers de transfert terminés. */
     void pollTransferCompletions();
 
+    /** @brief Returns true if VK_EXT_debug_utils is supported and enabled. */
+    [[nodiscard]] inline bool isDebugUtilsSupported() const noexcept { return m_debugUtilsSupported; }
+
+    /** @brief Assigns a human-readable debug name to a Vulkan object for tools like RenderDoc/Nsight/validation layers. */
+    void setDebugObjectName(uint64_t objectHandle, vk::ObjectType objectType, std::string_view name);
+
+    /** @brief Type-safe template helper for setDebugObjectName. */
+    template <typename T>
+    void setObjectName(T handle, std::string_view name) {
+        setDebugObjectName(static_cast<uint64_t>(reinterpret_cast<uintptr_t>(static_cast<typename T::NativeType>(handle))), T::objectType, name);
+    }
+
+    /** @brief Inserts an open debug label in a command buffer. */
+    void cmdBeginDebugLabel(vk::CommandBuffer cb, std::string_view name, std::array<float, 4> color = {0.2f, 0.6f, 1.0f, 1.0f});
+
+    /** @brief Ends the most recent debug label in a command buffer. */
+    void cmdEndDebugLabel(vk::CommandBuffer cb);
+
+    /** @brief Inserts an instantaneous debug label marker in a command buffer. */
+    void cmdInsertDebugLabel(vk::CommandBuffer cb, std::string_view name, std::array<float, 4> color = {0.8f, 0.8f, 0.8f, 1.0f});
+
 private:
     void pollTransferCompletionsLocked();
+
+    bool m_debugUtilsSupported = false;
 
     vk::Instance m_instance;
     vk::DebugUtilsMessengerEXT m_debugMessenger;

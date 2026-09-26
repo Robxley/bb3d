@@ -1,0 +1,94 @@
+# [TÂCHE-GPU-04] : Instrumentation DebugUtils & Profiling Tracy GPU
+
+- **Statut :** IN PROGRESS
+- **Auteur / Implémenteur :** @Antigravity
+- **Reviewer(s) :** @bb3d-reviewer (Mistral Vibe CLI / glm-5.2)
+- **Branche Git :** `feat/debugutils-tracy-gpu`
+- **Date de création :** 2026-09-18
+
+---
+
+## 1. Contexte & Objectif
+
+Dans le cadre du **Jalon 2 (Socle Vulkan 1.3/1.4 Moderne & Synchronisation)**, ce chantier vise à doter le moteur `bb3d` d'outils de diagnostic et de profilage GPU de niveau professionnel :
+1. **DebugUtils (`VK_EXT_debug_utils`) :**
+   - Activation systématique si disponible ou si validation/debug activé.
+   - Balisage RAII des command buffers (`ScopedDebugLabel`) avec couleurs pour RenderDoc et Nsight.
+   - Nommage explicite type-safe des ressources Vulkan (`setDebugObjectName`).
+2. **Profiling Tracy GPU (`TracyVulkan.hpp`) :**
+   - Context GPU Tracy `TracyVkCtx` lié à la file graphique.
+   - Balisage des passes majeures (`Shadow Pass`, `Skybox Pass`, `Scene PBR`, `Composite Pass`, `Picking Pass`).
+   - Collecte automatique des queries GPU (`TracyVkCollect`) à chaque frame.
+3. **Zéro fuite d'abstraction :**
+   - L'API publique cliente reste 100% opaque (pas de header Vulkan ni Tracy exposé).
+4. **Validation TDD :**
+   - Nouveau test unitaire `tests/unit_test_34_debug_utils_profiling.cpp` validé sous CTest avec validation layers actives.
+
+---
+
+## 2. Découpage en Tâches Atomiques (Approche TDD)
+
+### Tâche 1 : Infrastructure DebugUtils dans `VulkanContext`
+- **Fichiers modifiés / créés :** `include/bb3d/render/VulkanContext.hpp`, `src/bb3d/render/VulkanContext.cpp`, `include/bb3d/render/DebugUtils.hpp`
+- **Test unitaire associé :** `tests/unit_test_34_debug_utils_profiling.cpp` (Partie 1 & 2 : extension check, `setObjectName`, `cmdBeginDebugLabel`/`cmdEndDebugLabel`)
+- **Étape 1 (Test) :** Écrire le test unitaire `unit_test_34` (RED).
+- **Étape 2 (Vérification échec) :** `cmake --build build && ctest -R unit_test_34` (RED).
+- **Étape 3 (Code minimal) :** Implémenter la détection de l'extension, `ScopedDebugLabel`, et `setDebugObjectName`.
+- **Étape 4 (Vérification succès) :** `cmake --build build && ctest -R unit_test_34` (PASS).
+- **Étape 5 (Commit) :** `git commit -m "feat(render): add Vulkan DebugUtils labeling and object naming"`
+
+### Tâche 2 : Intégration Tracy GPU dans `Renderer`
+- **Fichiers modifiés / créés :** `include/bb3d/render/Renderer.hpp`, `src/bb3d/render/Renderer.cpp`, `include/bb3d/core/Core.hpp`
+- **Test unitaire associé :** `tests/unit_test_34_debug_utils_profiling.cpp` (Partie 3 : Tracy GPU init, zone recording, collect)
+- **Étape 1 (Test) :** Étendre le test `unit_test_34` avec une frame mock instrumentée.
+- **Étape 2 (Vérification échec) :** Compiler et tester (RED).
+- **Étape 3 (Code minimal) :** Initialiser `TracyVkCtx`, ajouter les zones `BB_GPU_ZONE` sur `Shadow Pass`, `Skybox`, `Scene PBR`, `Composite`, `Picking`, et appeler `TracyVkCollect`.
+- **Étape 4 (Vérification succès) :** `cmake --build build && ctest -R unit_test_34` (PASS).
+- **Étape 5 (Commit) :** `git commit -m "feat(profile): integrate Tracy GPU profiling and pass labeling"`
+
+### Tâche 3 : Validation Complète & Revue
+- **Étape 1 :** Lancer la suite CTest complète (16/16 tests).
+- **Étape 2 :** Lancer la revue de code Mistral Vibe CLI (`bb3d-reviewer`).
+- **Étape 3 :** Traiter immédiatement les remarques / recommandations.
+- **Étape 4 :** Clôturer la tâche dans `tasks/HISTORY.md` et archiver.
+
+---
+
+## 3. Grille de Revue & Checkpoints
+
+### 🛠️ Checkpoints de l'Implémenteur (Avant soumission en revue)
+- [ ] **Double Check Bug (si correctif) :** N/A (Nouvelle fonctionnalité).
+- [ ] **TDD & Tests :** `unit_test_34_debug_utils_profiling` passe ainsi que tous les 15 autres tests CTest.
+- [ ] **Standards C++ (`cpp-pro`) :**
+  - [ ] Zéro allocation dynamique dans le *Hot Path* (`render()` / `update()`).
+  - [ ] `std::string_view` et `std::span` utilisés pour les labels et les couleurs.
+  - [ ] Initialisation désignée C++20 (`Type{.field = val}`).
+  - [ ] `[[nodiscard]]` présent sur les accesseurs.
+  - [ ] Code, commentaires et logs en **anglais**.
+- [ ] **Standards Vulkan (`vulkan-cpp`) :**
+  - [ ] `VK_EXT_debug_utils` géré avec grâce : actif si supporté, no-op sinon.
+  - [ ] Zéro crash si validation layers absentes.
+  - [ ] `ScopedDebugLabel` RAII garantissant l'équilibre strict `begin`/`end`.
+  - [ ] `TracyVkContext` proprement initialisé avec un one-time command buffer et détruit à la fermeture.
+- [ ] **Qualité du Build :** Zéro warning compilateur sous MSVC `/W4`.
+- [ ] **Commits :** Commits atomiques et messages conformes.
+
+---
+
+## 4. Checkpoints des Reviewers (Revue de Code Systématique & Approbation)
+- [ ] **Architecture & Opacité (`AGENTS.md`) :**
+  - [ ] Headers clients (`Engine`, `Scene`) 100% exempts de symboles Vulkan ou Tracy.
+- [ ] **Sécurité & Robustesse :**
+  - [ ] Parité des labels de debug vérifiée.
+  - [ ] Collecte Tracy sécurisée hors conditions de course.
+- [ ] **Validation GPU & Profiling :**
+  - [ ] Validation Layers Khronos : 0 erreur, 0 warning.
+- [ ] **Décision Reviewer :**
+  - [ ] **APPROVED** (Prêt pour la fusion)
+  - [ ] **CHANGES REQUESTED**
+- [ ] **Historique :** 1 entrée compacte consignée dans `tasks/HISTORY.md`.
+
+---
+
+## 5. Journal des Échanges & Retours de Revue
+- *2026-09-18* - **@Antigravity** : Initialisation de la fiche de tâche et du design doc.

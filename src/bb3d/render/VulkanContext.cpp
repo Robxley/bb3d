@@ -54,8 +54,24 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
 
     uint32_t sdlExtensionCount = 0;
     const char* const* sdlExtensions = SDL_Vulkan_GetInstanceExtensions(&sdlExtensionCount);
-    std::vector<const char*> extensions(sdlExtensions, sdlExtensions + sdlExtensionCount);
-    if (enableValidationLayers) extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    std::vector<const char*> extensions;
+    if (sdlExtensions && sdlExtensionCount > 0) {
+        extensions.assign(sdlExtensions, sdlExtensions + sdlExtensionCount);
+    }
+
+    // Query available instance extensions to check for VK_EXT_debug_utils support
+    auto availableInstanceExtensions = vk::enumerateInstanceExtensionProperties();
+    m_debugUtilsSupported = false;
+    for (const auto& ext : availableInstanceExtensions) {
+        if (std::string_view(ext.extensionName.data()) == VK_EXT_DEBUG_UTILS_EXTENSION_NAME) {
+            m_debugUtilsSupported = true;
+            break;
+        }
+    }
+
+    if (m_debugUtilsSupported) {
+        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    }
 
     vk::InstanceCreateInfo createInfo({}, &appInfo, 0, nullptr, static_cast<uint32_t>(extensions.size()), extensions.data());
     const std::vector<const char*> validationLayers = { "VK_LAYER_KHRONOS_validation" };
@@ -67,7 +83,7 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     m_instance = vk::createInstance(createInfo);
     VULKAN_HPP_DEFAULT_DISPATCHER.init(m_instance);
 
-    if (enableValidationLayers) {
+    if (enableValidationLayers && m_debugUtilsSupported) {
         vk::DebugUtilsMessengerCreateInfoEXT debugInfo;
         debugInfo.messageSeverity = vk::DebugUtilsMessageSeverityFlagBitsEXT::eVerbose | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
         debugInfo.messageType = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance;
@@ -313,7 +329,7 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     vk::PipelineCacheCreateInfo cacheInfo{};
     m_pipelineCache = m_device.createPipelineCache(cacheInfo);
 
-    m_shortLivedCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_graphicsQueueFamily });
+    m_shortLivedCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer, m_graphicsQueueFamily });
     m_transferCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_transferQueueFamily });
 
     // Create Timeline Semaphore for transfer queue (B11)
@@ -322,6 +338,10 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     timelineSemInfo.pNext = &timelineTypeInfo;
     m_transferTimelineSemaphore = m_device.createSemaphore(timelineSemInfo);
     m_transferTimelineValue.store(0, std::memory_order_release);
+
+    setObjectName(m_transferTimelineSemaphore, "VulkanContext_TransferTimelineSemaphore");
+    setObjectName(m_shortLivedCommandPool, "VulkanContext_ShortLivedCommandPool");
+    setObjectName(m_transferCommandPool, "VulkanContext_TransferCommandPool");
 
     m_stagingBuffer = CreateScope<StagingBuffer>(*this);
 
@@ -393,7 +413,17 @@ void VulkanContext::endSingleTimeCommands(vk::CommandBuffer commandBuffer) {
     m_graphicsQueue.waitIdle();
 
     m_device.freeCommandBuffers(m_shortLivedCommandPool, commandBuffer);
+}
 
+vk::CommandBuffer VulkanContext::allocateShortLivedCommandBuffer() {
+    vk::CommandBufferAllocateInfo allocInfo(m_shortLivedCommandPool, vk::CommandBufferLevel::ePrimary, 1);
+    return m_device.allocateCommandBuffers(allocInfo)[0];
+}
+
+void VulkanContext::freeShortLivedCommandBuffer(vk::CommandBuffer commandBuffer) {
+    if (m_device && m_shortLivedCommandPool && commandBuffer) {
+        m_device.freeCommandBuffers(m_shortLivedCommandPool, commandBuffer);
+    }
 }
 
 
@@ -467,6 +497,43 @@ void VulkanContext::pollTransferCompletionsLocked() {
         });
 
     m_pendingTransfers.erase(it, m_pendingTransfers.end());
+}
+
+void VulkanContext::setDebugObjectName(uint64_t objectHandle, vk::ObjectType objectType, std::string_view name) {
+    if (!m_debugUtilsSupported || !m_device || objectHandle == 0) return;
+    std::string nameStr(name);
+    vk::DebugUtilsObjectNameInfoEXT nameInfo{};
+    nameInfo.objectType = objectType;
+    nameInfo.objectHandle = objectHandle;
+    nameInfo.pObjectName = nameStr.c_str();
+    try {
+        m_device.setDebugUtilsObjectNameEXT(nameInfo);
+    } catch (const std::exception& e) {
+        BB_CORE_TRACE("VulkanContext::setDebugObjectName: Exception ignored: {}", e.what());
+    }
+}
+
+void VulkanContext::cmdBeginDebugLabel(vk::CommandBuffer cb, std::string_view name, std::array<float, 4> color) {
+    if (!m_debugUtilsSupported || !cb) return;
+    std::string nameStr(name);
+    vk::DebugUtilsLabelEXT labelInfo{};
+    labelInfo.pLabelName = nameStr.c_str();
+    labelInfo.color = color;
+    cb.beginDebugUtilsLabelEXT(labelInfo);
+}
+
+void VulkanContext::cmdEndDebugLabel(vk::CommandBuffer cb) {
+    if (!m_debugUtilsSupported || !cb) return;
+    cb.endDebugUtilsLabelEXT();
+}
+
+void VulkanContext::cmdInsertDebugLabel(vk::CommandBuffer cb, std::string_view name, std::array<float, 4> color) {
+    if (!m_debugUtilsSupported || !cb) return;
+    std::string nameStr(name);
+    vk::DebugUtilsLabelEXT labelInfo{};
+    labelInfo.pLabelName = nameStr.c_str();
+    labelInfo.color = color;
+    cb.insertDebugUtilsLabelEXT(labelInfo);
 }
 
 } // namespace bb3d
