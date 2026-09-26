@@ -19,6 +19,8 @@ VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #include <set>
 #include <limits>
 #include <cstring>
+#include <fstream>
+#include <filesystem>
 
 namespace bb3d {
 
@@ -41,6 +43,18 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
 
     return VK_FALSE;
 }
+
+namespace {
+
+struct PipelineCacheHeader {
+    uint32_t headerSize;
+    uint32_t headerVersion;
+    uint32_t vendorID;
+    uint32_t deviceID;
+    uint8_t  pipelineCacheUUID[VK_UUID_SIZE];
+};
+
+} // namespace
 
 VulkanContext::VulkanContext() = default;
 
@@ -326,9 +340,32 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
     allocatorInfo.vulkanApiVersion = m_apiVersion;
     vmaCreateAllocator(&allocatorInfo, &m_allocator);
 
-    // Create pipeline cache for optimized shader compilation
-    vk::PipelineCacheCreateInfo cacheInfo{};
+    // Create pipeline cache for optimized shader compilation (persisted if enabled)
+    std::vector<uint8_t> initialCacheData;
+    if (m_enablePipelineCache && !m_pipelineCachePath.empty()) {
+        std::error_code ec;
+        if (std::filesystem::exists(m_pipelineCachePath, ec) && !ec) {
+            std::ifstream file(m_pipelineCachePath, std::ios::binary | std::ios::ate);
+            if (file.is_open()) {
+                const auto fileSize = file.tellg();
+                if (fileSize > 0) {
+                    initialCacheData.resize(static_cast<size_t>(fileSize));
+                    file.seekg(0, std::ios::beg);
+                    file.read(reinterpret_cast<char*>(initialCacheData.data()), fileSize);
+                }
+            }
+            if (isPipelineCacheValid(initialCacheData)) {
+                BB_CORE_INFO("VulkanContext: Loading persistent pipeline cache from '{}' ({} bytes).", m_pipelineCachePath.string(), initialCacheData.size());
+            } else {
+                BB_CORE_WARN("VulkanContext: Existing pipeline cache '{}' is invalid or driver mismatch. Creating fresh cache.", m_pipelineCachePath.string());
+                initialCacheData.clear();
+            }
+        }
+    }
+
+    vk::PipelineCacheCreateInfo cacheInfo({}, initialCacheData.size(), initialCacheData.empty() ? nullptr : initialCacheData.data());
     m_pipelineCache = m_device.createPipelineCache(cacheInfo);
+    setObjectName(m_pipelineCache, "VulkanContext_PipelineCache");
 
     m_shortLivedCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient | vk::CommandPoolCreateFlagBits::eResetCommandBuffer, m_graphicsQueueFamily });
     m_transferCommandPool = m_device.createCommandPool({ vk::CommandPoolCreateFlagBits::eTransient, m_transferQueueFamily });
@@ -385,6 +422,9 @@ void VulkanContext::cleanup() {
             m_allocator = nullptr;
         }
         if (m_pipelineCache) {
+            if (m_enablePipelineCache && !m_pipelineCachePath.empty()) {
+                savePipelineCache(m_pipelineCachePath);
+            }
             m_device.destroyPipelineCache(m_pipelineCache);
             m_pipelineCache = nullptr;
         }
@@ -565,6 +605,151 @@ void VulkanContext::cmdInsertDebugLabel(vk::CommandBuffer cb, std::string_view n
     labelInfo.pLabelName = pName;
     labelInfo.color = color;
     cb.insertDebugUtilsLabelEXT(labelInfo);
+}
+
+void VulkanContext::setPipelineCachePath(std::string_view path) {
+    m_pipelineCachePath = path;
+}
+
+bool VulkanContext::isPipelineCacheValid(std::span<const uint8_t> data) const noexcept {
+    if (data.size() < sizeof(PipelineCacheHeader)) {
+        return false;
+    }
+
+    PipelineCacheHeader header{};
+    std::memcpy(&header, data.data(), sizeof(PipelineCacheHeader));
+
+    if (header.headerSize != sizeof(PipelineCacheHeader)) {
+        return false;
+    }
+
+    if (header.headerVersion != VK_PIPELINE_CACHE_HEADER_VERSION_ONE) {
+        return false;
+    }
+
+    if (!m_physicalDevice) {
+        return false;
+    }
+
+    try {
+        const auto props = m_physicalDevice.getProperties();
+        if (header.vendorID != props.vendorID) {
+            return false;
+        }
+
+        if (header.deviceID != props.deviceID) {
+            return false;
+        }
+
+        if (std::memcmp(header.pipelineCacheUUID, props.pipelineCacheUUID.data(), VK_UUID_SIZE) != 0) {
+            return false;
+        }
+    } catch (...) {
+        return false;
+    }
+
+    return true;
+}
+
+bool VulkanContext::savePipelineCache(const std::filesystem::path& path) const {
+    if (!m_device || !m_pipelineCache || !m_enablePipelineCache) {
+        return false;
+    }
+
+    try {
+        std::vector<uint8_t> cacheData = m_device.getPipelineCacheData(m_pipelineCache);
+        if (cacheData.empty() || cacheData.size() < sizeof(PipelineCacheHeader)) {
+            return false;
+        }
+
+        std::error_code ec;
+        if (path.has_parent_path()) {
+            std::filesystem::create_directories(path.parent_path(), ec);
+            if (ec) {
+                BB_CORE_WARN("VulkanContext::savePipelineCache: Failed to create directories '{}': {}", path.parent_path().string(), ec.message());
+                return false;
+            }
+        }
+
+        // Atomic write via temporary file
+        const std::filesystem::path tempPath = path.string() + ".tmp";
+        {
+            std::ofstream file(tempPath, std::ios::binary | std::ios::trunc);
+            if (!file.is_open()) {
+                BB_CORE_WARN("VulkanContext::savePipelineCache: Failed to open temp file for writing: {}", tempPath.string());
+                return false;
+            }
+            file.write(reinterpret_cast<const char*>(cacheData.data()), static_cast<std::streamsize>(cacheData.size()));
+            file.flush();
+        }
+
+        // Atomically replace destination (handling Windows replace semantics)
+        std::filesystem::remove(path, ec);
+        std::filesystem::rename(tempPath, path, ec);
+        if (ec) {
+            std::filesystem::copy_file(tempPath, path, std::filesystem::copy_options::overwrite_existing, ec);
+            std::filesystem::remove(tempPath, ec);
+        }
+
+        BB_CORE_INFO("VulkanContext: Saved {} bytes to persistent pipeline cache at '{}'.", cacheData.size(), path.string());
+        return true;
+    } catch (const std::exception& e) {
+        BB_CORE_WARN("VulkanContext::savePipelineCache: Exception caught: {}", e.what());
+        return false;
+    }
+}
+
+bool VulkanContext::loadPipelineCache(const std::filesystem::path& path) {
+    if (!m_device) {
+        return false;
+    }
+
+    try {
+        std::error_code ec;
+        if (!std::filesystem::exists(path, ec) || ec) {
+            return false;
+        }
+
+        std::ifstream file(path, std::ios::binary | std::ios::ate);
+        if (!file.is_open()) {
+            return false;
+        }
+
+        const auto fileSize = file.tellg();
+        if (fileSize <= 0) {
+            return false;
+        }
+
+        std::vector<uint8_t> buffer(static_cast<size_t>(fileSize));
+        file.seekg(0, std::ios::beg);
+        file.read(reinterpret_cast<char*>(buffer.data()), fileSize);
+        file.close();
+
+        if (!isPipelineCacheValid(buffer)) {
+            BB_CORE_WARN("VulkanContext: Existing pipeline cache '{}' is invalid, corrupted or driver mismatch. Skipping.", path.string());
+            return false;
+        }
+
+        vk::PipelineCacheCreateInfo cacheInfo({}, buffer.size(), buffer.data());
+        if (m_pipelineCache) {
+            vk::PipelineCache loadedCache = m_device.createPipelineCache(cacheInfo);
+            if (loadedCache) {
+                m_device.mergePipelineCaches(m_pipelineCache, { loadedCache });
+                m_device.destroyPipelineCache(loadedCache);
+                BB_CORE_INFO("VulkanContext: Successfully loaded and merged {} bytes from '{}'.", buffer.size(), path.string());
+                return true;
+            }
+        } else {
+            m_pipelineCache = m_device.createPipelineCache(cacheInfo);
+            setObjectName(m_pipelineCache, "VulkanContext_PipelineCache");
+            BB_CORE_INFO("VulkanContext: Successfully initialized pipeline cache with {} bytes from '{}'.", buffer.size(), path.string());
+            return true;
+        }
+        return false;
+    } catch (const std::exception& e) {
+        BB_CORE_WARN("VulkanContext::loadPipelineCache: Exception caught: {}", e.what());
+        return false;
+    }
 }
 
 } // namespace bb3d

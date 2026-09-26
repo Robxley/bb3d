@@ -104,6 +104,8 @@ void Engine::Init() {
     // 5. Vulkan Context (Instance, PhysicalDevice, LogicalDevice)
     // Initializes Vulkan by attaching to the SDL window created just before.
     m_VulkanContext = CreateScope<VulkanContext>();
+    m_VulkanContext->setPipelineCacheEnabled(m_Config.graphics.enablePipelineCache);
+    m_VulkanContext->setPipelineCachePath(m_Config.graphics.pipelineCachePath);
     m_VulkanContext->init(m_Window->GetNativeWindow(), m_Config.window.title, m_Config.graphics.enableValidationLayers);
 
     // 6. Renderer (SwapChain, Pipelines, RenderPasses)
