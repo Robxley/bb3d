@@ -53,6 +53,7 @@ struct PipelineCacheHeader {
     uint32_t deviceID;
     uint8_t  pipelineCacheUUID[VK_UUID_SIZE];
 };
+static_assert(sizeof(PipelineCacheHeader) == 32, "PipelineCacheHeader must be exactly 32 bytes according to Vulkan specification");
 
 } // namespace
 
@@ -423,7 +424,7 @@ void VulkanContext::cleanup() {
         }
         if (m_pipelineCache) {
             if (m_enablePipelineCache && !m_pipelineCachePath.empty()) {
-                savePipelineCache(m_pipelineCachePath);
+                (void)savePipelineCache(m_pipelineCachePath);
             }
             m_device.destroyPipelineCache(m_pipelineCache);
             m_pipelineCache = nullptr;
@@ -672,7 +673,8 @@ bool VulkanContext::savePipelineCache(const std::filesystem::path& path) const {
         }
 
         // Atomic write via temporary file
-        const std::filesystem::path tempPath = path.string() + ".tmp";
+        std::filesystem::path tempPath = path;
+        tempPath += ".tmp";
         {
             std::ofstream file(tempPath, std::ios::binary | std::ios::trunc);
             if (!file.is_open()) {
@@ -687,8 +689,13 @@ bool VulkanContext::savePipelineCache(const std::filesystem::path& path) const {
         std::filesystem::remove(path, ec);
         std::filesystem::rename(tempPath, path, ec);
         if (ec) {
-            std::filesystem::copy_file(tempPath, path, std::filesystem::copy_options::overwrite_existing, ec);
+            std::error_code copyEc;
+            std::filesystem::copy_file(tempPath, path, std::filesystem::copy_options::overwrite_existing, copyEc);
             std::filesystem::remove(tempPath, ec);
+            if (copyEc) {
+                BB_CORE_WARN("VulkanContext::savePipelineCache: Failed to copy temporary cache to '{}': {}", path.string(), copyEc.message());
+                return false;
+            }
         }
 
         BB_CORE_INFO("VulkanContext: Saved {} bytes to persistent pipeline cache at '{}'.", cacheData.size(), path.string());

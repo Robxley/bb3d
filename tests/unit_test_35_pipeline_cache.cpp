@@ -38,11 +38,13 @@ int main() {
     }
 
     const std::filesystem::path testCachePath = "assets/cache/unit_test_pipeline_cache.bin";
+    std::filesystem::path tempTestPath = testCachePath;
+    tempTestPath += ".tmp";
 
     // Clean up any stale test cache file from prior runs
     std::error_code ec;
     std::filesystem::remove(testCachePath, ec);
-    std::filesystem::remove(std::filesystem::path(testCachePath.string() + ".tmp"), ec);
+    std::filesystem::remove(tempTestPath, ec);
 
     try {
         bb3d::EngineConfig config;
@@ -118,7 +120,7 @@ int main() {
             BB_CORE_INFO(" - Cache saved successfully to '{}' (file size: {} bytes).", testCachePath.string(), fileSize);
 
             // Ensure temporary file was removed / renamed
-            assert(!std::filesystem::exists(std::filesystem::path(testCachePath.string() + ".tmp")));
+            assert(!std::filesystem::exists(tempTestPath));
 
             // --- Phase 3: Load Cache Verification ---
             BB_CORE_INFO("Phase 3: Testing loadPipelineCache on existing and non-existing paths...");

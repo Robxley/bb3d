@@ -166,10 +166,13 @@ public:
     [[nodiscard]] bool isPipelineCacheValid(std::span<const uint8_t> data) const noexcept;
 
     /** @brief Atomically writes the current vk::PipelineCache data to disk. Creates parent directories if missing. */
-    bool savePipelineCache(const std::filesystem::path& path) const;
+    [[nodiscard]] bool savePipelineCache(const std::filesystem::path& path) const;
 
-    /** @brief Loads binary cache data from disk and merges/initializes it into the current vk::PipelineCache. */
-    bool loadPipelineCache(const std::filesystem::path& path);
+    /** 
+     * @brief Loads binary cache data from disk and merges/initializes it into the current vk::PipelineCache.
+     * @note Must be called from the main render thread or externally synchronized with pipeline creation.
+     */
+    [[nodiscard]] bool loadPipelineCache(const std::filesystem::path& path);
 
     /** @brief Sets the default file path for the persistent pipeline cache. */
     void setPipelineCachePath(std::string_view path);
