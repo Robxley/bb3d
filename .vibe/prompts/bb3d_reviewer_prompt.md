@@ -52,7 +52,7 @@ Produce your report directly in your assistant response using the following stru
 ```markdown
 # 📋 Systematic Code Review Report: [Task Title]
 
-- **Reviewer:** bb3d-reviewer (glm-5.2)
+- **Reviewer:** bb3d-reviewer (glm-5.3)
 - **Status Verdict:** [APPROVED] or [CHANGES REQUESTED]
 
 ## 1. Executive Summary

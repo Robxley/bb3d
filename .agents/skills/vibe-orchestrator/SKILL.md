@@ -1,13 +1,13 @@
 ---
 name: vibe-orchestrator
-description: "Orchestre et délègue des tâches du projet à des agents Mistral Vibe CLI (Fixeur TDD, Reviewer en lecture seule) avec isolation Git Worktree, sélection du modèle glm-5.2 et application du double-check et de la revue systématique."
+description: "Orchestre et délègue des tâches du projet à des agents Mistral Vibe CLI (Fixeur TDD, Reviewer en lecture seule) avec isolation Git Worktree, sélection du modèle glm-5.3 et application du double-check et de la revue systématique."
 ---
 
 # Orchestrateur Mistral Vibe CLI (`vibe-orchestrator`)
 
 Cette compétence permet à un agent principal (comme Antigravity ou un orchestrateur CI) de **déléguer l'exécution de tâches du projet à des sous-agents propulsés par Mistral Vibe CLI**.
 
-Elle garantit le respect strict des standards du projet (`AGENTS.md`), le modèle par défaut **`glm-5.2`**, l'isolation Git par worktrees, le protocole de **Double Check critique des bugs** et la **Revue Systématique obligatoire**.
+Elle garantit le respect strict des standards du projet (`AGENTS.md`), le modèle par défaut **`glm-5.3`**, l'isolation Git par worktrees, le protocole de **Double Check critique des bugs** et la **Revue Systématique obligatoire**.
 
 ---
 
@@ -16,7 +16,7 @@ Elle garantit le respect strict des standards du projet (`AGENTS.md`), le modèl
 1. **Rôles Dédiés (Personas) :**
    - **`fixer` (`bb3d-fixer`) :** Implémenteur TDD. Écrit le test unitaire en premier, implémente le code C++20 / Vulkan minimal, exécute `ctest`, et met à jour la fiche `tasks/active/TASK-XXX.md`. Exécute obligatoirement le double-check critique si la tâche concerne un bug.
    - **`reviewer` (`bb3d-reviewer`) :** Relecteur d'architecture en lecture seule (`safety = safe`). Inspecte le diff, valide les critères de conformité et signe `APPROVED` ou `CHANGES REQUESTED`.
-2. **Modèle par Défaut :** **`glm-5.2`** (défini dans `.vibe/agents/` et via `VIBE_ACTIVE_MODEL`).
+2. **Modèle par Défaut :** **`glm-5.3`** (défini dans `.vibe/agents/` et via `VIBE_ACTIVE_MODEL`).
 3. **Isolation Git Native (`--worktree`) :** Permet à plusieurs agents de travailler en parallèle dans des worktrees isolés sans conflit de fichiers ou de branches.
 4. **Exécution Non-Interactive & Headless :** Pilotage automatisé via `--auto-approve` et `--trust`.
 5. **Traçabilité Complète :** Journalisation automatique de chaque session dans `tasks/active/logs/`.
@@ -34,7 +34,7 @@ python .agents/skills/vibe-orchestrator/scripts/run_vibe_agent.py `
     --task tasks/active/TASK-B8-material-ubo.md `
     --role fixer `
     --worktree fix-b8 `
-    --model glm-5.2
+    --model glm-5.3
 ```
 
 > **Comportement de l'agent Fixeur :**
@@ -54,7 +54,7 @@ Une fois le fix terminé, l'orchestrateur déclenche l'agent Reviewer :
 python .agents/skills/vibe-orchestrator/scripts/run_vibe_agent.py `
     --task tasks/active/TASK-B8-material-ubo.md `
     --role reviewer `
-    --model glm-5.2
+    --model glm-5.3
 ```
 
 > **Comportement de l'agent Reviewer :**
@@ -94,7 +94,7 @@ Une fois l'approbation obtenue :
 ## ⚙️ Configuration Projet (`.vibe/`)
 
 Les configurations sont intégrées au dépôt pour une portabilité immédiate :
-* **`.vibe/agents/bb3d-fixer.toml`** : Profil agent codeur / fixeur avec le modèle `glm-5.2`.
-* **`.vibe/agents/bb3d-reviewer.toml`** : Profil agent relecteur en lecture seule avec `glm-5.2`.
+* **`.vibe/agents/bb3d-fixer.toml`** : Profil agent codeur / fixeur avec le modèle `glm-5.3`.
+* **`.vibe/agents/bb3d-reviewer.toml`** : Profil agent relecteur en lecture seule avec `glm-5.3`.
 * **`.vibe/prompts/bb3d_fixer_prompt.md`** : Instructions système du fixeur (règles C++20, Vulkan, TDD, Double Check).
 * **`.vibe/prompts/bb3d_reviewer_prompt.md`** : Instructions système du reviewer (grille de revue de code).

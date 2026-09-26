@@ -2,7 +2,7 @@
 """
 Orchestrator script for delegating tasks to Mistral Vibe CLI.
 Supports both 'fixer' (TDD implementer) and 'reviewer' (code reviewer) roles,
-with isolated git worktree support, glm-5.2 model default, and automatic log capture.
+with isolated git worktree support, glm-5.3 model default, and automatic log capture.
 """
 
 import argparse
@@ -139,7 +139,7 @@ Review Instructions (Strict Read-Only Inspection & Reporting Mode):
 def run_vibe(
     task_file: Path,
     role: str = "fixer",
-    model: str = "glm-5.2",
+    model: str = "glm-5.3",
     agent: str = None,
     worktree: str = None,
     max_turns: int = 40,
@@ -182,13 +182,16 @@ def run_vibe(
     if worktree:
         cmd.extend(["--worktree", worktree])
 
+    # Normalize model alias: Vibe config uses "glm-5-3" while CLI users often pass "glm-5.3"
+    vibe_model = "glm-5-3" if model in ("glm-5.3", "glm-5-3") else model
+
     env = os.environ.copy()
-    env["VIBE_ACTIVE_MODEL"] = model
+    env["VIBE_ACTIVE_MODEL"] = vibe_model
     env["PYTHONUNBUFFERED"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
 
     print(f"[+] Launching Vibe CLI ({role.upper()}) on task: {task_file.name}")
-    print(f"    - Model: {model}")
+    print(f"    - Model: {model} (active: {vibe_model})")
     print(f"    - Agent: {agent}")
     if worktree:
         print(f"    - Worktree: {worktree}")
@@ -352,7 +355,7 @@ def main():
     parser = argparse.ArgumentParser(description="Orchestrate Mistral Vibe agents for bb3d project tasks.")
     parser.add_argument("--task", required=True, type=Path, help="Path to the task file in tasks/active/TASK-*.md")
     parser.add_argument("--role", choices=["fixer", "reviewer"], default="fixer", help="Agent role: fixer or reviewer")
-    parser.add_argument("--model", default="glm-5.2", help="Model to use (default: glm-5.2)")
+    parser.add_argument("--model", default="glm-5.3", help="Model to use (default: glm-5.3)")
     parser.add_argument("--agent", default=None, help="Custom agent name (default: bb3d-fixer or bb3d-reviewer)")
     parser.add_argument("--worktree", default=None, help="Optional git worktree name for isolated branch execution")
     parser.add_argument("--max-turns", type=int, default=40, help="Max assistant turns (default: 40)")

@@ -44,7 +44,7 @@ L'agent **DOIT** consulter et activer les compétences locales selon le besoin :
 | **`planification-revue`** | `.agents/skills/planification-revue/` | **Obligatoire** dès qu'un design est validé. Découpe en TDD et fournit la grille de revue croisée (Implémenteur vs Reviewers). |
 | **`cpp-pro`** | `.agents/skills/cpp-pro/` | Pour tout code C++20/23 : Zero-Copy (`std::span`, `std::string_view`), initialisation désignée, zéro-allocation hot-path, conteneurs cache-friendly. |
 | **`vulkan-cpp`** | `.agents/skills/vulkan-cpp/` | Pour toute manipulation Vulkan : `StructureChain`, Dynamic Rendering, `pipelineBarrier2` (Sync2), Timeline Semaphores, Push Descriptors, multi-streams sommets. |
-| **`vibe-orchestrator`** | `.agents/skills/vibe-orchestrator/` | Pour déléguer et orchestrer des tâches avec Mistral Vibe CLI (Fixeur TDD, Reviewer en lecture seule) via worktrees isolés et modèle `glm-5.2`. |
+| **`vibe-orchestrator`** | `.agents/skills/vibe-orchestrator/` | Pour déléguer et orchestrer des tâches avec Mistral Vibe CLI (Fixeur TDD, Reviewer en lecture seule) via worktrees isolés et modèle `glm-5.3`. |
 | **`createur-de-competences`** | `.agents/skills/createur-de-competences/` | Pour concevoir et générer de nouvelles compétences au standard officiel. |
 
 ---
