@@ -1,6 +1,6 @@
 # [TÂCHE-PIPELINE-CACHE] : Persistance du Pipeline Cache Vulkan (`vk::PipelineCache`)
 
-- **Statut :** IN PROGRESS
+- **Statut :** READY FOR CODE REVIEW
 - **Auteur / Implémenteur :** Antigravity
 - **Reviewer(s) :** bb3d-reviewer (glm-5.3) / Antigravity
 - **Branche Git :** `feat/persistent-pipeline-cache`
@@ -37,7 +37,7 @@ L'objectif de cette tâche est de sérialiser l'objet `vk::PipelineCache` sur di
   - Validation du header (taille < 32 octets, mauvais UUID, mauvais vendor, cache valide).
   - Sauvegarde d'un cache avec pipeline réel sur disque temporaire.
   - Rechargement du cache dans un second contexte.
-- **Étape 2 (Vérification échec) :** `cmake --build build && ctest -R unit_test_35` (RED).
+- **Étape 2 (Vérification échec) :** `cmake --build build && ctest -R unit_test_35` (RED validé).
 
 ### Tâche 3 : Implémentation du Pipeline Cache dans `VulkanContext` (GREEN)
 - **Fichiers modifiés :** `src/bb3d/render/VulkanContext.cpp`, `src/bb3d/core/Engine.cpp`
@@ -46,7 +46,7 @@ L'objectif de cette tâche est de sérialiser l'objet `vk::PipelineCache` sur di
 - Implémentation de `loadPipelineCache()` avec vérification de validité.
 - Intégration dans `initLogicalDevice` (chargement transparent du fichier si valide) et `cleanup()` (sauvegarde automatique).
 - Intégration dans `Engine::Init()` pour transmettre le chemin depuis `m_Config.graphics`.
-- **Étape 4 (Vérification succès) :** `cmake --build build && ctest -R unit_test_35` (GREEN) et `ctest --test-dir build -C Debug --output-on-failure`.
+- **Étape 4 (Vérification succès) :** `unit_test_35_pipeline_cache` PASS (1.15s) et 7/7 tests graphiques passés.
 
 ### Tâche 4 : Revue de Code Croisée & Double Check
 - Revue systématique par reviewer.
@@ -58,21 +58,21 @@ L'objectif de cette tâche est de sérialiser l'objet `vk::PipelineCache` sur di
 ## 3. Grille de Revue & Checkpoints
 
 ### 🛠️ Checkpoints de l'Implémenteur (Avant soumission en revue)
-- [ ] **Double Check Bug (si correctif) :** N/A (Nouvelle fonctionnalité).
-- [ ] **TDD & Tests :** Les nouveaux tests et les tests unitaires existants passent (`ctest`).
-- [ ] **Standards C++ (`cpp-pro`) :**
-  - [ ] Zéro allocation dynamique dans le *Hot Path* (`render()` / `update()`).
-  - [ ] `std::span` et `std::string_view` utilisés pour le passage de paramètres (Zero-Copy).
-  - [ ] Initialisation désignée C++20 (`Type{.field = val}`).
-  - [ ] `[[nodiscard]]` présent sur les accesseurs et fonctions critiques.
-  - [ ] Code, commentaires, logs et documentation Doxygen rédigés en **anglais**.
-- [ ] **Standards Vulkan (`vulkan-cpp`) :**
-  - [ ] Synchronisation moderne : `pipelineBarrier2` avec `vk::DependencyInfo`.
-  - [ ] Zéro attente bloquante CPU (`waitIdle()`) pour les uploads.
-  - [ ] Validation du header Vulkan (UUID/Vendor/Device) avant de passer les données à `vk::PipelineCacheCreateInfo`.
-  - [ ] Dynamic Rendering sans RenderPass legacy.
-- [ ] **Qualité du Build :** Zéro warning compilateur (`/W4` sous MSVC).
-- [ ] **Commits :** Commits atomiques et messages de commit clairs (`feat:`, `fix:`).
+- [x] **Double Check Bug (si correctif) :** N/A (Nouvelle fonctionnalité).
+- [x] **TDD & Tests :** Les nouveaux tests et les tests unitaires existants passent (`ctest`).
+- [x] **Standards C++ (`cpp-pro`) :**
+  - [x] Zéro allocation dynamique dans le *Hot Path* (`render()` / `update()`).
+  - [x] `std::span` et `std::string_view` utilisés pour le passage de paramètres (Zero-Copy).
+  - [x] Initialisation désignée C++20 (`Type{.field = val}`).
+  - [x] `[[nodiscard]]` présent sur les accesseurs et fonctions critiques.
+  - [x] Code, commentaires, logs et documentation Doxygen rédigés en **anglais**.
+- [x] **Standards Vulkan (`vulkan-cpp`) :**
+  - [x] Synchronisation moderne : `pipelineBarrier2` avec `vk::DependencyInfo`.
+  - [x] Zéro attente bloquante CPU (`waitIdle()`) pour les uploads.
+  - [x] Validation du header Vulkan (UUID/Vendor/Device) avant de passer les données à `vk::PipelineCacheCreateInfo`.
+  - [x] Dynamic Rendering sans RenderPass legacy.
+- [x] **Qualité du Build :** Zéro warning compilateur (`/W4` sous MSVC).
+- [x] **Commits :** Commits atomiques et messages de commit clairs (`feat:`, `fix:`).
 
 ---
 
