@@ -1,6 +1,6 @@
 # [TÂCHE-GPU-04] : Instrumentation DebugUtils & Profiling Tracy GPU
 
-- **Statut :** IN PROGRESS
+- **Statut :** READY FOR CODE REVIEW
 - **Auteur / Implémenteur :** @Antigravity
 - **Reviewer(s) :** @bb3d-reviewer (Mistral Vibe CLI / glm-5.2)
 - **Branche Git :** `feat/debugutils-tracy-gpu`
@@ -57,21 +57,21 @@ Dans le cadre du **Jalon 2 (Socle Vulkan 1.3/1.4 Moderne & Synchronisation)**, c
 ## 3. Grille de Revue & Checkpoints
 
 ### 🛠️ Checkpoints de l'Implémenteur (Avant soumission en revue)
-- [ ] **Double Check Bug (si correctif) :** N/A (Nouvelle fonctionnalité).
-- [ ] **TDD & Tests :** `unit_test_34_debug_utils_profiling` passe ainsi que tous les 15 autres tests CTest.
-- [ ] **Standards C++ (`cpp-pro`) :**
-  - [ ] Zéro allocation dynamique dans le *Hot Path* (`render()` / `update()`).
-  - [ ] `std::string_view` et `std::span` utilisés pour les labels et les couleurs.
-  - [ ] Initialisation désignée C++20 (`Type{.field = val}`).
-  - [ ] `[[nodiscard]]` présent sur les accesseurs.
-  - [ ] Code, commentaires et logs en **anglais**.
-- [ ] **Standards Vulkan (`vulkan-cpp`) :**
-  - [ ] `VK_EXT_debug_utils` géré avec grâce : actif si supporté, no-op sinon.
-  - [ ] Zéro crash si validation layers absentes.
-  - [ ] `ScopedDebugLabel` RAII garantissant l'équilibre strict `begin`/`end`.
-  - [ ] `TracyVkContext` proprement initialisé avec un one-time command buffer et détruit à la fermeture.
-- [ ] **Qualité du Build :** Zéro warning compilateur sous MSVC `/W4`.
-- [ ] **Commits :** Commits atomiques et messages conformes.
+- [x] **Double Check Bug (si correctif) :** N/A (Nouvelle fonctionnalité).
+- [x] **TDD & Tests :** `unit_test_34_debug_utils_profiling` passe ainsi que tous les 15 autres tests automatisés CTest (16/16 PASS).
+- [x] **Standards C++ (`cpp-pro`) :**
+  - [x] Zéro allocation dynamique dans le *Hot Path* (`render()` / `update()`).
+  - [x] `std::string_view` et `std::array` utilisés pour les labels et les couleurs.
+  - [x] Initialisation désignée C++20 (`Type{.field = val}`).
+  - [x] `[[nodiscard]]` présent sur les accesseurs.
+  - [x] Code, commentaires et logs en **anglais**.
+- [x] **Standards Vulkan (`vulkan-cpp`) :**
+  - [x] `VK_EXT_debug_utils` géré avec grâce : actif si supporté, no-op sinon.
+  - [x] Zéro crash si validation layers absentes.
+  - [x] `ScopedDebugLabel` RAII garantissant l'équilibre strict `begin`/`end`.
+  - [x] `TracyVkContext` proprement initialisé avec un one-time command buffer et détruit à la fermeture.
+- [x] **Qualité du Build :** Zéro warning compilateur sous MSVC `/W4`.
+- [x] **Commits :** Commits atomiques et messages conformes.
 
 ---
 
