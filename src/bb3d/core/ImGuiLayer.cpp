@@ -25,6 +25,7 @@
 #include <imgui_internal.h>
 
 #include <SDL3/SDL.h>
+#include <filesystem>
 
 namespace bb3d {
 
@@ -72,6 +73,7 @@ ImGuiLayer::ImGuiLayer(VulkanContext& context, Window& window, SwapChain& swapCh
     initInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats = &colorFormat;
 
     ImGui_ImplVulkan_Init(&initInfo);
+    ImGui_ImplVulkan_CreateFontsTexture();
 
     // Register modular default panels
     m_viewportPanel = m_panelManager.addPanel<editor::ViewportPanel>();
@@ -94,36 +96,43 @@ ImGuiLayer::~ImGuiLayer() {
 
 void ImGuiLayer::initFonts() {
     ImGuiIO& io = ImGui::GetIO();
-    float baseFontSize = 14.0f;
-    float iconFontSize = 13.0f;
+    float baseFontSize = 15.0f;
+    float iconFontSize = 14.0f;
 
-    ImFontConfig fontConfig;
-    fontConfig.FontBuilderFlags = ImGuiFreeTypeBuilderFlags_ForceAutoHint;
-
-    m_fontRoboto = io.Fonts->AddFontFromFileTTF("assets/fonts/Roboto-Regular.ttf", baseFontSize, &fontConfig);
-    if (!m_fontRoboto) {
+    const char* robotoPath = "assets/fonts/Roboto-Regular.ttf";
+    if (std::filesystem::exists(robotoPath)) {
+        ImFontConfig fontConfig;
+        fontConfig.FontBuilderFlags = ImGuiFreeTypeBuilderFlags_ForceAutoHint;
+        m_fontRoboto = io.Fonts->AddFontFromFileTTF(robotoPath, baseFontSize, &fontConfig);
+    } else {
         m_fontRoboto = io.Fonts->AddFontDefault();
+        BB_CORE_WARN("ImGuiLayer: Roboto font not found at {}, using default font.", robotoPath);
     }
 
-    // Merge FontAwesome icons into primary font
-    static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_16_FA, 0 };
-    ImFontConfig icons_config;
-    icons_config.MergeMode = true;
-    icons_config.PixelSnapH = true;
-    icons_config.GlyphMinAdvanceX = iconFontSize;
-    icons_config.FontBuilderFlags = ImGuiFreeTypeBuilderFlags_ForceAutoHint;
+    const char* faPath = "assets/fonts/fa-solid-900.ttf";
+    if (std::filesystem::exists(faPath)) {
+        static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_16_FA, 0 };
+        ImFontConfig icons_config;
+        icons_config.MergeMode = true;
+        icons_config.PixelSnapH = true;
+        icons_config.GlyphMinAdvanceX = iconFontSize;
+        icons_config.FontBuilderFlags = ImGuiFreeTypeBuilderFlags_ForceAutoHint;
+        m_fontAwesome = io.Fonts->AddFontFromFileTTF(faPath, iconFontSize, &icons_config, icons_ranges);
+    } else {
+        BB_CORE_WARN("ImGuiLayer: FontAwesome not found at {}.", faPath);
+    }
 
-    m_fontAwesome = io.Fonts->AddFontFromFileTTF("assets/fonts/fa-solid-900.ttf", iconFontSize, &icons_config, icons_ranges);
+    m_fontSegoe = nullptr;
+    m_fontNoto = nullptr;
 
-    // Fallback emoji and symbol fonts
-    static const ImWchar full_unicode_ranges[] = { 0x0020, 0xFFFF, 0 };
-    ImFontConfig fallback_config;
-    fallback_config.MergeMode = true;
-    fallback_config.PixelSnapH = true;
-    fallback_config.FontBuilderFlags = ImGuiFreeTypeBuilderFlags_ForceAutoHint;
-
-    m_fontSegoe = io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\seguiemj.ttf", baseFontSize, &fallback_config, full_unicode_ranges);
-    m_fontNoto = io.Fonts->AddFontFromFileTTF("assets/fonts/NotoColorEmoji.ttf", baseFontSize, &fallback_config, full_unicode_ranges);
+    // Explicitly build the font atlas to validate dimensions and catch any rasterization errors early
+    if (!io.Fonts->Build()) {
+        BB_CORE_ERROR("ImGuiLayer: FreeType font atlas build failed! Rebuilding with default fallback.");
+        io.Fonts->Clear();
+        m_fontRoboto = io.Fonts->AddFontDefault();
+        m_fontAwesome = nullptr;
+        io.Fonts->Build();
+    }
 }
 
 void ImGuiLayer::beginFrame() {
