@@ -23,6 +23,7 @@ Renderer::Renderer(VulkanContext& context, Window& window, JobSystem& jobSystem,
     m_swapChain = CreateScope<SwapChain>(context, config.window.width, config.window.height);
     
     m_renderCommands.reserve(1000);
+    m_transforms.reserve(1000);
 
     if (m_config.graphics.enableOffscreenRendering) {
         uint32_t w = static_cast<uint32_t>(m_swapChain->getExtent().width * m_config.graphics.renderScale);
@@ -101,6 +102,7 @@ Renderer::~Renderer() {
 #endif
 
         m_renderCommands.clear();
+        m_transforms.clear();
         m_pipelines.clear();
         m_shaders.clear();
 
@@ -938,6 +940,55 @@ Camera* Renderer::updateGlobalUBO([[maybe_unused]] uint32_t currentFrame, Scene&
 void Renderer::prepareRenderData(Scene& scene, const Camera* activeCamera) {
     std::lock_guard<std::mutex> lock(m_commandMutex);
     m_renderCommands.clear();
+    m_transforms.clear();
+
+    // Determine camera and shadow boundaries for early culling
+    const Camera* cam = activeCamera;
+    if (!cam) {
+        auto camView = scene.getRegistry().view<CameraComponent>();
+        for (auto entity : camView) {
+            if (camView.get<CameraComponent>(entity).active) {
+                cam = camView.get<CameraComponent>(entity).camera.get();
+                break;
+            }
+        }
+    }
+
+    glm::vec3 camPos(0.0f);
+    float shadowFarZSq = 1000.0f * 1000.0f;
+    if (cam) {
+        camPos = cam->getPosition();
+        float shadowFarZ = std::max(cam->getFarPlane(), 1000.0f);
+        shadowFarZSq = shadowFarZ * shadowFarZ;
+    }
+    const bool frustumCullingEnabled = m_config.graphics.enableFrustumCulling;
+
+    auto addRenderCommand = [&](MaterialType type, Material* mat, Mesh* mesh, const glm::mat4& transform, bool castShadows) {
+        if (frustumCullingEnabled && mesh) {
+            AABB worldBounds = mesh->getBounds().transform(transform);
+            if (!m_frustum.intersects(worldBounds)) {
+                // Outside camera frustum: retain ONLY if it casts shadows and is within shadow range
+                if (!castShadows || !m_shadowsEnabledRuntime) {
+                    return; // Culled!
+                }
+                glm::vec3 center = (worldBounds.min + worldBounds.max) * 0.5f;
+                glm::vec3 diff = center - camPos;
+                float distSq = glm::dot(diff, diff);
+                if (distSq > shadowFarZSq) {
+                    return; // Culled!
+                }
+            }
+        }
+        uint32_t tIdx = static_cast<uint32_t>(m_transforms.size());
+        m_transforms.push_back(transform);
+        m_renderCommands.push_back({
+            .material = mat,
+            .mesh = mesh,
+            .type = type,
+            .transformIndex = tIdx,
+            .castShadows = castShadows ? 1u : 0u
+        });
+    };
 
     // 1. Collect MeshComponent commands
     auto meshView = scene.getRegistry().view<MeshComponent, TransformComponent>();
@@ -945,17 +996,11 @@ void Renderer::prepareRenderData(Scene& scene, const Camera* activeCamera) {
         auto& meshComp = meshView.get<MeshComponent>(entity);
         if (!meshComp.mesh || !meshComp.visible) continue;
         
-        RenderCommand cmd;
         auto mat = meshComp.mesh->getMaterial();
         if (!mat) mat = m_fallbackMaterial;
         
-        cmd.type = mat->getType();
-        cmd.material = mat.get();
-        cmd.mesh = meshComp.mesh.get();
-        cmd.transform = meshView.get<TransformComponent>(entity).getTransform();
-        cmd.castShadows = meshComp.castShadows;
-        
-        m_renderCommands.push_back(cmd);
+        glm::mat4 transform = meshView.get<TransformComponent>(entity).getTransform();
+        addRenderCommand(mat->getType(), mat.get(), meshComp.mesh.get(), transform, meshComp.castShadows);
     }
 
     // 2. Collect ModelComponent commands
@@ -970,17 +1015,10 @@ void Renderer::prepareRenderData(Scene& scene, const Camera* activeCamera) {
         for (const auto& mesh : modelComp.model->getMeshes()) {
             if (!mesh->isVisible()) continue;
             
-            RenderCommand cmd;
             auto mat = mesh->getMaterial();
             if (!mat) mat = m_fallbackMaterial;
 
-            cmd.type = mat->getType();
-            cmd.material = mat.get();
-            cmd.mesh = mesh.get();
-            cmd.transform = modelTransform; 
-            cmd.castShadows = modelComp.castShadows;
-            
-            m_renderCommands.push_back(cmd);
+            addRenderCommand(mat->getType(), mat.get(), mesh.get(), modelTransform, modelComp.castShadows);
         }
     }
 
@@ -1002,15 +1040,15 @@ void Renderer::prepareRenderData(Scene& scene, const Camera* activeCamera) {
             float currentSize = p.sizeBegin + (p.sizeEnd - p.sizeBegin) * t;
             glm::mat4 pt = glm::translate(glm::mat4(1.0f), p.position);
             pt = glm::scale(pt, glm::vec3(currentSize));
-            m_renderCommands.push_back({ mat->getType(), mat, mesh, pt, false });
+            addRenderCommand(mat->getType(), mat, mesh, pt, false);
         }
     }
     
     if (m_highlightActive && m_highlightCube && m_highlightMat) {
-        m_renderCommands.push_back({ MaterialType::Highlight, m_highlightMat.get(), m_highlightCube.get(), m_highlightTransform, false });
+        addRenderCommand(MaterialType::Highlight, m_highlightMat.get(), m_highlightCube.get(), m_highlightTransform, false);
     }
     if (m_hoveredActive && m_highlightCube && m_hoveredMat) {
-        m_renderCommands.push_back({ MaterialType::Highlight, m_hoveredMat.get(), m_highlightCube.get(), m_hoveredTransform, false });
+        addRenderCommand(MaterialType::Highlight, m_hoveredMat.get(), m_highlightCube.get(), m_hoveredTransform, false);
     }
 
     if (m_debugPhysicsEnabled && m_highlightCube && m_debugColliderMat) {
@@ -1029,63 +1067,23 @@ void Renderer::prepareRenderData(Scene& scene, const Camera* activeCamera) {
             } else colliderScale = tf.scale;
 
             glm::mat4 model = glm::translate(glm::mat4(1.0f), tf.translation) * glm::toMat4(glm::quat(tf.rotation)) * glm::scale(glm::mat4(1.0f), colliderScale);
-            m_renderCommands.push_back({ MaterialType::Highlight, m_debugColliderMat.get(), m_highlightCube.get(), model, false });
+            addRenderCommand(MaterialType::Highlight, m_debugColliderMat.get(), m_highlightCube.get(), model, false);
         }
     }
 
-    // Frustum Culling: Remove objects outside the view frustum unless they are shadow casters within shadow range
-    if (m_config.graphics.enableFrustumCulling && !m_renderCommands.empty()) {
-        const Camera* cam = activeCamera;
-        if (!cam) {
-            auto camView = scene.getRegistry().view<CameraComponent>();
-            for (auto entity : camView) {
-                if (camView.get<CameraComponent>(entity).active) {
-                    cam = camView.get<CameraComponent>(entity).camera.get();
-                    break;
-                }
-            }
-        }
-
-        glm::vec3 camPos(0.0f);
-        float shadowFarZSq = 1000.0f * 1000.0f;
-        if (cam) {
-            camPos = cam->getPosition();
-            float shadowFarZ = std::max(cam->getFarPlane(), 1000.0f);
-            shadowFarZSq = shadowFarZ * shadowFarZ;
-        }
-
-        auto it = std::remove_if(m_renderCommands.begin(), m_renderCommands.end(),
-            [&](const RenderCommand& cmd) {
-                if (!cmd.mesh) return false;
-                AABB worldBounds = cmd.mesh->getBounds().transform(cmd.transform);
-                if (m_frustum.intersects(worldBounds)) {
-                    return false; // Visible in camera frustum, keep!
-                }
-                // Outside camera frustum: retain if it casts shadows and is within shadow range
-                if (cmd.castShadows && m_shadowsEnabledRuntime) {
-                    glm::vec3 center = (worldBounds.min + worldBounds.max) * 0.5f;
-                    glm::vec3 diff = center - camPos;
-                    float distSq = glm::dot(diff, diff);
-                    if (distSq <= shadowFarZSq) {
-                        return false; // Keep for shadow pass
-                    }
-                }
-                return true; // Culled
-            });
-        m_renderCommands.erase(it, m_renderCommands.end());
-    }
-
-    std::ranges::sort(m_renderCommands, [](const RenderCommand& a, const RenderCommand& b) {
+    // Fast 24-byte sorting (L1 cache friendly)
+    std::ranges::sort(m_renderCommands, [](const RenderCommand& a, const RenderCommand& b) noexcept {
         if (a.type != b.type) return a.type < b.type;
         if (a.material != b.material) return a.material < b.material;
         return a.mesh < b.mesh;
     });
 
+    // Contiguous streaming copy into persistently mapped instance buffer
     void* mappedData = m_instanceBuffers[m_currentFrame]->getMappedData();
     uint32_t count = (std::min)((uint32_t)m_renderCommands.size(), MAX_INSTANCES);
+    auto* dst = static_cast<glm::mat4*>(mappedData);
     for (uint32_t i = 0; i < count; ++i) {
-        void* dst = static_cast<char*>(mappedData) + (i * sizeof(glm::mat4));
-        memcpy(dst, &m_renderCommands[i].transform, sizeof(glm::mat4));
+        dst[i] = m_transforms[m_renderCommands[i].transformIndex];
     }
 }
 

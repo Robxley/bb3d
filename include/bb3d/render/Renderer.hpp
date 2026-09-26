@@ -26,18 +26,20 @@ namespace bb3d {
 class Window; // Forward declaration
 
 struct RenderCommand {
-    MaterialType type;
-    Material* material;
-    Mesh* mesh;
-    glm::mat4 transform;
-    bool castShadows;
+    Material* material;           // 8 bytes (offset 0)
+    Mesh* mesh;                   // 8 bytes (offset 8)
+    MaterialType type;            // 4 bytes (offset 16)
+    uint32_t transformIndex : 31; // 31 bits: up to 2 billion instances (offset 20)
+    uint32_t castShadows : 1;     // 1 bit flag (offset 20)
 
-    bool operator<(const RenderCommand& other) const {
-        if (type != other.type) return type < other.type;
-        if (material != other.material) return material < other.material;
-        return mesh < other.mesh;
+    friend bool operator<(const RenderCommand& a, const RenderCommand& b) noexcept {
+        if (a.type != b.type) return a.type < b.type;
+        if (a.material != b.material) return a.material < b.material;
+        return a.mesh < b.mesh;
     }
 };
+
+static_assert(sizeof(RenderCommand) == 24, "RenderCommand must be exactly 24 bytes for optimal cache footprint");
 
 /**
  * @brief Chef d'orchestre du rendu graphique.
@@ -246,8 +248,9 @@ private:
     // Materials
     vk::DescriptorPool m_descriptorPool; 
 
-    // Optimisation : Éviter les réallocations par frame
+    // Optimisation : Éviter les réallocations par frame (DOD compact render commands)
     std::vector<RenderCommand> m_renderCommands;
+    std::vector<glm::mat4> m_transforms;
     std::mutex m_commandMutex;
 
     Scope<Mesh> m_skyboxCube;
