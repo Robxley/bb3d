@@ -76,8 +76,8 @@ flowchart LR
 - [x] **Instrumentation DebugUtils & Profiling Tracy GPU** :
   - Baliser les command buffers et passes de rendu avec `vkCmdBeginDebugUtilsLabelEXT` / `vkCmdEndDebugUtilsLabelEXT` via RAII `ScopedDebugLabel`.
   - Intégrer les zones de timing GPU via `TracyVkZone` (`BB_GPU_ZONE`), collecte par frame `TracyVkCollect`, et nommage type-safe des objets Vulkan (`setObjectName`). Test unitaire `unit_test_34_debug_utils_profiling` validé.
-- [ ] **Pipeline Cache Persistant** :
-  - Sérialiser l'objet `vk::PipelineCache` dans `assets/cache/pipelines.bin` pour éliminer les micro-saccades lors des lancements ultérieurs.
+- [x] **Pipeline Cache Persistant** :
+  - Sérialiser l'objet `vk::PipelineCache` dans `assets/cache/pipelines.bin` pour éliminer les micro-saccades lors des lancements ultérieurs. Validation du header 32B (UUID/Vendor/Device), sauvegarde atomique, merge dynamique, test TDD 35 PASS (1.20s).
 - [ ] **Extended Dynamic State (Vulkan 1.3)** :
   - Exploiter les états dynamiques étendus (cull mode, front face, depth compare op, primitive topology) pour diviser le nombre de pipelines graphiques requis.
 

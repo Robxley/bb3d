@@ -5,6 +5,11 @@ Ce fichier consigne l'historique compact de tous les chantiers et correctifs ter
 
 ---
 
+- **[2026-09-26] [TASK-PIPELINE-CACHE] Persistance du Pipeline Cache Vulkan (vk::PipelineCache)** (@Antigravity / @bb3d-reviewer & @Robxley)
+  - Scope: `include/bb3d/core/Config.hpp`, `include/bb3d/render/VulkanContext.hpp`, `src/bb3d/core/Engine.cpp`, `src/bb3d/render/VulkanContext.cpp`, `tests/unit_test_35_pipeline_cache.cpp`
+  - Bilan: vk::PipelineCache persisté sur disque (`assets/cache/pipelines.bin`), validation stricte header 32B (UUID/Vendor/Device), écriture atomique (.tmp -> rename/copy), merge dynamique, test 35 PASS (1.20s), 0 warning MSVC, revue APPROVED.
+  - Archive: [archive/TASK-PIPELINE-CACHE.md](archive/TASK-PIPELINE-CACHE.md)
+
 - **[2026-09-26] [TASK-DEBUGUTILS-TRACY-GPU] Instrumentation DebugUtils & Profiling Tracy GPU** (@Antigravity / @bb3d-reviewer & @Robxley)
   - Scope: `include/bb3d/render/DebugUtils.hpp`, `include/bb3d/render/VulkanContext.hpp`, `src/bb3d/render/VulkanContext.cpp`, `include/bb3d/render/Renderer.hpp`, `src/bb3d/render/Renderer.cpp`, `tests/unit_test_34_debug_utils_profiling.cpp`
   - Bilan: RAII ScopedDebugLabel et setObjectName, TracyVkContext/Collect et BB_GPU_ZONE sécurisé, 5 passes balisées, 0 allocation hot-path (stackBuf/kCascadeLabels), test 34 PASS (0.88s), suite CTest 16/16 PASS (9.46s), 0 warning MSVC, revue APPROVED.
