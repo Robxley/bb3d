@@ -5,6 +5,11 @@ Ce fichier consigne l'historique compact de tous les chantiers et correctifs ter
 
 ---
 
+- **[2026-09-26] [TASK-EXTENDED-DYNAMIC-STATE] Extended Dynamic State Vulkan 1.3 Core (Chantier 6)** (@Antigravity / @Vulkan Architecture Reviewer)
+  - Scope: `include/bb3d/render/VulkanContext.hpp`, `src/bb3d/render/VulkanContext.cpp`, `src/bb3d/render/GraphicsPipeline.cpp`, `src/bb3d/render/Renderer.cpp`, `tests/unit_test_37_extended_dynamic_state.cpp`
+  - Bilan: 9 états dynamiques (cull, frontFace, depthTest/Write/CompareOp, topology), StructureChain 1.3/1.4, binding déterministe par pipeline, test 37 PASS (3.79s), 0 allocation hot-path, 150+ FPS maintenu, revue APPROVED.
+  - Archive: [archive/TASK-EXTENDED-DYNAMIC-STATE.md](archive/TASK-EXTENDED-DYNAMIC-STATE.md)
+
 - **[2026-09-26] [TASK-HOTPATH-RENDERER-OPTIM] Optimisation Hot-Path Renderer (Points 1, 2 et 3 - Règle 0)** (@Antigravity / @Vulkan Architecture Reviewer)
   - Scope: `include/bb3d/render/Renderer.hpp`, `src/bb3d/render/Renderer.cpp`, `tests/unit_test_36_renderer_hotpath_optim.cpp`
   - Bilan: RenderCommand compactée à 24B (-75% trafic L1), Frustum Culling amont pré-insertion (suppression std::remove_if et erase vectoriel), streaming contigu vers Instance Buffer GPU mappé, test 36 PASS (1.21s), CTest non-interactif 8/8 PASS, revue APPROVED.

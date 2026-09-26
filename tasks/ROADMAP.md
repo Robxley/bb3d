@@ -78,8 +78,8 @@ flowchart LR
   - Intégrer les zones de timing GPU via `TracyVkZone` (`BB_GPU_ZONE`), collecte par frame `TracyVkCollect`, et nommage type-safe des objets Vulkan (`setObjectName`). Test unitaire `unit_test_34_debug_utils_profiling` validé.
 - [x] **Pipeline Cache Persistant** :
   - Sérialiser l'objet `vk::PipelineCache` dans `assets/cache/pipelines.bin` pour éliminer les micro-saccades lors des lancements ultérieurs. Validation du header 32B (UUID/Vendor/Device), sauvegarde atomique, merge dynamique, test TDD 35 PASS (1.20s).
-- [ ] **Extended Dynamic State (Vulkan 1.3)** :
-  - Exploiter les états dynamiques étendus (cull mode, front face, depth compare op, primitive topology) pour diviser le nombre de pipelines graphiques requis.
+- [x] **Extended Dynamic State (Vulkan 1.3 Core)** :
+  - Exploiter les états dynamiques étendus (`eCullMode`, `eFrontFace`, `eDepthTestEnable`, `eDepthWriteEnable`, `eDepthCompareOp`, `ePrimitiveTopology`) pour diviser le nombre de pipelines graphiques requis. Chaînage StructureChain 1.3/1.4, test TDD 37 PASS (3.79s).
 
 ---
 

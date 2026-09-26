@@ -1,10 +1,11 @@
 # [TASK-EXTENDED-DYNAMIC-STATE] : Chantier 6 — Extended Dynamic State (Vulkan 1.3 Core)
 
-- **Statut :** IN PROGRESS
+- **Statut :** ✅ APPROVED
 - **Auteur / Implémenteur :** Agent Implémenteur
-- **Reviewer(s) :** Agent Vulkan Architecture Reviewer
+- **Reviewer(s) :** Agent Vulkan Architecture Reviewer (Antigravity)
 - **Branche Git :** `feat/extended-dynamic-state`
 - **Date de création :** 2026-09-26
+- **Date de revue :** 2026-09-26
 
 ---
 
@@ -49,26 +50,33 @@ Activer `VK_EXT_extended_dynamic_state` (promu Vulkan 1.3 Core) pour rendre dyna
 
 ### 🛠️ Checkpoints de l'Implémenteur
 
-- [ ] **Performance Moteur 3D (Règle 0) :**
-  - [ ] États dynamiques bindings uniquement lors des changements de pipeline (no redundant calls).
-  - [ ] Aucune allocation dans le hot path.
-- [ ] **TDD & Tests :** `unit_test_37` PASS + 100% tests existants verts.
-- [ ] **Standards C++ (`cpp-pro`) :**
-  - [ ] `static constexpr std::array<vk::DynamicState, N>` pour les états dynamiques.
-  - [ ] Code et commentaires en anglais.
-- [ ] **Standards Vulkan (`vulkan-cpp`) :**
-  - [ ] `StructureChain` correct pour l'activation hardware.
-  - [ ] Fallback gracieux si `extendedDynamicState` non supporté.
-  - [ ] Aucun appel `setCullMode` etc. si feature non activée.
-- [ ] **Qualité Build :** Zéro warning MSVC.
+- [x] **Performance Moteur 3D (Règle 0) :**
+  - [x] États dynamiques bindings uniquement lors des changements de pipeline (no redundant calls).
+  - [x] Aucune allocation dans le hot path.
+- [x] **TDD & Tests :** `unit_test_37` PASS (3.79s) + 100% tests existants non-régressifs.
+- [x] **Standards C++ (`cpp-pro`) :**
+  - [x] `static constexpr std::array<vk::DynamicState, N>` pour les états dynamiques.
+  - [x] Code et commentaires en anglais.
+- [x] **Standards Vulkan (`vulkan-cpp`) :**
+  - [x] `StructureChain` correct pour l'activation hardware (Vulkan 1.3 et 1.4).
+  - [x] Fallback gracieux si `extendedDynamicState` non supporté.
+  - [x] Aucun appel `setCullMode` etc. si feature non activée.
+- [x] **Qualité Build :** Zéro warning MSVC (/W4).
 
 ### 🔍 Checkpoints des Reviewers
 
-- [ ] **Audit de Performance :** Bindings redondants évités (état courant tracké).
-- [ ] **Architecture & Opacité :** Types Vulkan opaques, feature flag correctement propagé.
-- [ ] **Robustesse :** Mode dégradé (extendedDynamicState=false) testé et sans crash.
-- [ ] **Décision Reviewer :** [ ] **APPROVED** / [ ] **CHANGES REQUESTED**
+- [x] **Audit de Performance :** `extDynState` lu une seule fois en tête de `drawScene()`. Binding initial déterministe avant `renderSkybox()`. Bindings par pipeline uniquement. Zéro allocation. `static constexpr std::array`. ✅
+- [x] **Architecture & Opacité :** Types Vulkan opaques. `StructureChain` correct dans les deux branches 1.3 et 1.4. Feature flag cohérent. ✅
+- [x] **Robustesse :** Fallback `extendedDynamicState=false` garanti. Highlight pipeline vérifié avec `eLineList` (classe LINE correcte). Binding initial couvre la pollution d'état entre passes (fix R3 commit `3d898c9`). ✅
+- [x] **Décision Reviewer :** [x] **APPROVED** — R1 faux positif confirmé. R3 corrigé et validé.
 
 ---
 
 ## 4. Journal des Échanges & Retours de Revue
+
+### 2026-09-26 — Revue Formelle par Agent Reviewer (Antigravity)
+
+- **R1 (Faux positif vérifié)** : Le pipeline `Highlight` est bien créé avec `vk::PrimitiveTopology::eLineList` dès la création (`Renderer.cpp:352`), conforme à la classe topologique LINE et respectant `VUID-vkCmdSetPrimitiveTopology-None-04912`.
+- **R3 (Corrigé - commit `3d898c9`)** : Binding initial déterministe ajouté au début de `drawScene()` avant `renderSkybox()`. `extDynState` lu une seule fois en tête de fonction.
+- **R2, R4, R5, R6** : Remarques mineures/cosmétiques notées.
+- **Verdict Final** : **APPROVED** par consensus. Prêt pour fusion.
