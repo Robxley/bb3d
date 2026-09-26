@@ -5,6 +5,11 @@ Ce fichier consigne l'historique compact de tous les chantiers et correctifs ter
 
 ---
 
+- **[2026-09-26] [TASK-HOTPATH-RENDERER-OPTIM] Optimisation Hot-Path Renderer (Points 1, 2 et 3 - Règle 0)** (@Antigravity / @Vulkan Architecture Reviewer)
+  - Scope: `include/bb3d/render/Renderer.hpp`, `src/bb3d/render/Renderer.cpp`, `tests/unit_test_36_renderer_hotpath_optim.cpp`
+  - Bilan: RenderCommand compactée à 24B (-75% trafic L1), Frustum Culling amont pré-insertion (suppression std::remove_if et erase vectoriel), streaming contigu vers Instance Buffer GPU mappé, test 36 PASS (1.21s), CTest non-interactif 8/8 PASS, revue APPROVED.
+  - Archive: [archive/TASK-HOTPATH-RENDERER-OPTIMIZATION.md](archive/TASK-HOTPATH-RENDERER-OPTIMIZATION.md)
+
 - **[2026-09-26] [TASK-PIPELINE-CACHE] Persistance du Pipeline Cache Vulkan (vk::PipelineCache)** (@Antigravity / @bb3d-reviewer & @Robxley)
   - Scope: `include/bb3d/core/Config.hpp`, `include/bb3d/render/VulkanContext.hpp`, `src/bb3d/core/Engine.cpp`, `src/bb3d/render/VulkanContext.cpp`, `tests/unit_test_35_pipeline_cache.cpp`
   - Bilan: vk::PipelineCache persisté sur disque (`assets/cache/pipelines.bin`), validation stricte header 32B (UUID/Vendor/Device), écriture atomique (.tmp -> rename/copy), merge dynamique, test 35 PASS (1.20s), 0 warning MSVC, revue APPROVED.
