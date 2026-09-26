@@ -90,30 +90,67 @@ void GraphicsPipeline::createPipeline(const Shader& vertShader, const Shader& fr
 
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly({}, topology, VK_FALSE);
     vk::PipelineViewportStateCreateInfo viewportState({}, 1, nullptr, 1, nullptr);
-    std::array<vk::DynamicState, 3> dynamicStates = { 
-        vk::DynamicState::eViewport, 
+
+    // Extended Dynamic State (Vulkan 1.3 Core): declare additional states as dynamic to
+    // eliminate pipeline permutations for cull mode, depth, front face and topology.
+    // Falls back to minimal 3-state set when the feature is not available.
+    static constexpr std::array<vk::DynamicState, 9> kDynamicStatesExtended = {
+        vk::DynamicState::eViewport,
         vk::DynamicState::eScissor,
-        vk::DynamicState::eDepthBias 
+        vk::DynamicState::eDepthBias,
+        vk::DynamicState::eCullMode,
+        vk::DynamicState::eFrontFace,
+        vk::DynamicState::eDepthTestEnable,
+        vk::DynamicState::eDepthWriteEnable,
+        vk::DynamicState::eDepthCompareOp,
+        vk::DynamicState::ePrimitiveTopology,
     };
-    vk::PipelineDynamicStateCreateInfo dynamicState({}, static_cast<uint32_t>(dynamicStates.size()), dynamicStates.data());
+    static constexpr std::array<vk::DynamicState, 3> kDynamicStatesBase = {
+        vk::DynamicState::eViewport,
+        vk::DynamicState::eScissor,
+        vk::DynamicState::eDepthBias,
+    };
+
+    const bool extDynState = m_context.getEnabledFeatures().extendedDynamicState;
+    vk::PipelineDynamicStateCreateInfo dynamicState(
+        {},
+        extDynState ? static_cast<uint32_t>(kDynamicStatesExtended.size())
+                    : static_cast<uint32_t>(kDynamicStatesBase.size()),
+        extDynState ? kDynamicStatesExtended.data()
+                    : kDynamicStatesBase.data()
+    );
 
     vk::PolygonMode polyMode = vk::PolygonMode::eFill;
-    if (config.rasterizer.polygonMode == "Line") polyMode = vk::PolygonMode::eLine;
+    if (config.rasterizer.polygonMode == "Line")  polyMode = vk::PolygonMode::eLine;
     else if (config.rasterizer.polygonMode == "Point") polyMode = vk::PolygonMode::ePoint;
 
+    // When extended dynamic state is active, cull mode and front face are set per draw call.
+    // Static pipeline bakes the config values as fallback defaults (ignored at runtime).
     vk::CullModeFlags cullMode = vk::CullModeFlagBits::eBack;
-    if (config.rasterizer.cullMode == "None") cullMode = vk::CullModeFlagBits::eNone;
-    else if (config.rasterizer.cullMode == "Front") cullMode = vk::CullModeFlagBits::eFront;
-    else if (config.rasterizer.cullMode == "FrontAndBack") cullMode = vk::CullModeFlagBits::eFrontAndBack;
+    if (!extDynState) {
+        if (config.rasterizer.cullMode == "None")         cullMode = vk::CullModeFlagBits::eNone;
+        else if (config.rasterizer.cullMode == "Front")   cullMode = vk::CullModeFlagBits::eFront;
+        else if (config.rasterizer.cullMode == "FrontAndBack") cullMode = vk::CullModeFlagBits::eFrontAndBack;
+    }
 
-    vk::FrontFace frontFace = (config.rasterizer.frontFace == "CW") ? vk::FrontFace::eClockwise : vk::FrontFace::eCounterClockwise;
-    vk::PipelineRasterizationStateCreateInfo rasterizer({}, VK_FALSE, VK_FALSE, polyMode, cullMode, frontFace, config.rasterizer.depthBiasEnable ? VK_TRUE : VK_FALSE, 0.0f, 0.0f, 0.0f, 1.0f);
+    vk::FrontFace frontFace = extDynState
+        ? vk::FrontFace::eCounterClockwise  // overridden dynamically at draw time
+        : ((config.rasterizer.frontFace == "CW") ? vk::FrontFace::eClockwise : vk::FrontFace::eCounterClockwise);
+
+    vk::PipelineRasterizationStateCreateInfo rasterizer({}, VK_FALSE, VK_FALSE, polyMode, cullMode, frontFace,
+        config.rasterizer.depthBiasEnable ? VK_TRUE : VK_FALSE, 0.0f, 0.0f, 0.0f, 1.0f);
 
     vk::PipelineMultisampleStateCreateInfo multisampling({}, vk::SampleCountFlagBits::e1, VK_FALSE);
-    vk::PipelineDepthStencilStateCreateInfo depthStencil({}, 
-        config.depthStencil.depthTest ? VK_TRUE : VK_FALSE,
-        depthWrite ? VK_TRUE : VK_FALSE,
-        depthCompareOp, VK_FALSE, config.depthStencil.stencilTest ? VK_TRUE : VK_FALSE);
+
+    // When extended dynamic state is active, depth test/write/compareOp are overridden per draw call.
+    // Provide coherent static defaults (depth test on, write on, compare Less) as pipeline baseline.
+    const VkBool32 staticDepthTest  = extDynState ? VK_TRUE  : (config.depthStencil.depthTest ? VK_TRUE : VK_FALSE);
+    const VkBool32 staticDepthWrite = extDynState ? VK_TRUE  : (depthWrite ? VK_TRUE : VK_FALSE);
+    const vk::CompareOp staticDepthOp = extDynState ? vk::CompareOp::eLess : depthCompareOp;
+
+    vk::PipelineDepthStencilStateCreateInfo depthStencil({},
+        staticDepthTest, staticDepthWrite, staticDepthOp,
+        VK_FALSE, config.depthStencil.stencilTest ? VK_TRUE : VK_FALSE);
 
     bool hasColor = (m_colorFormat != vk::Format::eUndefined);
     uint32_t colorAttachmentCount = hasColor ? 1 : 0;

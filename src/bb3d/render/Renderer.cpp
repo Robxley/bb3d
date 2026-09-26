@@ -731,6 +731,10 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
         currentBatchCount = 0;
     };
 
+    // Extended dynamic state: determines per-material-type pipeline settings.
+    // Only emitted once per pipeline change to minimize GPU command overhead.
+    const bool extDynState = m_context.getEnabledFeatures().extendedDynamicState;
+
     for (uint32_t i = 0; i < (uint32_t)m_renderCommands.size(); ++i) {
         const auto& cmd = m_renderCommands[i];
         if (i >= MAX_INSTANCES) break;
@@ -746,6 +750,40 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
             pipelineChanged = true;
             currentBatchStart = i; // Reset start for new pipeline/batch
+
+            // Bind extended dynamic states once per pipeline switch.
+            // This avoids recompiling pipeline permutations for different material variants.
+            if (extDynState) {
+                // Cull mode: Highlight uses no culling (wireframe lines), others cull back faces.
+                const vk::CullModeFlags dynCull = (cmd.type == MaterialType::Highlight || cmd.type == MaterialType::Plasma)
+                    ? vk::CullModeFlagBits::eNone
+                    : vk::CullModeFlagBits::eBack;
+                cb.setCullMode(dynCull);
+
+                // Front face: always counter-clockwise (GLM convention with Vulkan Y-flip).
+                cb.setFrontFace(vk::FrontFace::eCounterClockwise);
+
+                // Depth test: always enabled for opaque + transparent objects (skybox handled separately).
+                cb.setDepthTestEnable(VK_TRUE);
+
+                // Depth write: disabled for additive/alpha blends (Plasma, Particle, Highlight).
+                const bool depthWriteEnabled = (cmd.type == MaterialType::PBR
+                                             || cmd.type == MaterialType::Unlit
+                                             || cmd.type == MaterialType::Toon);
+                cb.setDepthWriteEnable(depthWriteEnabled ? VK_TRUE : VK_FALSE);
+
+                // Depth compare op: eLess for opaque, eAlways for special passes.
+                const vk::CompareOp dynDepthOp = (cmd.type == MaterialType::Highlight)
+                    ? vk::CompareOp::eAlways
+                    : vk::CompareOp::eLess;
+                cb.setDepthCompareOp(dynDepthOp);
+
+                // Primitive topology: Highlight uses line list, others triangle list.
+                const vk::PrimitiveTopology dynTopology = (cmd.type == MaterialType::Highlight)
+                    ? vk::PrimitiveTopology::eLineList
+                    : vk::PrimitiveTopology::eTriangleList;
+                cb.setPrimitiveTopology(dynTopology);
+            }
         }
 
         if (cmd.material != lastMaterial || pipelineChanged) {
@@ -770,11 +808,27 @@ void Renderer::drawScene(vk::CommandBuffer cb, Scene& scene, vk::ImageView color
 
 void Renderer::renderSkybox(vk::CommandBuffer cb, Scene& scene) {
     BB_GPU_ZONE(m_tracyGpuContext, m_context, cb, "Skybox Pass", DebugColor::SkyboxPass);
+
+    const bool extDynState = m_context.getEnabledFeatures().extendedDynamicState;
+
+    // Skybox / SkySphere: no culling, no depth write, depth compare always (drawn first at far plane)
+    auto applySkyboxDynamicState = [&]() {
+        if (extDynState) {
+            cb.setCullMode(vk::CullModeFlagBits::eNone);
+            cb.setFrontFace(vk::FrontFace::eCounterClockwise);
+            cb.setDepthTestEnable(VK_FALSE);
+            cb.setDepthWriteEnable(VK_FALSE);
+            cb.setDepthCompareOp(vk::CompareOp::eAlways);
+            cb.setPrimitiveTopology(vk::PrimitiveTopology::eTriangleList);
+        }
+    };
+
     auto skySphereView = scene.getRegistry().view<SkySphereComponent>();
     if (!skySphereView.empty()) {
         auto entity = skySphereView.front(); auto& sky = skySphereView.get<SkySphereComponent>(entity);
         if (sky.texture) {
             m_internalSkySphereMat->setTexture(sky.texture); auto& pipeline = m_pipelines[MaterialType::SkySphere]; pipeline->bind(cb);
+            applySkyboxDynamicState();
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
             vk::DescriptorSet ds = m_internalSkySphereMat->getDescriptorSet(m_descriptorPool, m_layouts[MaterialType::SkySphere]);
             cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 1, 1, &ds, 0, nullptr);
@@ -785,6 +839,7 @@ void Renderer::renderSkybox(vk::CommandBuffer cb, Scene& scene) {
     }
     if (scene.getSkybox()) {
         m_internalSkyboxMat->setCubemap(scene.getSkybox()); auto& pipeline = m_pipelines[MaterialType::Skybox]; pipeline->bind(cb);
+        applySkyboxDynamicState();
         cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
         vk::DescriptorSet ds = m_internalSkyboxMat->getDescriptorSet(m_descriptorPool, m_layouts[MaterialType::Skybox]);
         cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, pipeline->getLayout(), 1, 1, &ds, 0, nullptr);
@@ -1137,6 +1192,18 @@ void Renderer::renderShadows(vk::CommandBuffer cb, Scene& scene, GlobalUBO& uboD
     auto& shadowPipeline = m_pipelines[static_cast<MaterialType>(99)];
     cb.bindPipeline(vk::PipelineBindPoint::eGraphics, shadowPipeline->getHandle());
     cb.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, shadowPipeline->getLayout(), 0, 1, &m_globalDescriptorSets[m_currentFrame], 0, nullptr);
+
+    // Extended dynamic states for shadow pass:
+    // No backface culling (Peter Panning mitigation relies on depth bias, not culling).
+    // Depth test + write enabled with standard Less compare.
+    if (m_context.getEnabledFeatures().extendedDynamicState) {
+        cb.setCullMode(vk::CullModeFlagBits::eNone);
+        cb.setFrontFace(vk::FrontFace::eCounterClockwise);
+        cb.setDepthTestEnable(VK_TRUE);
+        cb.setDepthWriteEnable(VK_TRUE);
+        cb.setDepthCompareOp(vk::CompareOp::eLess);
+        cb.setPrimitiveTopology(vk::PrimitiveTopology::eTriangleList);
+    }
 
     // Dynamic depth bias (increased for 32-bit float depth stability)
     cb.setDepthBias(m_config.graphics.shadowDepthBiasConstant, 0.0f, m_config.graphics.shadowDepthBiasSlope);

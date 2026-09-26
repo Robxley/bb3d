@@ -87,6 +87,10 @@ public:
         bool runtimeDescriptorArray = false;
         bool descriptorBindingPartiallyBound = false;
         bool descriptorBindingVariableDescriptorCount = false;
+        /** @brief VK_EXT_extended_dynamic_state: enables setCullMode, setFrontFace,
+         *         setDepthTestEnable, setDepthWriteEnable, setDepthCompareOp,
+         *         setPrimitiveTopology on command buffers (Vulkan 1.3 Core commands). */
+        bool extendedDynamicState = false;
     };
 
     /** @brief Check negotiated API version (e.g. VK_API_VERSION_1_4 or VK_API_VERSION_1_3). */

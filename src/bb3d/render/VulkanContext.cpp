@@ -164,15 +164,17 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
             vk::PhysicalDeviceVulkan11Features,
             vk::PhysicalDeviceVulkan12Features,
             vk::PhysicalDeviceVulkan13Features,
-            vk::PhysicalDeviceVulkan14Features
+            vk::PhysicalDeviceVulkan14Features,
+            vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT
         > queryChain;
 
         m_physicalDevice.getFeatures2(&queryChain.get<vk::PhysicalDeviceFeatures2>());
 
-        const auto& supp10 = queryChain.get<vk::PhysicalDeviceFeatures2>().features;
-        const auto& supp12 = queryChain.get<vk::PhysicalDeviceVulkan12Features>();
-        const auto& supp13 = queryChain.get<vk::PhysicalDeviceVulkan13Features>();
-        const auto& supp14 = queryChain.get<vk::PhysicalDeviceVulkan14Features>();
+        const auto& supp10    = queryChain.get<vk::PhysicalDeviceFeatures2>().features;
+        const auto& supp12    = queryChain.get<vk::PhysicalDeviceVulkan12Features>();
+        const auto& supp13    = queryChain.get<vk::PhysicalDeviceVulkan13Features>();
+        const auto& supp14    = queryChain.get<vk::PhysicalDeviceVulkan14Features>();
+        const auto& suppExt   = queryChain.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
 
         // Required features check (hard-fail if not supported by hardware)
         if (!supp13.dynamicRendering || !supp13.synchronization2 || !supp12.timelineSemaphore) {
@@ -186,7 +188,8 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
             vk::PhysicalDeviceVulkan11Features,
             vk::PhysicalDeviceVulkan12Features,
             vk::PhysicalDeviceVulkan13Features,
-            vk::PhysicalDeviceVulkan14Features
+            vk::PhysicalDeviceVulkan14Features,
+            vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT
         > createChain;
 
         auto& dci = createChain.get<vk::DeviceCreateInfo>();
@@ -251,21 +254,32 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
             m_enabledFeatures.maintenance6 = true;
         }
 
+        // Extended Dynamic State (VK_EXT_extended_dynamic_state — always available on Vulkan 1.3+)
+        // The feature flag activates Vulkan 1.3 Core commands: setCullMode, setFrontFace,
+        // setDepthTestEnable, setDepthWriteEnable, setDepthCompareOp, setPrimitiveTopology.
+        if (suppExt.extendedDynamicState) {
+            auto& featExt = createChain.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
+            featExt.extendedDynamicState = VK_TRUE;
+            m_enabledFeatures.extendedDynamicState = true;
+        }
+
         m_device = m_physicalDevice.createDevice(createChain.get<vk::DeviceCreateInfo>());
     } else {
-        // Fallback Vulkan 1.3 chain
+        // Fallback Vulkan 1.3 chain (query includes EXT struct for feature detection)
         vk::StructureChain<
             vk::PhysicalDeviceFeatures2,
             vk::PhysicalDeviceVulkan11Features,
             vk::PhysicalDeviceVulkan12Features,
-            vk::PhysicalDeviceVulkan13Features
+            vk::PhysicalDeviceVulkan13Features,
+            vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT
         > queryChain;
 
         m_physicalDevice.getFeatures2(&queryChain.get<vk::PhysicalDeviceFeatures2>());
 
-        const auto& supp10 = queryChain.get<vk::PhysicalDeviceFeatures2>().features;
-        const auto& supp12 = queryChain.get<vk::PhysicalDeviceVulkan12Features>();
-        const auto& supp13 = queryChain.get<vk::PhysicalDeviceVulkan13Features>();
+        const auto& supp10  = queryChain.get<vk::PhysicalDeviceFeatures2>().features;
+        const auto& supp12  = queryChain.get<vk::PhysicalDeviceVulkan12Features>();
+        const auto& supp13  = queryChain.get<vk::PhysicalDeviceVulkan13Features>();
+        const auto& suppExt = queryChain.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
 
         if (!supp13.dynamicRendering || !supp13.synchronization2 || !supp12.timelineSemaphore) {
             throw std::runtime_error("VulkanContext: Required Vulkan 1.3 core features (DynamicRendering, Synchronization2, TimelineSemaphore) are not supported by the selected GPU!");
@@ -276,7 +290,8 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
             vk::PhysicalDeviceFeatures2,
             vk::PhysicalDeviceVulkan11Features,
             vk::PhysicalDeviceVulkan12Features,
-            vk::PhysicalDeviceVulkan13Features
+            vk::PhysicalDeviceVulkan13Features,
+            vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT
         > createChain;
 
         auto& dci = createChain.get<vk::DeviceCreateInfo>();
@@ -317,6 +332,15 @@ void VulkanContext::init(SDL_Window* window, std::string_view appName, bool enab
         if (supp13.maintenance4) {
             feat13.maintenance4 = VK_TRUE;
             m_enabledFeatures.maintenance4 = true;
+        }
+
+        // Extended Dynamic State (VK_EXT_extended_dynamic_state — always available on Vulkan 1.3+)
+        // Enables setCullMode, setFrontFace, setDepthTestEnable, setDepthWriteEnable,
+        // setDepthCompareOp, setPrimitiveTopology Vulkan 1.3 Core commands.
+        if (suppExt.extendedDynamicState) {
+            auto& featExt = createChain.get<vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT>();
+            featExt.extendedDynamicState = VK_TRUE;
+            m_enabledFeatures.extendedDynamicState = true;
         }
 
         m_device = m_physicalDevice.createDevice(createChain.get<vk::DeviceCreateInfo>());
